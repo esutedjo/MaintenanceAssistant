@@ -61,3 +61,11 @@ data_sources:
 thresholds:
   rul_cap_cycles: 125
   cycles_per_day: 2
+  # A and B disagree when more than this many cycles apart. A relative rule (25%) fired on 44% of the
+  # active fleet with no link to A's error; the absolute rule fires on 27% and flagged engines have higher A error.
+  rul_divergence_cycles: 20
+
+models:
+  directory: models/artifacts/turbofan_cmapss
+  rul_a: [rul_a.json, rul_a_p50.txt, rul_a_p10.txt, rul_a_p90.txt]
+  rul_b: rul_b.json

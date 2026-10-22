@@ -31,6 +31,7 @@ Copy-Item .env.example .env.local   # then fill in values; never commit .env.loc
 | `uv run task seed-telemetry [--target local]` | Load telemetry (RDS by default, as `loader`) |
 | `uv run task seed-cmms [--target local]` | Generate and load synthetic maintenance history, spares and schedule |
 | `uv run task register` | Refresh table metadata in Zetaris and count rows per table |
+| `uv run task train-rul` | Train remaining-life methods A (LightGBM with 10th/90th percentile models) and B (health index trend) on the historical engines; score them offline on the active fleet; save to `models/artifacts/turbofan_cmapss/` with `rul_report.json` |
 | `uv run task fmea` | Validate `asset_packs/turbofan_cmapss/fmea.csv` against the pack and parts catalogue; write `data/export/fmea.parquet` for upload to S3 `fmea/` |
 
 ## Data

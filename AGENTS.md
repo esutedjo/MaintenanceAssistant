@@ -99,7 +99,7 @@ class CaseFile(BaseModel):
 | Condition | Action |
 | --- | --- |
 | RUL lower bound < parts lead time + days to next free slot | Urgent; propose expedite, engine swap, derate |
-| RUL A vs B differ > 25% or > 20 cycles | Confidence low; recommend borescope inspection |
+| RUL A vs B differ > 20 cycles (`rul_divergence_cycles`) | Confidence low; recommend borescope inspection |
 | Two fault modes within 0.15 probability | Inspection targeting both modules |
 | Applicable document mandates an action | Shown first; agents cannot remove it |
 
@@ -132,6 +132,12 @@ Other datasets: FAA SDR (faa.gov/av-info/download_SDR), Kaggle aircraft maintena
 | Preprocessing | Drop constant sensors; per-regime normalisation; rolling mean/slope 10/30 cycles |
 | RUL A | LightGBM regression, target capped at 125; quantile models for 10th/90th interval |
 | RUL B | Health index (linear combination of degrading sensors) + exponential extrapolation to threshold |
+
+Status 22 Oct (`models/rul.py`, `uv run task train-rul`, artifacts and `rul_report.json` in `models/artifacts/turbofan_cmapss/`). Trained on 160 historical engines, 40 held out for early stopping; scored on the 200 active engines against the NASA RUL files (offline only):
+- A: RMSE 12.1, MAE 8.6; 10th–90th interval covers 73% (nominal 80%). Features use the 14 sensors that move under any failure mode.
+- B: RMSE 22.3, MAE 15.7; accurate near failure (RMSE ~7 when true RUL ≤ 25). Uses only the 9 sensors that move the same way under both failure modes, measured from each engine's own first 20 cycles (engines start with different wear). Returns the cap with a note when history < 20 cycles or the index is still inside the healthy fleet band (69 of 200 engines). Its range reflects threshold spread only and is narrow; show A's range in the brief.
+- Disagreement rule changed from "> 25% or > 20 cycles" to "> 20 cycles": the relative rule flagged 44% of engines with no link to A's error; the absolute rule flags 27% and flagged engines have A error 11.6 vs 7.5.
+- Inference input is the `cycles` rows of one asset from cycle 1 (B needs the full history; A needs the last 30 cycles). Values from Zetaris arrive as strings; `normalise` coerces them.
 | Drivers | SHAP on A, aggregated to sensors → components via asset pack |
 | Fault mode | Trend signature match vs FMEA; FD003 clustered into 2 groups → HPC / fan (proxy labels) |
 | Anomaly flag | Residual vs fleet-average trajectory at same cycle |

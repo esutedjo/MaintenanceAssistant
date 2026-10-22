@@ -1,0 +1,44 @@
+{
+ "trained_at": "2026-10-22T15:37:39+00:00",
+ "asset_pack_version": "0.1.0",
+ "train_engines": 160,
+ "holdout_engines": 40,
+ "rounds": 442,
+ "active_fleet": {
+  "rul_a": {
+   "engines": 200,
+   "rmse": 12.13,
+   "mae": 8.6,
+   "interval_coverage": 0.73,
+   "mean_interval_width": 32.7,
+   "not_fitted": 0
+  },
+  "rul_b": {
+   "engines": 200,
+   "rmse": 22.31,
+   "mae": 15.72,
+   "interval_coverage": 0.45,
+   "mean_interval_width": 13.9,
+   "not_fitted": 69
+  },
+  "a_b_divergence_share": 0.27
+ },
+ "health_index": {
+  "weights": {
+   "s_2": 0.0497,
+   "s_3": 0.0322,
+   "s_4": 0.1019,
+   "s_8": -0.0022,
+   "s_9": 0.0508,
+   "s_11": 0.1271,
+   "s_13": 0.0062,
+   "s_14": -0.0244,
+   "s_17": 0.038
+  },
+  "failure_thresholds": {
+   "p10": 0.85,
+   "p50": 1.112,
+   "p90": 1.377
+  }
+ }
+}
