@@ -50,6 +50,12 @@ class ZetarisClient:
         safe_sql = guard_select(sql, self._limit)
         return self._post(RUN_QUERY_PATH, {"sql": safe_sql, "limit": self._limit})
 
+    def register_tables(self, datasource: str) -> Any:
+        """Refresh Zetaris metadata after tables change in a source. Setup only; agents never call this."""
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", datasource):
+            raise ZetarisError(f"Invalid data source name: {datasource!r}")
+        return self._post(RUN_QUERY_PATH, {"sql": f"REGISTER DATASOURCE TABLES FROM {datasource}", "limit": 1})
+
     @retry(
         retry=retry_if_exception(_is_transient),
         stop=stop_after_attempt(3),
@@ -62,6 +68,8 @@ class ZetarisClient:
             raise ZetarisError(f"POST {path} returned an HTML page; check ZETARIS_BASE_URL.")
         if response.status_code in (401, 403):
             raise ZetarisError(f"POST {path} was refused (HTTP {response.status_code}); check the API token and org ID.")
+        if 400 <= response.status_code < 500:
+            raise ZetarisError(f"POST {path} failed (HTTP {response.status_code}): {response.text[:500]}")
         response.raise_for_status()
         return response.json()
 

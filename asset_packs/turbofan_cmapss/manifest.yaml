@@ -1,0 +1,61 @@
+asset_type: turbofan_cmapss
+version: 0.1.0
+description: Two-spool high-bypass turbofan simulated by NASA C-MAPSS (FD001, FD003). Sea-level operating condition.
+source: "Saxena, Goebel, Simon, Eklund (2008), Damage Propagation Modeling for Aircraft Engine Run-to-Failure Simulation, PHM08"
+
+components:
+  inlet: Fan inlet
+  fan: Fan and bypass duct
+  lpc: Low-pressure compressor
+  hpc: High-pressure compressor
+  combustor: Combustor
+  hpt: High-pressure turbine
+  lpt: Low-pressure turbine
+  engine: Whole engine
+  control: Engine control demands
+
+failure_modes:
+  hpc_degradation: {component: hpc, label: HPC degradation}
+  fan_degradation: {component: fan, label: Fan degradation}
+
+# direction: how the sensor moves as the fault grows (up | down | none).
+# Measured on the training sets: end-of-life minus start-of-life median, over within-unit noise.
+# FD003 units were split into the two modes by the sign of s_12 (s_7, s_20, s_21 agree on all 100 units).
+sensors:
+  s_1:  {name: T2,        unit: degR,    component: inlet,     description: Total temperature at fan inlet,          direction: {hpc_degradation: none, fan_degradation: none}}
+  s_2:  {name: T24,       unit: degR,    component: lpc,       description: Total temperature at LPC outlet,         direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_3:  {name: T30,       unit: degR,    component: hpc,       description: Total temperature at HPC outlet,         direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_4:  {name: T50,       unit: degR,    component: lpt,       description: Total temperature at LPT outlet,         direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_5:  {name: P2,        unit: psia,    component: inlet,     description: Pressure at fan inlet,                   direction: {hpc_degradation: none, fan_degradation: none}}
+  s_6:  {name: P15,       unit: psia,    component: fan,       description: Total pressure in bypass duct,           direction: {hpc_degradation: none, fan_degradation: none}}
+  s_7:  {name: P30,       unit: psia,    component: hpc,       description: Total pressure at HPC outlet,            direction: {hpc_degradation: down, fan_degradation: up}}
+  s_8:  {name: Nf,        unit: rpm,     component: fan,       description: Physical fan speed,                      direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_9:  {name: Nc,        unit: rpm,     component: hpc,       description: Physical core speed,                     direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_10: {name: epr,       unit: ratio,   component: engine,    description: Engine pressure ratio P50/P2,            direction: {hpc_degradation: none, fan_degradation: none}}
+  s_11: {name: Ps30,      unit: psia,    component: hpc,       description: Static pressure at HPC outlet,           direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_12: {name: phi,       unit: pps/psi, component: combustor, description: Ratio of fuel flow to Ps30,              direction: {hpc_degradation: down, fan_degradation: up}}
+  s_13: {name: NRf,       unit: rpm,     component: fan,       description: Corrected fan speed,                     direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_14: {name: NRc,       unit: rpm,     component: hpc,       description: Corrected core speed,                    direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_15: {name: BPR,       unit: ratio,   component: fan,       description: Bypass ratio,                            direction: {hpc_degradation: up,   fan_degradation: down}}
+  s_16: {name: farB,      unit: ratio,   component: combustor, description: Burner fuel-air ratio,                   direction: {hpc_degradation: none, fan_degradation: none}}
+  s_17: {name: htBleed,   unit: enthalpy, component: hpc,      description: Bleed enthalpy,                          direction: {hpc_degradation: up,   fan_degradation: up}}
+  s_18: {name: Nf_dmd,    unit: rpm,     component: control,   description: Demanded fan speed,                      direction: {hpc_degradation: none, fan_degradation: none}}
+  s_19: {name: PCNfR_dmd, unit: rpm,     component: control,   description: Demanded corrected fan speed,            direction: {hpc_degradation: none, fan_degradation: none}}
+  s_20: {name: W31,       unit: lbm/s,   component: hpt,       description: HPT coolant bleed,                       direction: {hpc_degradation: down, fan_degradation: up}}
+  s_21: {name: W32,       unit: lbm/s,   component: lpt,       description: LPT coolant bleed,                       direction: {hpc_degradation: down, fan_degradation: up}}
+
+data_sources:
+  telemetry: telemetry_pg.telemetry_long
+  cycles: telemetry_pg.cycles
+  assets: cmms_pg.assets
+  work_orders: cmms_pg.work_orders
+  findings: cmms_pg.findings
+  parts_replaced: cmms_pg.parts_replaced
+  parts: cmms_pg.planning_parts
+  stock: cmms_pg.planning_stock
+  hangar_slots: cmms_pg.planning_hangar_slots
+  flight_schedule: cmms_pg.planning_flight_schedule
+
+thresholds:
+  rul_cap_cycles: 125
+  cycles_per_day: 2

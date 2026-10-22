@@ -27,3 +27,11 @@ Copy-Item .env.example .env.local   # then fill in values; never commit .env.loc
 | `uv run task check` | Read-only connectivity check against RDS and Zetaris (live credentials required) |
 | `uv run task db-up` | Local Postgres 17 with pgvector on `127.0.0.1:5433`, databases `telemetry`, `cmms`, `knowledge` |
 | `uv run task db-down` | Stop local Postgres |
+| `uv run task download` | Download NASA C-MAPSS FD001/FD003 into `data/raw/` (not committed) |
+| `uv run task seed-telemetry [--target local]` | Load telemetry (RDS by default, as `loader`) |
+| `uv run task seed-cmms [--target local]` | Generate and load synthetic maintenance history, spares and schedule |
+| `uv run task register` | Refresh table metadata in Zetaris and count rows per table |
+
+## Data
+
+Telemetry is NASA C-MAPSS FD001 and FD003 (simulated): 200 historical engines run to failure and 200 active engines. Maintenance history, parts, stock, hangar slots and flight schedule are synthetic, generated from the degradation curves with a fixed seed.

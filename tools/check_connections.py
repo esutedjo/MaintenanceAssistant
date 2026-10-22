@@ -56,7 +56,7 @@ def main() -> int:
         _check_postgres("rds knowledge (loader)", settings.pg_db_knowledge, settings.pg_loader_user, loader_pw),
         _check_postgres("rds cmms (app_rw)", settings.pg_db_cmms, settings.pg_app_user, app_pw),
         _check_zetaris("SELECT 1 AS ok"),
-        _check_zetaris("SELECT COUNT(*) AS n FROM telemetry_pg.smoke"),
+        _check_zetaris("SELECT COUNT(*) AS n FROM telemetry_pg.cycles"),
     ]
     return 0 if all(results) else 1
 

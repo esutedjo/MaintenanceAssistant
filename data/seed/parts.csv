@@ -1,0 +1,21 @@
+part_number,description,component,failure_mode,lead_time_days,qty_on_hand,unit_cost_usd
+TF-HPC-1101,HPC stage 1-3 blade set,hpc,hpc_degradation,35,2,185000
+TF-HPC-1102,HPC stage 4-9 blade set,hpc,hpc_degradation,42,1,240000
+TF-HPC-1103,HPC variable stator vane bushing kit,hpc,hpc_degradation,14,6,8500
+TF-HPC-1104,HPC case abradable seal set,hpc,hpc_degradation,21,3,26000
+TF-FAN-2101,Fan blade set (24 blades),fan,fan_degradation,75,0,610000
+TF-FAN-2102,Fan blade (single),fan,fan_degradation,30,4,27000
+TF-FAN-2103,Fan case abradable liner,fan,fan_degradation,28,2,44000
+TF-FAN-2104,Fan blade platform seal kit,fan,fan_degradation,10,8,3200
+TF-LPC-3101,LPC blade set,lpc,,40,1,150000
+TF-HPT-4101,HPT stage 1 blade set,hpt,,60,1,520000
+TF-HPT-4102,HPT nozzle guide vane segment,hpt,,45,4,38000
+TF-LPT-5101,LPT stage 1 blade set,lpt,,50,1,210000
+TF-CMB-6101,Combustor liner,combustor,,55,1,96000
+TF-CMB-6102,Fuel nozzle,combustor,,12,20,7400
+TF-BRG-7101,No. 3 bearing,engine,,30,2,31000
+TF-GEN-8101,Borescope plug kit,engine,,5,25,450
+TF-GEN-8102,Engine gasket and O-ring kit,engine,,5,30,900
+TF-GEN-8103,Oil filter element,engine,,3,40,180
+TF-GEN-8104,Chip detector,engine,,7,12,1100
+TF-ENG-9001,Spare engine lease (per month),engine,,21,1,250000

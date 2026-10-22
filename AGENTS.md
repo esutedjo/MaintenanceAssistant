@@ -111,13 +111,16 @@ class CaseFile(BaseModel):
 
 | Source | Store | Content | Origin |
 | --- | --- | --- | --- |
-| Telemetry | Postgres db `telemetry` | C-MAPSS FD001/FD003: unit, cycle, 3 settings, 21 sensors; test-set true RUL | NASA (simulated) |
-| Maintenance | Postgres db `cmms` | Work orders, findings, parts replaced, notes | Generated from degradation curves; wording styled on FAA SDR |
-| Spares and schedule | Postgres db `cmms` (own schema) | ~20 part numbers, stock, lead times; hangar slots (2/day); flight schedule | Generated |
+| Telemetry | Postgres db `telemetry`: `cycles` (wide), `signals`, view `telemetry_long` (canonical) | C-MAPSS FD001/FD003: 400 engines, 3 settings, 21 sensors | NASA (simulated) |
+| Answer key | `telemetry.eval_ground_truth` | True RUL of the 200 active engines, proxy fault-mode labels | Eval only: SELECT revoked from `zetaris_ro` and `app_rw`; agents must never read it |
+| Maintenance | Postgres db `cmms`: `assets`, `work_orders`, `findings`, `parts_replaced` | Inspections every 60 cycles, line checks, removals at failure | Generated from degradation curves; wording styled on FAA SDR |
+| Spares and schedule | Postgres db `cmms`, tables prefixed `planning_` (`parts`, `stock`, `hangar_slots`, `flight_schedule`) | 20 part numbers, stock, lead times; hangar slots (2/day, 60 days); flight schedule (30 days) | Generated (`data/seed/parts.csv`) |
 | Failure-mode table | S3 CSV/Parquet + Zetaris semantic layer | component → failure mode → sensor signature → task → part | Hand-written from Saxena C-MAPSS paper |
 | Documents | Postgres db `knowledge` (pgvector) | Synthetic manual + service bulletin, SDR extracts; chunk metadata | Synthetic + FAA SDR |
 
 Canonical telemetry view: `asset_id, asset_type, cycle, ts, signal, value, unit, operating_regime`.
+
+Fleet model (`data/fleet.py`): training units are historical engines `FD00x-H###` removed at failure; test units are the active fleet `FD00x-A###`, whose last observed cycle is the reference time 2026-10-22 00:00 UTC. 2 cycles per day. FD003 proxy fault mode: phi (`s_12`) rising over life means fan degradation, falling means HPC (P30, W31, W32 agree on all 100 training units). Generation is seeded and deterministic. Reload with `uv run task download`, `seed-telemetry`, `seed-cmms`, `register` (add `--target local` to the two seed tasks for the Docker database).
 Label all generated data as synthetic in UI and README.
 
 Other datasets: FAA SDR (faa.gov/av-info/download_SDR), Kaggle aircraft maintenance logs (merishnasuwal), Microsoft Azure Predictive Maintenance (second asset type, stretch), Federal Register API for ADs (roadmap only).
@@ -163,7 +166,8 @@ Python uses a `ContextStore` interface with two implementations: `MeterlessStore
 - **S3** bucket `turbofan-hackathon-edwin` (private, SSE-S3), folders `fmea/`, `docs/`, `snapshots/`, `smoke/`. IAM user `zetaris-s3-reader` (GetObject/ListBucket on this bucket only) used by Zetaris. Uploads use the developer's own AWS profile.
 - **Registered Zetaris data sources:** `telemetry_pg`, `cmms_pg`, `knowledge_pg` (JDBC Postgres), file source `s3_files` (S3 CSV). Cross-source join Postgres × S3 verified.
 - Zetaris table addressing in SQL: `<datasource>.<table>`, e.g. `telemetry_pg.smoke`, `s3_files.smoke_s3`.
-- Smoke tables `smoke` (each DB) and `s3_files.smoke_s3` exist for testing; drop them after seeding.
+- Postgres `smoke` tables were dropped after seeding (22 Oct). `s3_files.smoke_s3` still exists.
+- `loader` has no CREATE on the databases, so everything lives in schema `public` (the Zetaris sources point at `public`).
 
 ### Zetaris SQL dialect notes (learned)
 - Create a JDBC source (one statement):
