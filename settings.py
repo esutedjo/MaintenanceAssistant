@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -13,7 +14,11 @@ class Settings(BaseSettings):
         env_file=ROOT / ".env.local", env_file_encoding="utf-8", extra="ignore"
     )
 
+    # Runs everything on committed snapshots, with no Zetaris, Nightshift or network access.
+    sample_mode: bool = False
     zetaris_mode: Literal["live", "snapshot"] = "snapshot"
+    # "Now" for planning: the active fleet's last observed cycle (see data/fleet.py).
+    reference_time: datetime = datetime(2026, 10, 22, tzinfo=timezone.utc)
 
     pg_host: str = "localhost"
     pg_port: int = 5432
@@ -30,6 +35,7 @@ class Settings(BaseSettings):
     zetaris_org_id: str = ""
     zetaris_api_key: SecretStr = SecretStr("")
     zetaris_query_limit: int = 1000
+    zetaris_timeout_s: float = 60.0
 
     context_store: Literal["meterless", "sqlite"] = "meterless"
     context_service_url: str = "http://127.0.0.1:8710"
