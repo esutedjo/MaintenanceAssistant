@@ -1,0 +1,6 @@
+CREATE DATABASE telemetry;
+CREATE DATABASE cmms;
+CREATE DATABASE knowledge;
+
+\connect knowledge
+CREATE EXTENSION IF NOT EXISTS vector;

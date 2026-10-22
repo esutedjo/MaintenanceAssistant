@@ -4,3 +4,9 @@
 *.pem
 *.key
 credentials.json
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/

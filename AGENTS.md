@@ -178,7 +178,9 @@ Python uses a `ContextStore` interface with two implementations: `MeterlessStore
 - Column names `snake_case`, no spaces (a CSV header `id, note` produced a column named ` note`). Prefer Parquet over CSV on S3 (schema and types stored in file).
 
 ### Agent access to Zetaris
-- Use the **REST API with a token** from *AI Data Gateway → API Tokens* (`ZETARIS_BASE_URL` = UI origin with no path, `ZETARIS_ORG_ID` = numeric ID, `ZETARIS_API_KEY` in `.env.local`; optional `ZETARIS_REST_URL` ending in `/api/v1.0`). These are the names the Zetaris getting-started scripts read. JDBC is the fallback. Confirm REST endpoint shape from Zetaris docs (github.com/zetaris/getting-started, docs/connections).
+- Use the **REST API with a token** from *AI Data Gateway → API Tokens* (`ZETARIS_BASE_URL` = UI origin with no path, `ZETARIS_ORG_ID` = numeric ID, `ZETARIS_API_KEY` in `.env.local`; optional `ZETARIS_REST_URL` ending in `/api/v1.0`). These are the names the Zetaris getting-started scripts read.
+- Verified 22 Oct: `POST {ZETARIS_BASE_URL}/api/proxy/sql-editor/sqls/run-query`, JSON body `{"sql", "limit"}`, headers `Authorization: Bearer <api key>`, `X-Org-ID`, `X-Request-ID` (UUID). Response keys: `data`, `headers`, `timeUsed`, `total`. Client: `tools/zetaris.py` (all SQL passes `assurance/sql_guard.py`).
+- Developer machine sits behind a TLS-inspecting proxy: Python HTTP clients use `truststore` (Windows certificate store), and `uv` needs `UV_SYSTEM_CERTS=1`. Never disable certificate verification. JDBC is the fallback. Confirm REST endpoint shape from Zetaris docs (github.com/zetaris/getting-started, docs/connections).
 
 ## 12. Repository layout
 
@@ -225,7 +227,6 @@ Verdict line first (action, deadline, confidence, escalation in red); metric row
 
 ## 16. Open questions
 
-- Zetaris REST API: exact endpoint and request format for executing SQL with an API token (check getting-started repo / Zetaris Help channel).
 - Does the Meterless agentathon starter wire H-MEM and World Model as a service?
 - Main LLM choice for planner (Claude or GPT).
 - Do judges need a live Zetaris endpoint during judging (28 Oct–6 Nov)? Snapshot mode must work regardless.
