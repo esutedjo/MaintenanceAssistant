@@ -167,6 +167,8 @@ Python uses a `ContextStore` interface with two implementations: `MeterlessStore
 - **Registered Zetaris data sources:** `telemetry_pg`, `cmms_pg`, `knowledge_pg` (JDBC Postgres), file source `s3_files` (S3 CSV). Cross-source join Postgres × S3 verified.
 - Zetaris table addressing in SQL: `<datasource>.<table>`, e.g. `telemetry_pg.smoke`, `s3_files.smoke_s3`.
 - Postgres `smoke` tables were dropped after seeding (22 Oct). `s3_files.smoke_s3` still exists.
+- `s3_files.fmea` (16 rows) is registered from `s3://turbofan-hackathon-edwin/fmea/fmea.parquet`, built by `uv run task fmea` from `asset_packs/turbofan_cmapss/fmea.csv`. Join to `cmms_pg.planning_parts` / `planning_stock` on `part_number` verified (~2 s).
+- S3 file tables are registered one file at a time in the Zetaris UI (no `REGISTER DATASOURCE TABLES`). The form's access key and secret are the IAM access key pair of `zetaris-s3-reader`, not a database login; a wrong key shows as `403 Forbidden` on `getFileStatus`.
 - `loader` has no CREATE on the databases, so everything lives in schema `public` (the Zetaris sources point at `public`).
 - `cmms_pg` was recreated on 22 Oct (stale `zetaris_ro` password). All 11 seeded tables are registered; `uv run task register` re-imports and counts them.
 - Latency: a cross-source join (`cmms_pg.assets` × `telemetry_pg.cycles` × `cmms_pg.work_orders`) took ~13 s in Zetaris and ~45 s end to end. Filter by `asset_id` in SQL, keep queries narrow, and cache results to stay inside the 120 s run budget.

@@ -17,6 +17,7 @@ components:
 failure_modes:
   hpc_degradation: {component: hpc, label: HPC degradation}
   fan_degradation: {component: fan, label: Fan degradation}
+failure_modes_csv: fmea.csv
 
 # direction: how the sensor moves as the fault grows (up | down | none).
 # Measured on the training sets: end-of-life minus start-of-life median, over within-unit noise.
@@ -55,6 +56,7 @@ data_sources:
   stock: cmms_pg.planning_stock
   hangar_slots: cmms_pg.planning_hangar_slots
   flight_schedule: cmms_pg.planning_flight_schedule
+  fmea: s3_files.fmea
 
 thresholds:
   rul_cap_cycles: 125

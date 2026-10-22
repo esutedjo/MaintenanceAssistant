@@ -9,7 +9,10 @@ CHECKS = {
     "telemetry_pg": ["cycles", "signals", "telemetry_long"],
     "cmms_pg": ["assets", "work_orders", "findings", "parts_replaced", "planning_parts", "planning_stock",
                 "planning_hangar_slots", "planning_flight_schedule"],
+    "s3_files": ["fmea"],
 }
+# File sources are registered per file in the Zetaris UI; only JDBC sources can re-import their tables.
+JDBC_SOURCES = {"telemetry_pg", "cmms_pg"}
 
 
 def main() -> int:
@@ -17,8 +20,9 @@ def main() -> int:
     ok = True
     try:
         for source, tables in CHECKS.items():
-            client.register_tables(source)
-            print(f"registered tables from {source}")
+            if source in JDBC_SOURCES:
+                client.register_tables(source)
+                print(f"registered tables from {source}")
             for table in tables:
                 try:
                     result = client.run_select(f"SELECT COUNT(*) AS n FROM {source}.{table}")

@@ -31,7 +31,8 @@ Copy-Item .env.example .env.local   # then fill in values; never commit .env.loc
 | `uv run task seed-telemetry [--target local]` | Load telemetry (RDS by default, as `loader`) |
 | `uv run task seed-cmms [--target local]` | Generate and load synthetic maintenance history, spares and schedule |
 | `uv run task register` | Refresh table metadata in Zetaris and count rows per table |
+| `uv run task fmea` | Validate `asset_packs/turbofan_cmapss/fmea.csv` against the pack and parts catalogue; write `data/export/fmea.parquet` for upload to S3 `fmea/` |
 
 ## Data
 
-Telemetry is NASA C-MAPSS FD001 and FD003 (simulated): 200 historical engines run to failure and 200 active engines. Maintenance history, parts, stock, hangar slots and flight schedule are synthetic, generated from the degradation curves with a fixed seed.
+Telemetry is NASA C-MAPSS FD001 and FD003 (simulated): 200 historical engines run to failure and 200 active engines. Maintenance history, parts, stock, hangar slots and flight schedule are synthetic, generated from the degradation curves with a fixed seed. The failure-mode table (FMEA) is hand-written and synthetic; the fault physics follow Saxena et al. (2008).
