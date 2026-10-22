@@ -168,6 +168,8 @@ Python uses a `ContextStore` interface with two implementations: `MeterlessStore
 - Zetaris table addressing in SQL: `<datasource>.<table>`, e.g. `telemetry_pg.smoke`, `s3_files.smoke_s3`.
 - Postgres `smoke` tables were dropped after seeding (22 Oct). `s3_files.smoke_s3` still exists.
 - `loader` has no CREATE on the databases, so everything lives in schema `public` (the Zetaris sources point at `public`).
+- `cmms_pg` was recreated on 22 Oct (stale `zetaris_ro` password). All 11 seeded tables are registered; `uv run task register` re-imports and counts them.
+- Latency: a cross-source join (`cmms_pg.assets` × `telemetry_pg.cycles` × `cmms_pg.work_orders`) took ~13 s in Zetaris and ~45 s end to end. Filter by `asset_id` in SQL, keep queries narrow, and cache results to stay inside the 120 s run budget.
 
 ### Zetaris SQL dialect notes (learned)
 - Create a JDBC source (one statement):
