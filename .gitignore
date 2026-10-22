@@ -13,3 +13,5 @@ node_modules/
 data/raw/
 data/export/
 .scratch/
+.state/
+logs/

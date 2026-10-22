@@ -1,0 +1,17 @@
+{
+  "name": "maintenance-context-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Meterless World Model and H-MEM engines behind a local REST API for the maintenance agents.",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "test": "tsx --test src/*.test.ts",
+    "conformance": "node scripts/conformance.mjs"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0"
+  }
+}

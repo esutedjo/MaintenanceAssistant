@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 import httpx
+import pandas as pd
 import truststore
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
@@ -15,6 +16,11 @@ RUN_QUERY_PATH = "/api/proxy/sql-editor/sqls/run-query"
 
 class ZetarisError(RuntimeError):
     pass
+
+
+def rows_to_frame(result: dict[str, Any]) -> pd.DataFrame:
+    """Zetaris returns every value as a string; callers convert the columns they use."""
+    return pd.DataFrame(result.get("data") or [], columns=result.get("headers") or None)
 
 
 def _is_transient(error: BaseException) -> bool:

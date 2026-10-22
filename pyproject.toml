@@ -35,12 +35,15 @@ testpaths = ["tests"]
 
 [tool.taskipy.tasks]
 check = "python -m tools.check_connections"
+check-llm = "python -m tools.check_llm"
 download = "python -m data.download_cmapss"
 seed-telemetry = "python -m data.load_telemetry"
 seed-cmms = "python -m data.generate_cmms"
 register = "python -m data.register_zetaris"
 fmea = "python -m data.build_fmea"
 train-rul = "python -m models.train_rul"
+load-context = "python -m casefile.load_context"
+context-service = "npm --prefix context-service start"
 test = "pytest -q"
 db-up = "docker compose up -d postgres"
 db-down = "docker compose down"
