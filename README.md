@@ -139,7 +139,7 @@ Writes `evaluation/report.md` and `report.json`. Results from the committed snap
 
 - **Zetaris:** all structured reads go through the AI Data Gateway REST SQL API (`tools/zetaris.py`), guarded to `SELECT` only. Snapshot fallback when it is down.
 - **Meterless:** (1) Nightshift is the primary model provider (`tools/llm.py`). (2) World Model and H-MEM run in `context-service/`, wrapping the official reference engines.
-- **NVIDIA:** Nemotron is the critic model, reached through Nightshift (the NVIDIA key lives in Nightshift Providers, not in this app). The critic calls Nightshift as a separate app whose Judge lane is pinned to Nemotron, so the critic is a different model family from the planner.
+- **NVIDIA:** the critic calls Nightshift as a separate app whose lane is pinned to an NVIDIA Nemotron model, so it is a different model family from the planner (the NVIDIA key lives in Nightshift Providers, not in this app). Status 23 Oct: none of the hosted Nemotron models we tried returned a critic verdict. Super VL 120B answers short prompts but not the critic prompt within Nightshift's 45 s provider limit; Lightning 30B returns empty responses; Nemotron 3 Nano 30B and Llama 3.3 Nemotron Super 49B are retired (HTTP 410). The deterministic critic checks carry the verdict, and the brief says `LLM critic unavailable`.
 - **Cursor:** this repository was developed in Cursor.
 
 ## Pre-existing components

@@ -253,5 +253,5 @@ Verdict line first (action, deadline, confidence, escalation in red); metric row
 
 ## 16. Open questions
 
-- Nemotron critic lane: the NVIDIA key is in Nightshift and the critic app has a Judge lane. Nemotron 3.5 Lightning 30B A3B returned `502 provider_error ..._empty_response` even for "Reply with OK"; the Super VL 120B lane answered short prompts but timed out on the critic prompt. Next: try `nvidia/nemotron-3-super-120b-a12b` in the lane. Until it answers, live critic runs are deterministic-only and flagged.
+- Nemotron critic lane (lane id `nemotron`, critic app policy `lanes: ["nemotron"]`): no hosted Nemotron returned a critic verdict on 23 Oct. Lightning 30B A3B: empty response even for "Reply with OK". Super VL 120B: answers short prompts; on the critic prompt it reasons past Nightshift's ~45 s provider limit (larger max_tokens, `/no_think` and a compact prompt did not help). Nemotron 3 Super 120B: 404 not entitled for the account. Nano 30B A3B and Llama 3.3 Nemotron Super 49B v1.5: 410 end of life. Live critic runs are deterministic-only and flagged until a lane answers.
 - Do judges need a live Zetaris endpoint during judging (28 Oct–6 Nov)? `SAMPLE_MODE=true` must work regardless (it does).
