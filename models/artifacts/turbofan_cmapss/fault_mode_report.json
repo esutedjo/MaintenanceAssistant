@@ -1,0 +1,21 @@
+{
+ "temperature": 0.0659,
+ "calibration_historical_fd003": {
+  "cases": 800,
+  "accuracy": 0.965,
+  "log_loss": 0.081,
+  "ambiguous_share": 0.015
+ },
+ "active_fd003_all": {
+  "cases": 100,
+  "accuracy": 0.97,
+  "log_loss": 0.094,
+  "ambiguous_share": 0.01
+ },
+ "active_fd003_degraded": {
+  "cases": 66,
+  "accuracy": 1.0,
+  "log_loss": 0.0,
+  "ambiguous_share": 0.0
+ }
+}

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
+    "langgraph>=1.2.16",
     "lightgbm>=4.7.0",
     "pandas>=2.2",
     "psycopg[binary]>=3.2",
@@ -42,6 +43,8 @@ seed-cmms = "python -m data.generate_cmms"
 register = "python -m data.register_zetaris"
 fmea = "python -m data.build_fmea"
 snapshot = "python -m data.build_snapshot"
+train-fault-mode = "python -m models.train_fault_mode"
+train-anomaly = "python -m models.train_anomaly"
 train-rul = "python -m models.train_rul"
 load-context = "python -m casefile.load_context"
 context-service = "npm --prefix context-service start"

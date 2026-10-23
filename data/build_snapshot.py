@@ -1,6 +1,6 @@
 """Build data/snapshot: the Parquet extracts sample mode runs on. Regenerated from the same seeded generators that
-loaded Postgres (needs `uv run task download`), active fleet only, no answer key. --verify compares a few engines
-with what Zetaris serves.
+loaded Postgres (needs `uv run task download`): active fleet only, plus the historical removals that seed case
+memory; no answer key. --verify compares a few engines with what Zetaris serves.
 Run: uv run task snapshot [--verify]"""
 
 import argparse
@@ -9,6 +9,7 @@ import sys
 import numpy as np
 import pandas as pd
 
+from casefile.load_context import removals_from_history
 from data.build_fmea import build as build_fmea
 from data.db import load_pack
 from data.fleet import SEED, build_fleet
@@ -37,6 +38,7 @@ def build_tables() -> dict[str, pd.DataFrame]:
     fmea = build_fmea()[["fmea_id", "failure_mode", "task", "task_type", "trigger_severity", "part_number", "qty"]]
     fmea = fmea.merge(parts[["part_number", "qty_on_hand", "qty_reserved", "lead_time_days"]], on="part_number", how="left")
     slots = planning["hangar_slots"]
+    removals, first_warnings = removals_from_history(wo, history["findings"])
 
     return {
         "assets": registry,
@@ -46,6 +48,8 @@ def build_tables() -> dict[str, pd.DataFrame]:
         "hangar_slots": slots.loc[slots.status == "free", ["slot_date", "slot_no"]],
         "flight_schedule": planning["flight_schedule"],
         "fmea_tasks": fmea[FMEA_COLUMNS],
+        "removals": removals,
+        "first_warnings": first_warnings,
     }
 
 

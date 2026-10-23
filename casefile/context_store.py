@@ -214,7 +214,8 @@ class SqliteStore(ContextStore):
     def __init__(self, path: Path | str):
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(str(path))
+        # Parallel graph nodes run on worker threads; the sqlite3 module is built serialized (threadsafety 3).
+        self._db = sqlite3.connect(str(path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
 
@@ -341,7 +342,7 @@ class SqliteStore(ContextStore):
 def open_context_store(settings: Settings) -> ContextStore:
     """Meterless when configured and reachable; otherwise SQLite, with the reason kept for the decision brief."""
     sqlite_path = settings.context_sqlite_path
-    if settings.context_store == "sqlite":
+    if settings.context_store == "sqlite" or settings.sample_mode:
         return SqliteStore(sqlite_path)
     store = MeterlessStore(settings.context_service_url)
     try:

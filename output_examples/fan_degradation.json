@@ -1,0 +1,378 @@
+{
+ "run_id": "20261023T073432Z-87e9b6",
+ "status": "needs_review",
+ "question": "How long can FD003-A100 keep flying and what is wrong with it?",
+ "mode": {
+  "sample_mode": true,
+  "data": "snapshot",
+  "context_store": "sqlite"
+ },
+ "degraded": [],
+ "asset": {
+  "asset_id": "FD003-A100",
+  "asset_type": "turbofan_cmapss",
+  "pack_version": "0.1.0",
+  "variant": "FD003"
+ },
+ "intent": {
+  "goal": "full_assessment",
+  "asset_id": "FD003-A100",
+  "horizon_days": null,
+  "needs_clarification": false,
+  "clarification": null
+ },
+ "findings": {
+  "rul_ml": {
+   "method": "lightgbm",
+   "rul": 26.7,
+   "lower": 21.7,
+   "upper": 125.0,
+   "at_cap": false,
+   "note": null,
+   "evidence_id": "EV-PRG-01"
+  },
+  "rul_trend": {
+   "method": "health_index",
+   "rul": 9.6,
+   "lower": 2.9,
+   "upper": 14.8,
+   "at_cap": false,
+   "note": null,
+   "evidence_id": "EV-PRG-02"
+  },
+  "fault_modes": [
+   {
+    "failure_mode": "fan_degradation",
+    "probability": 1.0,
+    "evidence_id": "EV-DIA-01"
+   },
+   {
+    "failure_mode": "hpc_degradation",
+    "probability": 0.0,
+    "evidence_id": "EV-DIA-01"
+   }
+  ],
+  "drivers": [
+   {
+    "sensor": "s_9",
+    "component": "hpc",
+    "contribution": -14.73,
+    "evidence_id": "EV-PRG-03"
+   },
+   {
+    "sensor": "s_14",
+    "component": "hpc",
+    "contribution": -9.89,
+    "evidence_id": "EV-PRG-03"
+   },
+   {
+    "sensor": "s_17",
+    "component": "hpc",
+    "contribution": -7.74,
+    "evidence_id": "EV-PRG-03"
+   },
+   {
+    "sensor": "s_3",
+    "component": "hpc",
+    "contribution": -5.98,
+    "evidence_id": "EV-PRG-03"
+   },
+   {
+    "sensor": "s_13",
+    "component": "fan",
+    "contribution": -4.84,
+    "evidence_id": "EV-PRG-03"
+   }
+  ],
+  "anomaly": {
+   "cycle": 247,
+   "health_index": 0.604,
+   "fleet_median": 0.319,
+   "residual_sigma": 1.33,
+   "flagged": false,
+   "evidence_id": "EV-PRG-04"
+  },
+  "similar_cases": [
+   "EV-DIA-02",
+   "EV-DIA-03",
+   "EV-DIA-04"
+  ],
+  "claims": [
+   {
+    "text": "Remaining useful life is about 27 cycles (10th-90th percentile 22-125) by the ML model; the health-index trend gives 10.",
+    "evidence_ids": [
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "Most likely fault mode: Fan degradation (probability 1.00).",
+    "evidence_ids": [
+     "EV-DIA-01"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Sensors pulling the RUL estimate down most: Nc (hpc), NRc (hpc), htBleed (hpc).",
+    "evidence_ids": [
+     "EV-PRG-03"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "3 similar past removals found in case memory.",
+    "evidence_ids": [
+     "EV-DIA-02",
+     "EV-DIA-03",
+     "EV-DIA-04"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "Sensors that distinguish Fan degradation from the other candidate are P30, phi, BPR, W31, W32 (not the SHAP drivers, which move under both modes).",
+    "evidence_ids": [
+     "EV-DIA-01"
+    ],
+    "confidence": "medium"
+   }
+  ]
+ },
+ "recommendation": {
+  "action": "Remove engine; replace fan blade set and case abradable liner",
+  "task_ids": [
+   "FM-FAN-03"
+  ],
+  "parts": [
+   {
+    "part_number": "TF-FAN-2101",
+    "qty": 1,
+    "available": 0,
+    "lead_time_days": 75,
+    "evidence_ids": [
+     "EV-MNT-04"
+    ]
+   },
+   {
+    "part_number": "TF-FAN-2103",
+    "qty": 1,
+    "available": 2,
+    "lead_time_days": 28,
+    "evidence_ids": [
+     "EV-MNT-04"
+    ]
+   },
+   {
+    "part_number": "TF-GEN-8102",
+    "qty": 1,
+    "available": 30,
+    "lead_time_days": 5,
+    "evidence_ids": [
+     "EV-MNT-04"
+    ]
+   }
+  ],
+  "slot": "2026-10-23",
+  "deadline": "2026-10-23",
+  "rationale": [
+   {
+    "text": "Deadline 2026-10-23 is the RUL lower bound 3 cycles at 2 cycles/day.",
+    "evidence_ids": [
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "FMEA task FM-FAN-03: Remove engine; replace fan blade set and case abradable liner.",
+    "evidence_ids": [
+     "EV-MNT-03"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Primary fault mode Fan degradation (p=1.00).",
+    "evidence_ids": [
+     "EV-DIA-01"
+    ],
+    "confidence": "high"
+   }
+  ],
+  "confidence": "high"
+ },
+ "escalations": [
+  {
+   "rule": "rul_below_lead_time",
+   "severity": "urgent",
+   "message": "RUL lower bound is 1.4 days; parts lead time 75 d plus next free slot 1 d.",
+   "actions": [
+    "Propose expedite",
+    "Propose engine swap",
+    "Propose derate"
+   ],
+   "evidence_ids": [
+    "EV-PRG-01",
+    "EV-PRG-02",
+    "EV-DAT-04",
+    "EV-MNT-04",
+    "EV-MNT-04",
+    "EV-MNT-04"
+   ]
+  }
+ ],
+ "verdicts": [
+  {
+   "round": 1,
+   "gate": "rule_checks",
+   "outcome": "accept",
+   "gaps": [],
+   "model": null
+  },
+  {
+   "round": 1,
+   "gate": "critic",
+   "outcome": "revise",
+   "gaps": [
+    "RUL drivers listed are Nc, NRc, htBleed, which move under every failure mode. The sensors that distinguish fan_degradation are phi, BPR, W31, W32, P30."
+   ],
+   "model": null
+  },
+  {
+   "round": 2,
+   "gate": "rule_checks",
+   "outcome": "accept",
+   "gaps": [],
+   "model": null
+  },
+  {
+   "round": 2,
+   "gate": "critic",
+   "outcome": "accept",
+   "gaps": [],
+   "model": null
+  }
+ ],
+ "evidence": {
+  "EV-DAT-01": {
+   "kind": "query",
+   "source": "snapshot:cycles.parquet",
+   "summary": "FD003-A100: 247 cycles (1-247); largest moves vs first 20 cycles: phi +16.9 sd, P30 +15.7 sd, Nc +12.8 sd",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-02": {
+   "kind": "query",
+   "source": "snapshot:history.parquet",
+   "summary": "FD003-A100: 5 work orders; last inspection WO-001577 at cycle 240 severity moderate; 2 inspection(s) with findings",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-03": {
+   "kind": "query",
+   "source": "snapshot:flight_schedule.parquet",
+   "summary": "FD003-A100: 12 cycles planned in 7 days, 58 in 30 days",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-04": {
+   "kind": "query",
+   "source": "snapshot:hangar_slots.parquet",
+   "summary": "75 free hangar slots; first on 2026-10-23 (1 days from 2026-10-22)",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DIA-01": {
+   "kind": "model",
+   "source": "model:fault_mode@turbofan_cmapss/0.1.0",
+   "summary": "Fault-mode match: fan_degradation 1.00, hpc_degradation 0.00 on phi +3.7 sd, BPR -2.3 sd, W31 +2.2 sd, W32 +1.9 sd, P30 +3.7 sd",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-02": {
+   "kind": "case",
+   "source": "sqlite:cmms:work_orders/WO-001133",
+   "summary": "Past case FD003-H072 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 232; first moderate finding at cycle 232, 0 cycles before removal. Shop finding: ENGINE REMOVED UNSCHEDULED AT 232 CYC FOR PERFORMANCE DETERIORATI",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-03": {
+   "kind": "case",
+   "source": "sqlite:cmms:work_orders/WO-000713",
+   "summary": "Past case FD003-H002 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 253; first moderate finding at cycle 240, 13 cycles before removal. Shop finding: ENGINE REMOVED UNSCHEDULED AT 253 CYC FOR PERFORMANCE DETERIORAT",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-04": {
+   "kind": "case",
+   "source": "sqlite:cmms:work_orders/WO-000747",
+   "summary": "Past case FD003-H007 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 424; first moderate finding at cycle 300, 124 cycles before removal. Shop finding: ENGINE REMOVED UNSCHEDULED AT 424 CYC FOR PERFORMANCE DETERIORA",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-INT-01": {
+   "kind": "query",
+   "source": "snapshot:assets.parquet",
+   "summary": "FD003-A100 (ESN-700400, FD003) is active; last observed cycle 247 at 2026-10-22T00:00:00+00:00",
+   "produced_by": "intake",
+   "degraded": null
+  },
+  "EV-MNT-01": {
+   "kind": "query",
+   "source": "snapshot:fmea_tasks.parquet",
+   "summary": "fan_degradation: 4 FMEA tasks; FM-FAN-01 inspect (minor); FM-FAN-02 replace (moderate); FM-FAN-03 replace (severe), short: TF-FAN-2101; FM-FAN-04 engine_change (severe)",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-02": {
+   "kind": "query",
+   "source": "snapshot:parts.parquet",
+   "summary": "TF-FAN-2101 0 available, lead time 75 d; TF-FAN-2103 2 available, lead time 28 d; TF-GEN-8102 30 available, lead time 5 d",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-03": {
+   "kind": "query",
+   "source": "snapshot:fmea_tasks.parquet",
+   "summary": "fan_degradation: 4 FMEA tasks; FM-FAN-01 inspect (minor); FM-FAN-02 replace (moderate); FM-FAN-03 replace (severe), short: TF-FAN-2101; FM-FAN-04 engine_change (severe)",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-04": {
+   "kind": "query",
+   "source": "snapshot:parts.parquet",
+   "summary": "TF-FAN-2101 0 available, lead time 75 d; TF-FAN-2103 2 available, lead time 28 d; TF-GEN-8102 30 available, lead time 5 d",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-PRG-01": {
+   "kind": "model",
+   "source": "model:rul_a@turbofan_cmapss/0.1.0",
+   "summary": "RUL A (LightGBM): 27 cycles, 10th-90th 22-125 at cycle 247",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-02": {
+   "kind": "model",
+   "source": "model:rul_b@turbofan_cmapss/0.1.0",
+   "summary": "RUL B (health-index trend): 10 cycles, health index 0.60 (healthy band up to 0.18)",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-03": {
+   "kind": "model",
+   "source": "model:shap_rul_a@turbofan_cmapss/0.1.0",
+   "summary": "Sensors pulling RUL A down, in cycles: Nc (hpc) -14.7, NRc (hpc) -9.9, htBleed (hpc) -7.7, T30 (hpc) -6.0, NRf (fan) -4.8",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-04": {
+   "kind": "model",
+   "source": "model:anomaly@turbofan_cmapss/0.1.0",
+   "summary": "Health index 0.60 is +1.3 sd from the fleet median 0.32 at cycle 247 (flag at +2 sd)",
+   "produced_by": "prognostics",
+   "degraded": null
+  }
+ },
+ "trace_file": "logs\\trace-20261023T073432Z-87e9b6.jsonl",
+ "duration_s": 0.25
+}

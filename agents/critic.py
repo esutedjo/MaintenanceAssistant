@@ -1,0 +1,121 @@
+"""Evidence critic: try to disprove the brief. Deterministic checks always run (sample mode included).
+An LLM pass is added when Nightshift is available and SAMPLE_MODE is off. The critic never writes the recommendation."""
+
+import json
+import re
+
+from agents.runtime import NodeResult, RunContext, node
+from casefile.schemas import CaseFile, MAX_ROUNDS, Verdict
+from models.fault_mode import discriminating
+from tools.llm import LlmClient, LlmRefusal, LlmUnavailable
+
+
+def _family(model: str) -> str:
+    name = (model or "").lower()
+    if "nemotron" in name or name.startswith("nvidia/"):
+        return "nvidia"
+    if "claude" in name or "anthropic" in name:
+        return "anthropic"
+    if "gpt" in name or "openai" in name:
+        return "openai"
+    return name.split("/")[0] or "unknown"
+
+
+def drivers_vs_fault(case: CaseFile, pack: dict) -> str | None:
+    """SHAP drivers are often common-trend sensors; they must not be presented as the fault-mode signature."""
+    if any("distinguish" in c.text.lower() for c in case.findings.claims):
+        return None
+    modes, drivers = case.findings.fault_modes, case.findings.drivers
+    if not modes or not drivers or case.asset is None:
+        return None
+    variants = pack["variants"].get(case.asset.variant or "", [modes[0].failure_mode])
+    if len(variants) < 2:
+        return None
+    disc = set(discriminating(pack, variants).get(modes[0].failure_mode, {}))
+    if disc and {d.sensor for d in drivers}.isdisjoint(disc):
+        names = ", ".join(pack["sensors"][s]["name"] for s in sorted(disc))
+        driver_names = ", ".join(pack["sensors"][d.sensor]["name"] for d in drivers[:3])
+        return (f"RUL drivers listed are {driver_names}, which move under every failure mode. "
+                f"The sensors that distinguish {modes[0].failure_mode} are {names}.")
+    return None
+
+
+def similar_cases_if_degraded(case: CaseFile) -> str | None:
+    b = case.findings.rul_trend
+    if b is None:
+        return None
+    note = (case.evidence.get(b.evidence_id) or type("E", (), {"content": {}})()).content
+    if note.get("degradation_detected") and not case.findings.similar_cases:
+        return "Degradation is detected but no similar past cases were attached."
+    return None
+
+
+def deterministic_gaps(case: CaseFile, pack: dict) -> list[str]:
+    return [g for g in (drivers_vs_fault(case, pack), similar_cases_if_degraded(case)) if g]
+
+
+def _parse(text: str) -> dict:
+    match = re.search(r"\{.*\}", text, re.S)
+    if not match:
+        raise ValueError("critic returned no JSON object")
+    data = json.loads(match.group())
+    outcome = data.get("outcome")
+    if outcome not in {"accept", "revise", "reject"}:
+        raise ValueError(f"invalid critic outcome {outcome!r}")
+    gaps = [str(g) for g in data.get("gaps") or []]
+    return {"outcome": outcome, "gaps": gaps}
+
+
+def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, str | None]:
+    """Returns (gaps, model_name, error_note). Empty model_name means the LLM was not called."""
+    if ctx.settings.sample_mode:
+        return [], None, None
+    evidence_lines = "\n".join(f"- {e.id} [{e.kind}] {e.summary}" for e in case.evidence.values())
+    claims = "\n".join(f"- {c.confidence}: {c.text} ({', '.join(c.evidence_ids)})" for c in case.findings.claims)
+    rec = case.recommendation
+    rec_text = rec.action if rec else "(none)"
+    prompt = (
+        "You are an independent evidence critic for a turbofan maintenance brief. Try to DISPROVE it.\n"
+        "Do not invent numbers. Only refer to the evidence summaries below.\n"
+        "Return JSON only: {\"outcome\": \"accept\"|\"revise\"|\"reject\", \"gaps\": [\"...\"]}.\n"
+        "revise = specific missing evidence or a contradiction; reject = the recommendation is unsafe given the evidence.\n"
+        f"Question: {case.question}\nAsset: {case.asset.asset_id if case.asset else None}\n"
+        f"Recommendation: {rec_text}\nClaims:\n{claims}\nEvidence:\n{evidence_lines}\n"
+    )
+    client = LlmClient(ctx.settings)
+    try:
+        reply = client.chat([{"role": "user", "content": prompt}], model=ctx.settings.meterless_critic_model,
+                            temperature=0, max_tokens=400, response_format={"type": "json_object"})
+        parsed = _parse(reply.text)
+        note = "critic_same_family_as_planner" if _family(reply.model) in {"anthropic", "openai"} else None
+        gaps = list(parsed["gaps"])
+        if parsed["outcome"] == "reject" and "critic rejected the brief" not in gaps:
+            gaps.append("critic rejected the brief")
+        return gaps, reply.model, note
+    except (LlmUnavailable, LlmRefusal, ValueError, json.JSONDecodeError) as error:
+        return [], None, f"llm_critic_skipped: {type(error).__name__}"
+    finally:
+        client.close()
+
+
+@node("critic", "disprove", lambda s: f"round={s.round} claims={len(s.findings.claims)}")
+def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
+    gaps = deterministic_gaps(state, ctx.pack)
+    llm_gaps, model, note = _llm_gaps(state, ctx)
+    for item in llm_gaps:
+        if item not in gaps:
+            gaps.append(item)
+    outcome = "accept" if not gaps else "revise"
+    if state.round >= MAX_ROUNDS and outcome == "revise":
+        outcome = "reject"
+    update: dict = {"verdicts": []}
+    if outcome == "revise" and state.round < MAX_ROUNDS:
+        update["round"] = state.round + 1
+    summary = f"{outcome}; {len(gaps)} gap(s)" + (f"; model={model}" if model else "; deterministic")
+    if note == "critic_same_family_as_planner":
+        summary += "; same family as planner"
+    verdict = Verdict(round=state.round, gate="critic", outcome=outcome, gaps=gaps, model=model)
+    update["verdicts"] = [verdict]
+    retry = max(state.round - 1, 0)
+    return NodeResult(update, summary, status="success" if outcome == "accept" else "needs_revision",
+                      model=model, retry_count=retry)

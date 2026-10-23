@@ -16,6 +16,9 @@ class Settings(BaseSettings):
 
     # Runs everything on committed snapshots, with no Zetaris, Nightshift or network access.
     sample_mode: bool = False
+    # run.py --serve binds here; 0.0.0.0 inside Docker.
+    run_host: str = "127.0.0.1"
+    run_port: int = 8000
     zetaris_mode: Literal["live", "snapshot"] = "snapshot"
     # "Now" for planning: the active fleet's last observed cycle (see data/fleet.py).
     reference_time: datetime = datetime(2026, 10, 22, tzinfo=timezone.utc)
@@ -46,6 +49,8 @@ class Settings(BaseSettings):
     meterless_model: str = "meterless/auto"
     meterless_app: str = "turbofan-maintenance-agent"
     llm_timeout_s: float = 180.0
+    run_timeout_s: float = 120.0
+    meterless_critic_model: str = "meterless/auto"
 
     # Interim cloud fallback, used only when Nightshift is unreachable (transport failure).
     nvidia_api_key: SecretStr = SecretStr("")

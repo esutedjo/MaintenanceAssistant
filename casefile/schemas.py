@@ -61,6 +61,7 @@ class AssetRef(BaseModel):
     asset_id: str
     asset_type: str
     pack_version: str
+    variant: str | None = None                  # fleet variant, keys asset pack `variants` (e.g. FD003)
 
 
 class Intent(BaseModel):
@@ -102,11 +103,21 @@ class Driver(BaseModel):
     evidence_id: str
 
 
+class AnomalyFinding(BaseModel):
+    cycle: int
+    health_index: float
+    fleet_median: float
+    residual_sigma: float
+    flagged: bool
+    evidence_id: str
+
+
 class Findings(BaseModel):
     rul_ml: RulFinding | None = None
     rul_trend: RulFinding | None = None
     fault_modes: list[FaultModeFinding] = Field(default_factory=list)
     drivers: list[Driver] = Field(default_factory=list)
+    anomaly: AnomalyFinding | None = None
     similar_cases: list[str] = Field(default_factory=list)     # evidence IDs of kind "case"
     claims: list[Claim] = Field(default_factory=list)
 
@@ -178,6 +189,18 @@ def append(left: list, right: list) -> list:
     return [*left, *right]
 
 
+def merge_findings(left: Findings, right: Findings) -> Findings:
+    """Reducer for parallel branches: each agent fills its own fields; lists are concatenated."""
+    merged = left.model_copy()
+    for name in Findings.model_fields:
+        value = getattr(right, name)
+        if isinstance(value, list):
+            setattr(merged, name, [*getattr(left, name), *value])
+        elif value is not None:
+            setattr(merged, name, value)
+    return merged
+
+
 class CaseFile(BaseModel):
     case_id: str
     question: str
@@ -185,13 +208,14 @@ class CaseFile(BaseModel):
     intent: Intent | None = None
     plan: list[Task] = Field(default_factory=list)
     evidence: Annotated[dict[str, Evidence], merge_evidence] = Field(default_factory=dict)
-    findings: Findings = Field(default_factory=Findings)
+    findings: Annotated[Findings, merge_findings] = Field(default_factory=Findings)
     recommendation: Recommendation | None = None
     verdicts: Annotated[list[Verdict], append] = Field(default_factory=list)
     escalations: Annotated[list[Escalation], append] = Field(default_factory=list)
     round: int = Field(default=0, ge=0, le=MAX_ROUNDS)
     trace: Annotated[list[TraceEvent], append] = Field(default_factory=list)
-    status: Literal["running", "needs_review", "approved", "rejected", "insufficient_evidence", "error"] = "running"
+    status: Literal["running", "needs_clarification", "needs_review", "approved", "rejected", "insufficient_evidence",
+                    "error"] = "running"
     degraded: Annotated[list[str], append] = Field(default_factory=list)
 
     def unresolved(self, evidence_ids: list[str]) -> list[str]:

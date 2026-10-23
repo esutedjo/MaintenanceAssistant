@@ -18,6 +18,10 @@ failure_modes:
   hpc_degradation: {component: hpc, label: HPC degradation}
   fan_degradation: {component: fan, label: Fan degradation}
 failure_modes_csv: fmea.csv
+# Failure modes each fleet variant can show (C-MAPSS: FD001 HPC only; FD003 HPC or fan). Keyed by assets.dataset.
+variants:
+  FD001: [hpc_degradation]
+  FD003: [hpc_degradation, fan_degradation]
 
 # direction: how the sensor moves as the fault grows (up | down | none).
 # Measured on the training sets: end-of-life minus start-of-life median, over within-unit noise.
@@ -64,6 +68,13 @@ thresholds:
   # A and B disagree when more than this many cycles apart. A relative rule (25%) fired on 44% of the
   # active fleet with no link to A's error; the absolute rule fires on 27% and flagged engines have higher A error.
   rul_divergence_cycles: 20
+  # Health-index residual vs the active-fleet median at the same cycle, in fleet standard deviations.
+  anomaly_sigma: 2.0
+  # Two fault modes this close in probability → inspect both modules.
+  ambiguous_fault_probability: 0.15
+  # Map remaining-life lower bound to an FMEA trigger severity.
+  severe_rul_cycles: 25
+  moderate_rul_cycles: 80
 
 models:
   directory: models/artifacts/turbofan_cmapss

@@ -11,6 +11,8 @@ A multi-agent assistant for a maintenance engineer. It answers: **"What is wrong
 - Required sponsor tech: **Zetaris** and **Meterless** integrated; **Cursor** as IDE; **NVIDIA** where it contributes.
 - Judging: Impact 30, Technical 20, Innovation 15, Demo 15, Product/UX 10, Sponsor tech 10. Judges reward working, focused, reliable systems with real agent interaction (critique, retries, branching, escalation) and clear traces; they penalise linear pipelines, hard-coded demo paths and bolted-on sponsor tech.
 - Submission: 1–4 min demo video, slide deck, GitHub repo with README (setup, usage, dependencies), sponsor-tech explanation, logs/traces, sample inputs and outputs. Must run from a clean setup. `.env.example` only, no secrets.
+- **Nightshift is the primary AI provider.** NVIDIA models go through Nightshift's Providers tab, not through an app `NVIDIA_API_KEY`. Until NVIDIA verifies API access for org `edwinis`, the planner and critic both run on Claude via Nightshift; the trace records the served model and flags `same family as planner`.
+- **`SAMPLE_MODE=true`** runs on committed Parquet snapshots with no Zetaris, Nightshift or network. Real logic, not replayed outputs. `run.py` is the CLI and `POST /run` entry point. Traces: `logs/trace-<run_id>.jsonl`.
 
 Positioning: a **verifiable, open, portable maintenance decision layer** on top of existing systems (no data migration). Do not claim "first AI maintenance assistant" (Siemens Senseye/Industrial Copilot, Cognite Atlas AI RCA agents, IBM Maximo Assistant exist).
 
@@ -21,7 +23,7 @@ Positioning: a **verifiable, open, portable maintenance decision layer** on top 
 3. **Every claim cites evidence IDs.** A claim without a resolvable evidence ID fails the rule checks.
 4. **Cheap checks first:** deterministic rule checks → LLM evidence critic → escalation rules → human sign-off.
 5. **Disagreement is a signal.** Two independent RUL methods; divergence lowers confidence and triggers an inspection recommendation, never an average.
-6. **Data stays where it is.** All structured data access goes through Zetaris (read-only). Snapshot fallback only when Zetaris is unreachable, and the brief says so.
+6. **Data stays where it is.** All structured data access goes through Zetaris (read-only). Snapshot fallback only when Zetaris is unreachable, and the brief says so. `SAMPLE_MODE` uses the snapshot only.
 7. **Asset-specific knowledge is configuration** (asset pack manifest), never hard-coded in agents.
 8. **Every run is traceable** via the case file trace.
 
@@ -34,27 +36,29 @@ Layers (top to bottom):
 4. **Zetaris**: one governed SQL endpoint + semantic layer.
 5. **Sources**: telemetry, maintenance (cmms), spares/slots, failure-mode table (S3), documents (pgvector).
 
-### Agent graph
+### Agent graph (as of 23 Oct)
 ```
-Intake (Scout Intent) → Planner → [Data | Prognostics | Diagnostics | Knowledge] (parallel)
-→ Maintenance planner → Rule checks → Evidence critic
-   ├─ revise → back to Planner (max 3 rounds)
+Intake → Planner → [Data | Prognostics | Diagnostics] (parallel)
+→ Brief (claims) → Maintenance planner → Rule checks → Evidence critic
+   ├─ revise → Maintenance planner (max 3 rounds)
    ├─ round 3 not accepted → close case: insufficient_evidence (gaps listed)
-   └─ accept → Escalation rules → Engineer sign-off → draft work order + case to H-MEM
+   └─ accept → Escalation rules → status needs_review (engineer sign-off is day 4 UI)
 ```
+
+Knowledge retrieval, work-order write-back and H-MEM feedback are day 4.
 
 | Agent | Responsibility | Tools | Writes |
 | --- | --- | --- | --- |
-| Intake | Parse question, resolve asset, detect ambiguity, ask back | Scout Intent, asset registry | `intent` |
-| Planner | Build/revise task list, choose specialists, stop | World model, Markovian summary | `plan`, `round` |
-| Data agent | Telemetry, maintenance history, spares, schedule | Zetaris read-only SQL, snapshot fallback | `evidence` (query) |
-| Prognostics | RUL methods A and B, drivers, anomaly flags | Model tools | `findings`, `evidence` (model) |
-| Diagnostics | Fault mode; similar past cases | Signature matcher, H-MEM | `findings.fault_mode`, `evidence` (case) |
-| Knowledge | Applicable document passages | pgvector retrieval | `evidence` (document) |
-| Maintenance planner | Task, parts, slot, deadline from RUL lower bound | Zetaris (spares, schedule), FMEA | `recommendation` |
-| Evidence critic | Try to disprove; verdict accept/revise/reject with gaps | Read-only case file | `verdicts` |
+| Intake | Parse question, resolve asset, ask back | Deterministic parser + asset registry | `intent`, `asset` |
+| Planner | Task list for round 1 specialists | none (deterministic) | `plan`, `round` |
+| Data agent | Telemetry, history, schedule, hangar slots | Zetaris read-only SQL, snapshot fallback | `evidence` (query) |
+| Prognostics | RUL A and B, SHAP drivers, anomaly flag | Model tools | `findings`, `evidence` (model) |
+| Diagnostics | Fault mode; similar past cases | Signature matcher, H-MEM / SQLite | `findings.fault_modes`, `evidence` (case) |
+| Knowledge | Applicable document passages | pgvector retrieval | `evidence` (document) — not wired yet |
+| Maintenance planner | Task, parts, slot, deadline from RUL lower bound | FMEA + stock + slots | `recommendation` |
+| Evidence critic | Try to disprove; accept/revise/reject | Deterministic checks + Nightshift LLM when not sample mode | `verdicts` |
 
-Rule checks and escalation rules are **deterministic graph nodes**, not agents.
+Rule checks and escalation rules are **deterministic graph nodes**, not agents. Intake does not call Scout Intent: Meterless World Model / H-MEM are used for similar cases, not for parsing.
 
 ## 4. Case file (shared state)
 
@@ -62,11 +66,13 @@ One per run; it is the LangGraph state; agents communicate only through it.
 
 ```python
 class Evidence(BaseModel):
-    id: str                      # "EV-007"
+    id: str                      # "EV-DAT-01" — agent code + sequence, so parallel agents never collide
     kind: Literal["query", "model", "document", "case", "rule"]
-    source: str                  # "zetaris:telemetry", "manual.pdf#p12 rev C"
+    source: str                  # "zetaris:telemetry_pg.cycles", "snapshot:cycles.parquet", "model:rul_a@…"
+    summary: str                 # one line the LLM and the brief read instead of raw rows
     content: dict
     produced_by: str
+    degraded: str | None         # set when produced from a fallback, with the reason
 
 class Claim(BaseModel):
     text: str
@@ -86,14 +92,17 @@ class CaseFile(BaseModel):
     escalations: list[Escalation]
     round: int                   # max 3
     trace: list[TraceEvent]      # agent, input hash, output summary, verdict, retries, duration
-    status: Literal["running", "needs_review", "approved", "rejected", "insufficient_evidence"]
+    status: Literal["running", "needs_clarification", "needs_review", "approved", "rejected", "insufficient_evidence", "error"]
+    degraded: list[str]
 ```
+
+Evidence IDs match `^EV-[A-Z]{3}-\d{2,}$`. Trace events are also written to `logs/trace-<run_id>.jsonl` with the judge fields: timestamp, run_id, agent_name, action, input_summary, output_summary, target_agent, model, confidence, retry_count, status.
 
 ## 5. Assurance and reliability
 
 **Rule checks (after every agent step, no LLM):** schema valid (re-ask once with the validation error, then fail step); every claim has resolvable evidence IDs; RUL within 0..125 cap; asset ID, units, cycle ranges match; parts and slots exist; SQL read-only and within row limits.
 
-**Evidence critic:** different model family from the planner (NVIDIA Nemotron 3 Super). Prompted to disprove. Returns `accept` | `revise` (specific gaps) | `reject`. Max 3 rounds.
+**Evidence critic:** prompted to disprove. Deterministic checks always run (including sample mode): SHAP drivers must not be passed off as the fault-mode signature when the asset pack lists discriminating sensors. An LLM pass (`METERLESS_CRITIC_MODEL`, default `meterless/auto`) is added when Nightshift is up and `SAMPLE_MODE` is off. Returns `accept` | `revise` | `reject`. Max 3 rounds. Until Nemotron is available through Nightshift, the trace line says `same family as planner`.
 
 **Escalation rules (deterministic, thresholds from asset pack):**
 | Condition | Action |
@@ -138,30 +147,30 @@ Status 22 Oct (`models/rul.py`, `uv run task train-rul`, artifacts and `rul_repo
 - B: RMSE 22.3, MAE 15.7; accurate near failure (RMSE ~7 when true RUL ≤ 25). Uses only the 9 sensors that move the same way under both failure modes, measured from each engine's own first 20 cycles (engines start with different wear). Returns the cap with a note when history < 20 cycles or the index is still inside the healthy fleet band (69 of 200 engines). Its range reflects threshold spread only and is narrow; show A's range in the brief.
 - Disagreement rule changed from "> 25% or > 20 cycles" to "> 20 cycles": the relative rule flagged 44% of engines with no link to A's error; the absolute rule flags 27% and flagged engines have A error 11.6 vs 7.5.
 - Inference input is the `cycles` rows of one asset from cycle 1 (B needs the full history; A needs the last 30 cycles). Values from Zetaris arrive as strings; `normalise` coerces them.
-| Drivers | SHAP on A, aggregated to sensors → components via asset pack |
-| Fault mode | Trend signature match vs FMEA; FD003 clustered into 2 groups → HPC / fan (proxy labels) |
-| Anomaly flag | Residual vs fleet-average trajectory at same cycle |
-| Similar cases | Nearest neighbours on signature in H-MEM, weighted by trust score |
+| Drivers | LightGBM TreeSHAP (`pred_contrib`) on A, summed per sensor then mapped to components via the asset pack. Negative values pull RUL down. No extra SHAP package. |
+| Fault mode | Signature matcher on sensors whose direction differs across the variant's modes (`asset_packs/.../manifest.yaml` `variants`). Softmax temperature 0.0659, calibrated on historical FD003 engines cut at 30–100% of life (accuracy 0.965). FD001 has one mode in the pack so probability is 1.00. |
+| Anomaly flag | Health index (B) minus the active-fleet median at the same cycle, in fleet standard deviations (`fleet_curve.json`, `anomaly_sigma: 2.0`). Flagged only when worse than the fleet. |
+| Similar cases | H-MEM (Meterless) or SQLite keyword search, tagged by failure mode; skipped while the health index is still in the healthy band. |
 
 ## 8. Asset packs
 
-All machine-specific knowledge lives in `asset_packs/<type>/manifest.yaml` (components, sensors with component/unit/degradation direction, failure_modes CSV, documents with type/revision/effective date, data_sources as Zetaris refs, model paths, thresholds). Agents read the pack; never hard-code turbofan specifics in agent code. Loaded via `make load-pack <type>`.
+All machine-specific knowledge lives in `asset_packs/<type>/manifest.yaml` (components, sensors with component/unit/degradation direction, `variants` listing failure modes per fleet dataset, failure_modes CSV, documents with type/revision/effective date, data_sources as Zetaris refs, model paths, thresholds). Agents read the pack; never hard-code turbofan specifics in agent code. Loaded by `data.db.load_pack`.
 
 Knowledge agent precedence when sources conflict: airworthiness directive > OEM service bulletin > manual > internal procedure > past cases. Retrieve only chunks for the asset type, relevant components and the revision in effect.
 
 ## 9. Stack
 
-Python 3.11+ with `uv`; LangGraph (+ checkpointer); Pydantic / pydantic-settings; LLMs: main model (Claude or GPT) for planner and tool-calling agents, **NVIDIA Nemotron 3 Super** for the critic, **Nemotron 3 Nano / 3.5 Lightning** for fast sub-agents (only if tool calling verified), **Nemotron Parse 2.0** for PDF parsing, **Nemotron 3 Embed** for embeddings (hosted API, OpenAI-compatible, base URL `https://integrate.api.nvidia.com/v1`; model IDs from build.nvidia.com, kept in `.env.local`); pandas, scikit-learn, LightGBM, SHAP; Postgres + pgvector; S3; Meterless reference engines (TypeScript) behind a Node/Fastify service; `tenacity`, `sqlglot`; Langfuse tracing; Streamlit + Plotly; Docker Compose; pytest; gitleaks.
+Python 3.11+ with `uv`; LangGraph (+ InMemorySaver); Pydantic / pydantic-settings; LLMs via **Meterless Nightshift** (`tools/llm.py`, OpenAI-compatible `http://127.0.0.1:8088/v1`): planner model Claude Opus 4.7 (`meterless/auto`); critic `METERLESS_CRITIC_MODEL` (Nemotron 3 Super once NVIDIA enables the `edwinis` org — email help@build.nvidia.com). Do not put an NVIDIA key in the app. pandas, scikit-learn, LightGBM (TreeSHAP built in); Postgres + pgvector; S3; Meterless World Model + H-MEM vendored in `context-service/` (Apache 2.0, commit 1742dec) served by `node:http` on port **8710**; `tenacity`, `sqlglot`; Streamlit + Plotly (day 4); Docker Compose; pytest.
 
-NVIDIA free tier ≈ 1,000 credits/month (≈ 1 call each): **cache model and tool results** in dev and eval.
+NVIDIA hosted NIM free tier ≈ 1,000 credits/month once the key exists: **cache model and tool results** in dev and eval. Hard limits: 3 critic rounds, 25 graph steps, 120 s per run (`RUN_TIMEOUT_S`).
 
 ## 10. Meterless integration
 
-Node service in `context-service/` exposing REST: `/world/query`, `/world/event`, `/mem/search`, `/mem/write`, `/intent/parse`.
-- World Model: asset → module → sensor → failure mode → task → part; case events.
-- H-MEM: past cases (signature, decision, outcome, comment, trust score).
-- Scout Intent: intake. Markovian: bounded critic-loop summaries.
-Python uses a `ContextStore` interface with two implementations: `MeterlessStore` and `SqliteStore` (fallback). **Decision point end of day 2**: if Meterless is not stable, switch default to SQLite.
+Node service in `context-service/` (`node:http`, `CONTEXT_SERVICE_PORT` default 8710): `GET /health`, `POST /world/load|/world/event|/world/query`, `GET /world/audit`, `POST /mem/write|/mem/search|/mem/feedback`, `GET /mem/ledger`.
+- World Model: asset_type → component → sensor / failure_mode → task → part. Edges are single-valued; one-to-many (signatures, task parts) live on entity attrs.
+- H-MEM: 200 synthetic past removals, source-keyed so reloads are idempotent. Diagnostics searches with `threshold=0` and failure-mode tags (default 0.35 dropped every case).
+- Intake is a deterministic parser, not Scout Intent.
+Python `ContextStore`: `MeterlessStore` (httpx) and `SqliteStore` (fallback). Default remains Meterless; the app falls back to SQLite when the service is down, and `SAMPLE_MODE` uses SQLite seeded from `data/snapshot/removals.parquet`. Day-2 decision: keep Meterless as default.
 
 ## 11. Infrastructure (AWS, region eu-central-1) — status as of 22 Oct, working
 
@@ -199,24 +208,24 @@ Python uses a `ContextStore` interface with two implementations: `MeterlessStore
 ## 12. Repository layout
 
 ```text
-agents/            intake, planner, data, prognostics, diagnostics, knowledge, maint_planner, critic
-graph/             LangGraph graph, routing, checkpointer config
+run.py             CLI and POST /run
+agents/            intake, planner, data, prognostics, diagnostics, maint_planner, critic, rules, escalation
+graph/             LangGraph graph, runner
 assurance/         rule checks, escalation rules, sql guard
-tools/             zetaris client, model tools, retrieval
-casefile/          Pydantic schemas, ContextStore interface + SQLite fallback
-context-service/   Node service wrapping Meterless engines
-models/            training scripts, saved models
+tools/             zetaris, data_access, data_tools, model_tools, llm
+casefile/          schemas, trace, ContextStore, load-context
+context-service/   Node service wrapping vendored Meterless engines
+models/            train-rul, train-fault-mode, train-anomaly, artifacts/
 asset_packs/turbofan_cmapss/   manifest.yaml, fmea.csv, docs/
-data/              download + generation scripts (no raw data committed)
-ui/                Streamlit app
-eval/              harness, golden cases, results
-docker-compose.yml  Makefile  .env.example  README.md  AGENTS.md
+data/snapshot/     committed Parquet extracts (no answer key)
+input_examples/ output_examples/
+docker-compose.yml  .env.example  README.md  AGENTS.md
 ```
 
 ## 13. Rules for coding agents
 
 - **Secrets:** never read, print, copy or hard-code values from `.env.local` (or any `.env*` file). Reference env var names only. Never put example secrets in code, tests or docs. `.env*` files are git- and cursor-ignored; only `.env.example` is committed, and it lists every variable the code reads.
-- **Cloud agents:** do not request security-group changes or access to AWS/Zetaris. Use `ZETARIS_MODE=snapshot` (small Parquet samples in repo) and a local Docker Postgres for tests. Anything touching AWS runs locally on the developer's machine.
+- **Cloud agents:** do not request security-group changes or access to AWS/Zetaris. Use `SAMPLE_MODE=true` (committed Parquet in `data/snapshot/`) and a local Docker Postgres for tests. Anything touching AWS runs locally on the developer's machine.
 - **Agents are read-only** on data. Writes (work orders, findings, case memory) go through the application write service only.
 - Every agent returns a typed Pydantic object; every numeric claim references an evidence ID.
 - Keep functions small and testable; add a pytest for each rule check and escalation rule.
@@ -231,9 +240,9 @@ docker-compose.yml  Makefile  .env.example  README.md  AGENTS.md
 **Stretch:** second asset pack (Azure PdM) onboarded live.
 **Cut:** separate mapping agent, curation UI, Zetaris branching, Federal Register live API, N-CMAPSS, separate risk agent.
 
-Plan: D1 (22 Oct) repo skeleton, compose, seed, sources in Zetaris · D2 models + Meterless or fallback (checkpoint: one question end to end returns RUL) · D3 full graph, rule checks, critic, escalation · D4 documents, H-MEM feedback, UI (feature freeze) · D5 eval, golden cases, fallback tests · D6 README, clean-setup test, video, slides, submit.
+Plan: D1 (22 Oct) done · D2 (23 Oct) done (models, Meterless engines, Nightshift client, schemas, data tools, end-to-end RUL) · D3 (23 Oct, in progress) graph with critic loop, rule checks, escalation, maintenance planner · D4 documents, H-MEM feedback, UI (feature freeze) · D5 eval, golden cases, fallback tests · D6 README polish, clean-setup test, video, slides, submit.
 
-Golden demo cases: (1) healthy engine; (2) HPC degradation, parts in stock, approve; (3) fan degradation with RUL A/B disagreement → borescope; (4) critical engine, lead time > RUL → escalation, critic forces second round.
+Golden demo cases: (1) healthy engine **FD001-A001**; (2) HPC degradation, parts in stock **FD001-A031**; (3) fan degradation **FD003-A100** (critic forces a second round: SHAP drivers are common-trend sensors); (4) still to pick: A vs B disagree > 20 cycles, or lead time > RUL.
 
 ## 15. UI (decision brief)
 
@@ -241,6 +250,5 @@ Verdict line first (action, deadline, confidence, escalation in red); metric row
 
 ## 16. Open questions
 
-- Does the Meterless agentathon starter wire H-MEM and World Model as a service?
-- Main LLM choice for planner (Claude or GPT).
-- Do judges need a live Zetaris endpoint during judging (28 Oct–6 Nov)? Snapshot mode must work regardless.
+- NVIDIA API access for org `edwinis` is blocked (`API Access Unavailable`); waiting on help@build.nvidia.com. Critic uses Claude until Nemotron is in Nightshift Providers.
+- Do judges need a live Zetaris endpoint during judging (28 Oct–6 Nov)? `SAMPLE_MODE=true` must work regardless (it does).

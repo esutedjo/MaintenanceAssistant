@@ -4,7 +4,6 @@ Run: uv run task load-context   (start context-service first: cd context-service
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from casefile.context_store import (
@@ -14,6 +13,7 @@ from data.db import PACK_DIR, load_pack
 from settings import ROOT, Settings, get_settings
 
 PARTS_CSV = ROOT / "data" / "seed" / "parts.csv"
+SNAPSHOT_DIR = ROOT / "data" / "snapshot"
 CASE_CONFIDENCE = 0.8
 
 REMOVALS_SQL = (
@@ -84,18 +84,17 @@ def removals_live(settings: Settings) -> tuple[pd.DataFrame, pd.DataFrame]:
     return removals, warnings
 
 
-def removals_snapshot(pack: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Regenerates the same seeded cmms history locally (needs `uv run task download`)."""
-    from data.fleet import SEED, build_fleet
-    from data.generate_cmms import build_history
-
-    assets, _ = build_fleet(pack["thresholds"]["cycles_per_day"])
-    history = build_history(assets, pack["thresholds"]["cycles_per_day"], np.random.default_rng(SEED + 1))
-    wo, fn = history["work_orders"], history["findings"]
-    removals = wo[wo.wo_type == "unscheduled_removal"].merge(fn[["wo_id", "finding_id", "failure_mode", "note"]], on="wo_id")
-    warnings = (fn[fn.severity.isin(["moderate", "severe"])].groupby("asset_id", as_index=False)["cycle_at"].min()
-                .rename(columns={"cycle_at": "first_warning"}))
+def removals_from_history(work_orders: pd.DataFrame, findings: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    removals = work_orders[work_orders.wo_type == "unscheduled_removal"].merge(
+        findings[["wo_id", "finding_id", "failure_mode", "note"]], on="wo_id")
+    warnings = (findings[findings.severity.isin(["moderate", "severe"])].groupby("asset_id", as_index=False)["cycle_at"]
+                .min().rename(columns={"cycle_at": "first_warning"}))
     return removals[["wo_id", "asset_id", "cycle_at", "component", "finding_id", "failure_mode", "note"]], warnings
+
+
+def removals_snapshot() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The same removals, from the committed snapshot (written by `uv run task snapshot`)."""
+    return pd.read_parquet(SNAPSHOT_DIR / "removals.parquet"), pd.read_parquet(SNAPSHOT_DIR / "first_warnings.parquet")
 
 
 def case_memories(pack: dict, removals: pd.DataFrame, warnings: pd.DataFrame) -> list[MemoryIn]:
@@ -121,7 +120,8 @@ def load(store: ContextStore, settings: Settings, pack_dir: Path = PACK_DIR) -> 
     pack = load_pack(pack_dir)
     fmea = pd.read_csv(pack_dir / pack["failure_modes_csv"], dtype={"qty": "Int64"})
     world = store.write_world(build_world_batch(pack, fmea, pd.read_csv(PARTS_CSV)))
-    removals, warnings = removals_live(settings) if settings.zetaris_mode == "live" else removals_snapshot(pack)
+    live = settings.zetaris_mode == "live" and not settings.sample_mode
+    removals, warnings = removals_live(settings) if live else removals_snapshot()
     memories = store.write_memories(case_memories(pack, removals, warnings))
     return {"world": world, "memories": {k: v for k, v in memories.items() if k != "ids"}}
 
