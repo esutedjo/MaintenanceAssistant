@@ -85,6 +85,18 @@ thresholds:
   severe_rul_cycles: 25
   moderate_rul_cycles: 80
 
+# Input plausibility (deterministic, before any model runs). Ranges and largest cycle-to-cycle steps come from
+# the run-to-failure training engines (`uv run task sensor-ranges`). A value may sit outside the training range by
+# range_margin x (max - min), or by min_margin x |value| for sensors that never move. Issues on sensors the RUL
+# models read are serious (confidence low, escalation); issues elsewhere are minor (flagged in the brief).
+data_quality:
+  ranges_file: sensor_ranges.json
+  range_margin: 0.25
+  min_margin: 0.01
+  step_factor: 1.5
+  frozen_cycles: 30
+  max_missing_share: 0.0
+
 # Schematic side view for the UI (upper half; drawn mirrored). Flow left to right. x: axial start/end;
 # inner/outer: radius at start and end. Not to scale.
 diagram:

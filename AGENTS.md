@@ -51,7 +51,7 @@ Knowledge retrieval, work-order write-back and H-MEM feedback are wired (23 Oct)
 | --- | --- | --- | --- |
 | Intake | Parse question, resolve asset, ask back | Deterministic parser + asset registry | `intent`, `asset` |
 | Planner | Task list for round 1 specialists | none (deterministic) | `plan`, `round` |
-| Data agent | Telemetry, history, schedule, hangar slots | Zetaris read-only SQL, snapshot fallback | `evidence` (query) |
+| Data agent | Telemetry, input plausibility, history, schedule, hangar slots | Zetaris read-only SQL, snapshot fallback; `tools/data_quality.py` | `evidence` (query; rule for data quality) |
 | Prognostics | RUL A and B, SHAP drivers, anomaly flag | Model tools | `findings`, `evidence` (model) |
 | Diagnostics | Fault mode; similar past cases | Signature matcher, H-MEM / SQLite | `findings.fault_modes`, `evidence` (case) |
 | Knowledge | Applicable document sections in precedence order; mandates decided in code | `knowledge_pg.doc_chunks` via Zetaris (snapshot fallback), hashed n-gram embeddings | `findings.documents`, `evidence` (document) |
@@ -100,6 +100,8 @@ Evidence IDs match `^EV-[A-Z]{3}-\d{2,}$`. Trace events are also written to `log
 
 ## 5. Assurance and reliability
 
+**Input plausibility (Data agent, no LLM, limits in the pack's `data_quality` + `sensor_ranges.json`, `uv run task sensor-ranges`):** sensor outside the range seen on any training engine plus margin, step larger than any engine showed (x1.5), model sensor frozen ≥ 30 cycles, missing values, duplicate/backward/missing cycles, telemetry end ≠ registry `last_cycle`, future timestamps, work orders after the last cycle, removal on an active engine, negative stock/lead time, reserved > on hand. Serious (model sensors, cycle order, registry, removal, stock) → confidence low, action prefixed "Confirm the input data first", escalation `data_quality`; minor (unused sensors, gaps, dates) → `degraded` note only. Negative available stock is clamped to 0. Evidence `EV-DAT-02`, kind `rule`.
+
 **Rule checks (after every agent step, no LLM):** schema valid (re-ask once with the validation error, then fail step); every claim has resolvable evidence IDs; RUL within 0..125 cap and inside its interval; RUL and fault-mode numbers equal the model evidence they cite; asset ID matches; every part is listed in its cited evidence with the same stock and lead time; slot in the free list; deadline not later than the RUL lower bound allows; mandated document tasks present, cited and on time; SQL read-only and within row limits. The numbers-match and parts-match checks were added after the eval's seeded faults got past the first version.
 
 **Evidence critic:** prompted to disprove. Deterministic checks always run (including sample mode): SHAP drivers must not be passed off as the fault-mode signature when the asset pack lists discriminating sensors. An LLM pass (`METERLESS_CRITIC_MODEL`, default `meterless/auto`, app `METERLESS_CRITIC_APP`, JSON response format, `CRITIC_TIMEOUT_S` 45 s) is added when Nightshift is up and `SAMPLE_MODE` is off. It runs only when the deterministic checks found no gap; on a fully cited brief its gaps are notes for the engineer, not a veto (it cannot produce numbers). Timeout, outage or a non-JSON reply → deterministic checks only, flagged `LLM critic unavailable (...)` in `degraded`. Returns `accept` | `revise` | `reject`. Max 3 rounds.
@@ -107,6 +109,7 @@ Evidence IDs match `^EV-[A-Z]{3}-\d{2,}$`. Trace events are also written to `log
 **Escalation rules (deterministic, thresholds from asset pack):**
 | Condition | Action |
 | --- | --- |
+| Input data failed a serious plausibility check | Confirm data with its owner; confidence low |
 | RUL lower bound < parts lead time + days to next free slot | Urgent; propose expedite, engine swap, derate |
 | RUL A vs B differ > 20 cycles (`rul_divergence_cycles`) | Confidence low; recommend borescope inspection |
 | Two fault modes within 0.15 probability | Inspection targeting both modules |
@@ -243,7 +246,7 @@ docker-compose.yml  .env.example  README.md  AGENTS.md
 
 Plan: D1 (22 Oct) done · D2 (23 Oct) done (models, Meterless engines, Nightshift client, schemas, data tools, end-to-end RUL) · D3 done (graph with critic loop, rule checks, escalation, maintenance planner) · D4 done early (documents, H-MEM feedback, UI) · D5 done early (eval harness `uv run task eval` → `evaluation/report.md`, 4 golden cases, end-to-end fallback tests, clean-setup test from a copy of the shippable files) · D6 README polish, video, slides, submit.
 
-Eval (23 Oct, sample mode, 200 engines): 200/200 `needs_review`, median 0.3 s; RUL A RMSE 12.1, B 22.3; planning bound ≤ true RUL for 90% (1 of 45 engines within 30 cycles of failure overshoots, by 2 cycles); FD003 fault mode 97%; 100% of claims resolvable; 290/290 seeded faulty briefs caught by the deterministic gates, 0 false alarms. Known weakness: A's interval covers 73% (nominal 80%).
+Eval (23 Oct, sample mode, 200 engines): 200/200 `needs_review`, median 0.3 s; RUL A RMSE 12.1, B 22.3; planning bound ≤ true RUL for 90% (1 of 45 engines within 30 cycles of failure overshoots, by 2 cycles); FD003 fault mode 97%; 100% of claims resolvable; 290/290 seeded faulty briefs caught by the deterministic gates, 0 false alarms; 116/116 corrupted-input runs (12 data faults, `evaluation/data_faults.py`, 10 engines) graded at the expected severity, 0 of 200 clean runs with a data-quality issue. Known weakness: A's interval covers 73% (nominal 80%).
 
 Golden demo cases: (1) healthy engine **FD001-A001**; (2) HPC degradation, parts in stock **FD001-A031**; (3) fan degradation **FD003-A100** (critic forces a second round: SHAP drivers are common-trend sensors); (4) methods disagree **FD001-A070** (A 96 vs B 40 cycles, HPC; escalation `rul_divergence`, borescope inspection, confidence low, deadline from the cautious bound). In disagreements B is usually the pessimistic one (offline check against the answer key), so inspecting rather than averaging is the safe call.
 
@@ -254,4 +257,4 @@ Verdict line first (action, deadline, confidence, escalation in red); metric row
 ## 16. Open questions
 
 - Nemotron critic lane (lane id `nemotron`, critic app policy `lanes: ["nemotron"]`) works with **Nemotron 3 Ultra 550B A55B**: golden cases accepted in 6–37 s (close to Nightshift's ~45 s provider limit on FD001-A001). Its notes include false alarms (claims a value in an evidence summary is missing; 55 vs 56 cycles from rounded summaries), which is why LLM notes never veto a cited brief. Did not work on 23 Oct: Lightning 30B A3B (empty responses), Super VL 120B (reasons past the 45 s limit), Nemotron 3 Super 120B and Llama 3.1 Nemotron Ultra 253B (404, not entitled), Nano 30B A3B and Llama 3.3 Nemotron Super 49B (410, retired).
-- Do judges need a live Zetaris endpoint during judging (28 Oct–6 Nov)? `SAMPLE_MODE=true` must work regardless (it does).
+- Live endpoint during judging (28 Oct–6 Nov): decided 23 Oct. The hackathon allows Zetaris and the databases to run in the cloud, so the Zetaris cluster, RDS and S3 stay up through judging. `SAMPLE_MODE=true` must still work with no credentials (it does; clean-setup test).

@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-23 16:28 UTC",
+ "generated_at": "2026-10-23 18:38 UTC",
  "settings": {
   "sample_mode": true,
   "engines": 200,
@@ -15,9 +15,9 @@
    "brief_ready_share": 1.0,
    "crashes": 0,
    "duration_s": {
-    "p50": 0.3,
-    "p95": 0.34,
-    "max": 0.41
+    "p50": 0.33,
+    "p95": 0.39,
+    "max": 0.45
    }
   },
   "rul": {
@@ -152,6 +152,10 @@
     "rul_below_lead_time": 27,
     "ambiguous_fault": 1
    }
+  },
+  "data_quality": {
+   "clean_runs_with_issues": [],
+   "issues": {}
   }
  },
  "seeded_faults": {
@@ -220,6 +224,75 @@
    "similar_cases_dropped": {
     "seeded": 21,
     "caught": 21
+   }
+  },
+  "missed": []
+ },
+ "data_faults": {
+  "engines": 10,
+  "seeded": 116,
+  "caught": 116,
+  "catch_rate": 1.0,
+  "by_fault": {
+   "spike_t30": {
+    "expected": "serious",
+    "seeded": 10,
+    "caught": 10
+   },
+   "p30_in_kpa": {
+    "expected": "serious",
+    "seeded": 10,
+    "caught": 10
+   },
+   "frozen_ps30": {
+    "expected": "serious",
+    "seeded": 10,
+    "caught": 10
+   },
+   "missing_phi": {
+    "expected": "serious",
+    "seeded": 10,
+    "caught": 10
+   },
+   "duplicated_cycles": {
+    "expected": "serious",
+    "seeded": 10,
+    "caught": 10
+   },
+   "cycles_out_of_order": {
+    "expected": "serious",
+    "seeded": 10,
+    "caught": 10
+   },
+   "telemetry_truncated": {
+    "expected": "serious",
+    "seeded": 10,
+    "caught": 10
+   },
+   "removal_on_active_engine": {
+    "expected": "serious",
+    "seeded": 10,
+    "caught": 10
+   },
+   "negative_stock": {
+    "expected": "serious",
+    "seeded": 6,
+    "caught": 6
+   },
+   "cycle_gap": {
+    "expected": "minor",
+    "seeded": 10,
+    "caught": 10
+   },
+   "t2_out_of_range": {
+    "expected": "minor",
+    "seeded": 10,
+    "caught": 10
+   },
+   "work_order_after_last_cycle": {
+    "expected": "minor",
+    "seeded": 10,
+    "caught": 10
    }
   },
   "missed": []

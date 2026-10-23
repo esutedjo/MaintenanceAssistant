@@ -1,11 +1,11 @@
 # Evaluation report (sample mode, synthetic fleet)
 
-Generated 2026-10-23 16:28 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
+Generated 2026-10-23 18:38 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
 
 ## Run completion
 
 - Statuses: needs_review 200; crashes 0.
-- Time per run: median 0.3 s, 95th percentile 0.34 s, max 0.41 s (limit 120 s).
+- Time per run: median 0.33 s, 95th percentile 0.39 s, max 0.45 s (limit 120 s).
 
 ## Remaining life
 
@@ -49,3 +49,24 @@ Generated 2026-10-23 16:28 UTC by `uv run task eval`. 200 active engines through
 | mandate_uncited | 8 | 8 |
 | drivers_as_signature | 5 | 5 |
 | similar_cases_dropped | 21 | 21 |
+
+## Implausible input data
+
+Clean fleet: 0 of 200 runs raised a data-quality issue.
+
+116 runs on corrupted inputs (10 engines, the 4 golden cases plus a random sample), full graph. A serious fault must end in a `data_quality` escalation with confidence low; a minor one must be flagged in the brief without escalation. Graded as expected: **116 of 116 (100%)**.
+
+| Fault | Expected | Seeded | Graded as expected |
+| --- | --- | --- | --- |
+| spike_t30 | serious | 10 | 10 |
+| p30_in_kpa | serious | 10 | 10 |
+| frozen_ps30 | serious | 10 | 10 |
+| missing_phi | serious | 10 | 10 |
+| duplicated_cycles | serious | 10 | 10 |
+| cycles_out_of_order | serious | 10 | 10 |
+| telemetry_truncated | serious | 10 | 10 |
+| removal_on_active_engine | serious | 10 | 10 |
+| negative_stock | serious | 6 | 6 |
+| cycle_gap | minor | 10 | 10 |
+| t2_out_of_range | minor | 10 | 10 |
+| work_order_after_last_cycle | minor | 10 | 10 |

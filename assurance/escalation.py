@@ -91,6 +91,27 @@ def document_mandates(case: CaseFile, pack: dict) -> list[Escalation]:
     ) for d in case.findings.documents if d.mandatory]
 
 
+def serious_data_issues(case: CaseFile) -> list[tuple[str, dict]]:
+    """(evidence ID, issue) for every serious input-plausibility issue in the case."""
+    return [(e.id, issue) for e in case.evidence.values() for issue in e.content.get("issues") or []
+            if isinstance(issue, dict) and issue.get("severity") == "serious"]
+
+
+def data_quality(case: CaseFile, pack: dict) -> Escalation | None:
+    found = serious_data_issues(case)
+    if not found:
+        return None
+    details = "; ".join(dict.fromkeys(issue["detail"] for _, issue in found))
+    return Escalation(
+        rule="data_quality", severity="warning",
+        message=f"Input data failed plausibility checks: {details[:400]}",
+        actions=["Confirm the data with its owner before acting",
+                 "Treat remaining-life and fault-mode numbers as unreliable until the data is confirmed"],
+        evidence_ids=list(dict.fromkeys(i for i, _ in found)),
+    )
+
+
 def run_escalations(case: CaseFile, pack: dict) -> list[Escalation]:
-    rest = (rul_divergence(case, pack), ambiguous_fault(case, pack), rul_below_lead_time(case, pack))
+    rest = (data_quality(case, pack), rul_divergence(case, pack), ambiguous_fault(case, pack),
+            rul_below_lead_time(case, pack))
     return [*document_mandates(case, pack), *[e for e in rest if e]]

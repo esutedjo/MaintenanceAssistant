@@ -13,7 +13,7 @@ from casefile.trace import TraceWriter
 from data.db import load_pack
 from graph.build import build_graph
 from settings import ROOT, Settings, get_settings
-from tools.data_access import open_data_source
+from tools.data_access import DataSource, open_data_source
 
 MAX_GRAPH_STEPS = 25
 
@@ -31,13 +31,13 @@ def new_run_id() -> str:
     return f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:6]}"
 
 
-def open_context(settings: Settings, run_id: str) -> RunContext:
+def open_context(settings: Settings, run_id: str, data: DataSource | None = None) -> RunContext:
     pack = load_pack()
     store = open_context_store(settings)
     if settings.sample_mode:
         load_context(store, settings)       # idempotent: seeds the local case memory from the snapshot
-    return RunContext(run_id=run_id, settings=settings, pack=pack, data=CachedSource(open_data_source(settings)),
-                      store=store, trace=TraceWriter(run_id))
+    return RunContext(run_id=run_id, settings=settings, pack=pack,
+                      data=CachedSource(data or open_data_source(settings)), store=store, trace=TraceWriter(run_id))
 
 
 def result_json(case: CaseFile, ctx: RunContext, duration_s: float) -> dict:
@@ -60,9 +60,11 @@ def result_json(case: CaseFile, ctx: RunContext, duration_s: float) -> dict:
     }
 
 
-def execute_run(question: str, settings: Settings | None = None, run_id: str | None = None) -> RunOutcome:
+def execute_run(question: str, settings: Settings | None = None, run_id: str | None = None,
+                data: DataSource | None = None) -> RunOutcome:
+    """`data` replaces the configured source (tests and the eval feed corrupted inputs through it)."""
     settings = settings or get_settings()
-    ctx = open_context(settings, run_id or new_run_id())
+    ctx = open_context(settings, run_id or new_run_id(), data)
     start = time.monotonic()
     try:
         graph = build_graph()

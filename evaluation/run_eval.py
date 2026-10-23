@@ -25,6 +25,7 @@ from assurance.rules import run_rule_checks
 from casefile.schemas import CaseFile
 from data.db import load_pack
 from data.fleet import RAW_DIR, build_fleet
+from evaluation.data_faults import DATA_FAULTS, CorruptSource
 from evaluation.faults import FAULTS
 from graph.runner import execute_run
 from settings import ROOT, Settings
@@ -101,6 +102,7 @@ def run_fleet(assets: list[str], settings: Settings) -> tuple[list[dict], dict[s
                     if c.evidence_ids and all(case.evidence[i].kind == "document" for i in c.evidence_ids
                                               if i in case.evidence)),
                 "degraded": list(case.degraded),
+                "data_issues": [i["check"] for e in case.evidence.values() for i in e.content.get("issues") or []],
             })
         rows.append(row)
         if n % 20 == 0 or n == len(assets):
@@ -178,7 +180,49 @@ def fleet_metrics(frame: pd.DataFrame, cap: float, limit: float) -> dict:
             "rounds": done["rounds"].value_counts().sort_index().to_dict(),
             "escalations": pd.Series([e for es in done["escalations"] for e in es]).value_counts().to_dict(),
         },
+        "data_quality": {
+            "clean_runs_with_issues": sorted(done.loc[done["data_issues"].map(bool), "asset_id"]),
+            "issues": pd.Series([i for issues in done["data_issues"] for i in issues]).value_counts().to_dict(),
+        },
     }
+
+
+def _data_outcome(case: CaseFile) -> str:
+    if any(e.rule == "data_quality" for e in case.escalations):
+        low = case.recommendation is None or case.recommendation.confidence == "low"
+        return "serious" if low else "escalated_without_low_confidence"
+    return "minor" if any(d.startswith("Data quality minor") for d in case.degraded) else "ok"
+
+
+def data_fault_metrics(cases: dict[str, CaseFile], settings: Settings, sample: int) -> dict:
+    """Run the full graph on corrupted inputs; each must finish and be graded at the expected severity."""
+    rng = np.random.default_rng(20261024)
+    others = [a for a in cases if a not in GOLDEN]
+    chosen = [a for a in GOLDEN if a in cases] + list(rng.choice(others, min(sample, len(others)), replace=False))
+    by_fault: dict[str, dict] = {}
+    misses = []
+    for name, fault in DATA_FAULTS.items():
+        seeded = caught = 0
+        for asset in chosen:
+            if fault.parts and not cases[asset].recommendation.parts:
+                continue                               # no parts are looked up for this engine
+            seeded += 1
+            try:
+                case = execute_run(QUESTION.format(asset=asset), settings, run_id=f"eval-data-{asset}",
+                                   data=CorruptSource(asset, fault)).case
+                got = _data_outcome(case) if case.status == "needs_review" else f"status {case.status}"
+            except Exception as exc:
+                got = f"crash {type(exc).__name__}"
+            (ROOT / "logs" / f"trace-eval-data-{asset}.jsonl").unlink(missing_ok=True)
+            if got == fault.expected:
+                caught += 1
+            else:
+                misses.append(f"{name} on {asset}: {got}")
+        by_fault[name] = {"expected": fault.expected, "seeded": seeded, "caught": caught}
+    seeded = sum(v["seeded"] for v in by_fault.values())
+    caught = sum(v["caught"] for v in by_fault.values())
+    return {"engines": len(chosen), "seeded": seeded, "caught": caught, "catch_rate": round(caught / max(seeded, 1), 3),
+            "by_fault": by_fault, "missed": misses[:40]}
 
 
 def _gates(case: CaseFile, pack: dict, settings: Settings) -> list[str]:
@@ -256,6 +300,20 @@ def markdown(report: dict) -> str:
     ]
     if s["missed"]:
         lines += ["", "Missed: " + "; ".join(s["missed"]) + "."]
+    dq, df = f["data_quality"], report["data_faults"]
+    lines += [
+        "", "## Implausible input data", "",
+        f"Clean fleet: {len(dq['clean_runs_with_issues'])} of {f['runs']} runs raised a data-quality issue"
+        + (f" ({', '.join(f'{k} {v}' for k, v in dq['issues'].items())})" if dq["issues"] else "") + ".", "",
+        f"{df['seeded']} runs on corrupted inputs ({df['engines']} engines, the 4 golden cases plus a random sample), "
+        "full graph. A serious fault must end in a `data_quality` escalation with confidence low; a minor one must be "
+        f"flagged in the brief without escalation. Graded as expected: **{df['caught']} of {df['seeded']} "
+        f"({df['catch_rate']:.0%})**.", "",
+        "| Fault | Expected | Seeded | Graded as expected |", "| --- | --- | --- | --- |",
+        *[f"| {k} | {v['expected']} | {v['seeded']} | {v['caught']} |" for k, v in df["by_fault"].items()],
+    ]
+    if df["missed"]:
+        lines += ["", "Missed: " + "; ".join(df["missed"]) + "."]
     return "\n".join(lines) + "\n"
 
 
@@ -263,6 +321,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--limit", type=int, default=None, help="evaluate only the first N active engines")
     parser.add_argument("--fault-sample", type=int, default=26, help="extra briefs (besides golden) to corrupt")
+    parser.add_argument("--data-fault-sample", type=int, default=6, help="extra engines (besides golden) fed "
+                                                                          "corrupted inputs")
     parser.add_argument("--out", type=Path, default=OUT_DIR)
     args = parser.parse_args(argv)
 
@@ -283,6 +343,9 @@ def main(argv: list[str] | None = None) -> int:
             "fleet": fleet_metrics(frame.reset_index(), cap, limit),
             "seeded_faults": fault_metrics(cases, pack, settings, args.fault_sample),
         }
+        print(f"running {len(DATA_FAULTS)} data faults on corrupted inputs")
+        report["data_faults"] = data_fault_metrics({a: c for a, c in cases.items() if c.recommendation is not None},
+                                                   settings, args.data_fault_sample)
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "report.json").write_text(json.dumps(report, indent=1, default=str), encoding="utf-8")
     (args.out / "report.md").write_text(markdown(report), encoding="utf-8")

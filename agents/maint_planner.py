@@ -156,6 +156,11 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     else:
         action = chosen[0]["task"] if chosen else "Review on wing"
         confidence = "medium" if severity != "severe" else "high"
+    bad_data = [(e.id, i["detail"]) for e in [*state.evidence.values(), *ledger.records.values()]
+                for i in e.content.get("issues") or [] if isinstance(i, dict) and i.get("severity") == "serious"]
+    if bad_data:
+        action = f"Confirm the input data first; then: {action}"
+        confidence = "low"
 
     short = [p for p in parts if p.available < p.qty]
     planning = ledger.add(
@@ -179,6 +184,11 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     else:
         rationale = [Claim(text=f"Deadline {deadline} is the RUL lower bound {lower:.0f} cycles at {cycles_per_day} cycles/day.",
                            evidence_ids=rul_ids, confidence=confidence)]
+    if bad_data:
+        rationale.insert(0, Claim(
+            text=("Input data failed plausibility checks (" + "; ".join(dict.fromkeys(d for _, d in bad_data))[:300]
+                  + "); every number below is computed from it, so confidence is low until the data is confirmed."),
+            evidence_ids=list(dict.fromkeys(i for i, _ in bad_data)), confidence="low"))
     rationale.append(Claim(text=planning.summary, evidence_ids=[planning.id, *rul_ids], confidence=confidence))
     if parts and parts_ev:
         needed = ", ".join(f"{p.part_number} (need {p.qty}, {p.available} on hand, {p.lead_time_days} d lead)" for p in parts)

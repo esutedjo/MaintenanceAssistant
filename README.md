@@ -67,9 +67,10 @@ Inputs and outputs: `input_examples/*.json`, `output_examples/*.json`.
 
 Advisory agents propose; the gates can only send work back or stop it.
 
+0. **Input plausibility** (`tools/data_quality.py`, run by the Data agent before any model output is used, no LLM): telemetry outside the range seen on any C-MAPSS engine (plus a margin), jumps between cycles larger than any engine showed, a model sensor frozen for 30 cycles, missing values, duplicate, backward or missing cycles, telemetry ending at a different cycle from the asset registry, future timestamps, work orders after the last cycle, a removal recorded on an active engine, negative stock or lead time. Limits are in the asset pack (`data_quality` in `manifest.yaml`, ranges in `sensor_ranges.json` built by `uv run task sensor-ranges`). A serious issue (anything a model reads, or the stock) sets confidence low, puts "Confirm the input data first" in front of the action and raises a `data_quality` escalation; a minor one (a sensor the models ignore, a gap, a stray date) is flagged in the brief. Impossible stock counts as none available.
 1. **Rule checks** (`assurance/rules.py`, no LLM): every claim cites evidence IDs that resolve; RUL values in 0..125 with the estimate inside its interval; RUL and fault-mode numbers equal the model output they cite; asset matches the question; every part is listed in the evidence it cites, with the same stock and lead time; the slot is in the free-slot list; the deadline is not later than the RUL lower bound allows; mandated document tasks are present, cited and on time.
 2. **Evidence critic** (`agents/critic.py`): deterministic checks always run (SHAP drivers must not be passed off as the fault-mode signature; a degraded engine needs similar past cases). When Nightshift is up and `SAMPLE_MODE` is off, an LLM pass tries to disprove the brief. Its gaps are shown to the engineer; it cannot invent a number. Max 3 rounds; round 3 without acceptance closes the case as `insufficient_evidence`.
-3. **Escalation rules** (`assurance/escalation.py`, thresholds from the asset pack): RUL lower bound shorter than short-part lead time plus next free slot; RUL A vs B differ by more than 20 cycles; two fault modes within 0.15; an applicable document mandates an action.
+3. **Escalation rules** (`assurance/escalation.py`, thresholds from the asset pack): input data failed a serious plausibility check; RUL lower bound shorter than short-part lead time plus next free slot; RUL A vs B differ by more than 20 cycles; two fault modes within 0.15; an applicable document mandates an action.
 4. **Engineer sign-off** in the UI. Nothing is written before Approve.
 
 The LLM critic runs as its own Nightshift app (`METERLESS_CRITIC_APP=turbofan-maintenance-critic`, sent as the `meterless-app` header) so Nightshift can pin it to a different model family from the planner. In Nightshift, give that app a Judge lane with an NVIDIA Nemotron model. The trace records the model that actually answered and notes `same family as planner` when it is Claude or GPT.
@@ -105,8 +106,11 @@ Writes `evaluation/report.md` and `report.json`. Results from the committed snap
 - **Fault mode (FD003):** 97% agreement with the proxy label; 100% within 60 cycles of failure.
 - **Evidence:** 2,376 claims, all with resolvable evidence; every claim that states a quantity cites model, query, rule or case-memory evidence.
 - **Seeded faulty briefs:** 15 fault types (uncited claim, tampered or averaged RUL, fabricated part, inflated stock, slot not free, deadline past the RUL bound, mandate dropped, and others) applied to 30 finished briefs: 290 of 290 caught by the deterministic gates, 0 false alarms on the clean briefs. The first version of the gates missed the tampered RUL, fabricated part and inflated stock faults; the eval found them and two rule checks were added.
+- **Implausible input data:** 0 of the 200 clean runs raise a data-quality issue. 12 corruptions (a T30 spike, P30 in kPa instead of psia, a frozen Ps30, missing phi readings, duplicate, reversed and truncated cycles, a removal on an active engine, negative stock as serious; a cycle gap, an out-of-range T2 the models ignore and a work order after the last cycle as minor) fed through the full graph on 10 engines: 116 of 116 graded at the expected severity, no crashes. Building these found two crashes, now fixed: missing readings broke the telemetry summary, and two specialists failing in the same step broke the graph state.
 
 ## Live mode
+
+The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up in the cloud through judging (28 Oct–6 Nov). Live mode needs credentials, which are not in this repo; sample mode needs none.
 
 1. Start Nightshift. Put the Console runtime token in `METERLESS_RUNTIME_TOKEN`. Add provider keys (including NVIDIA) in Nightshift **Setup → Providers**, not in this repo. After the first live run, the app `turbofan-maintenance-critic` appears in Nightshift; give it a Judge lane with a Nemotron model.
 2. Start the context service: `uv run task context-service` (port 8710). Load once with `uv run task load-context` (idempotent).
@@ -120,7 +124,8 @@ Writes `evaluation/report.md` and `report.json`. Results from the committed snap
 | Command | What it does |
 | --- | --- |
 | `uv run task test` | Unit tests |
-| `uv run task eval` | Fleet evaluation and seeded-fault catch rate (`evaluation/report.md`) |
+| `uv run task eval` | Fleet evaluation, seeded faulty briefs and corrupted inputs (`evaluation/report.md`) |
+| `uv run task sensor-ranges` | Plausible sensor ranges and steps from the training engines (`asset_packs/.../sensor_ranges.json`) |
 | `uv run python run.py --question "..."` | One decision brief as JSON |
 | `uv run task ui` | Streamlit decision brief (approve / reject, fleet, trace, asset pack) |
 | `uv run python run.py --serve` | `POST /run` on `RUN_HOST:RUN_PORT` |
@@ -152,3 +157,7 @@ Writes `evaluation/report.md` and `report.json`. Results from the committed snap
 ## Traces
 
 Each run writes `logs/trace-<run_id>.jsonl` (timestamp, run_id, agent_name, action, input_summary, output_summary, target_agent, model, confidence, retry_count, status). The served model name is logged for every LLM request.
+
+Committed examples in `trace_examples/`:
+- `trace-sample-*`: the four golden cases in sample mode, plus FD001-A031 with a corrupted T30 reading (serious: `data_quality` escalation, confidence low) and with a gap in the cycles (minor: flagged only).
+- `trace-live-critic-*`: the four golden cases with the LLM critic answered through Nightshift by Nemotron 3 Ultra 550B (`model` on the critic line), data from the snapshot. Recorded before the input-plausibility check was added, so the Data agent's evidence IDs differ by one from the sample traces.

@@ -209,6 +209,11 @@ def append(left: list, right: list) -> list:
     return [*left, *right]
 
 
+def keep_error(left: str, right: str) -> str:
+    """Reducer for parallel branches: several specialists may fail in one step; "error" is final."""
+    return "error" if "error" in (left, right) else right
+
+
 def merge_findings(left: Findings, right: Findings) -> Findings:
     """Reducer for parallel branches: each agent fills its own fields; lists are concatenated."""
     merged = left.model_copy()
@@ -234,8 +239,8 @@ class CaseFile(BaseModel):
     escalations: Annotated[list[Escalation], append] = Field(default_factory=list)
     round: int = Field(default=0, ge=0, le=MAX_ROUNDS)
     trace: Annotated[list[TraceEvent], append] = Field(default_factory=list)
-    status: Literal["running", "needs_clarification", "needs_review", "approved", "rejected", "insufficient_evidence",
-                    "error"] = "running"
+    status: Annotated[Literal["running", "needs_clarification", "needs_review", "approved", "rejected",
+                              "insufficient_evidence", "error"], keep_error] = "running"
     degraded: Annotated[list[str], append] = Field(default_factory=list)
 
     def unresolved(self, evidence_ids: list[str]) -> list[str]:

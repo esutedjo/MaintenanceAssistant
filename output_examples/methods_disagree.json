@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T163442Z-c93c5b",
+ "run_id": "20261023T184012Z-0bf75f",
  "status": "needs_review",
  "question": "The two remaining-life estimates for FD001-A070 look different. What should I do?",
  "mode": {
@@ -333,20 +333,27 @@
    "degraded": null
   },
   "EV-DAT-02": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/data_quality",
+   "summary": "FD001-A070: input data plausible (152 cycles, 21 sensors, 4 work orders within asset-pack limits)",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-03": {
    "kind": "query",
    "source": "snapshot:history.parquet",
    "summary": "FD001-A070: 4 work orders; last inspection WO-000632 at cycle 120 severity none; 0 inspection(s) with findings",
    "produced_by": "data",
    "degraded": null
   },
-  "EV-DAT-03": {
+  "EV-DAT-04": {
    "kind": "query",
    "source": "snapshot:flight_schedule.parquet",
    "summary": "FD001-A070: 12 cycles planned in 7 days, 58 in 30 days",
    "produced_by": "data",
    "degraded": null
   },
-  "EV-DAT-04": {
+  "EV-DAT-05": {
    "kind": "query",
    "source": "snapshot:hangar_slots.parquet",
    "summary": "75 free hangar slots; first on 2026-10-23 (1 days from 2026-10-22)",
@@ -473,6 +480,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T163442Z-c93c5b.jsonl",
- "duration_s": 0.27
+ "trace_file": "logs\\trace-20261023T184012Z-0bf75f.jsonl",
+ "duration_s": 0.25
 }

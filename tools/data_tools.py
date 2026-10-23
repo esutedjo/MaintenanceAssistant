@@ -9,6 +9,7 @@ import pandas as pd
 
 from casefile.schemas import Evidence, EvidenceLedger
 from tools.data_access import DataSource, QueryResult
+from tools.data_quality import check_cycles, check_history, check_parts, check_sensors, overall
 
 BASELINE_CYCLES = 20
 RECENT_CYCLES = 10
@@ -39,15 +40,29 @@ def _iso(value) -> str | None:
     return value.isoformat() if isinstance(value, (date, datetime)) else str(value)
 
 
+def _nanmean(values: np.ndarray) -> float:
+    return float(np.nanmean(values)) if np.isfinite(values).any() else float("nan")
+
+
+def _nanstd(values: np.ndarray) -> float:
+    return float(np.nanstd(values)) if np.isfinite(values).any() else 0.0
+
+
+def _available(row) -> int:
+    """Stock that can be issued; a negative count is impossible (data_quality reports it) and counts as none."""
+    return max(0, (_num(row.qty_on_hand) or 0) - (_num(row.qty_reserved) or 0))
+
+
 class DataTools:
     def __init__(self, source: DataSource, ledger: EvidenceLedger, pack: dict, reference_time: datetime):
         self.source, self.ledger, self.pack = source, ledger, pack
         self.reference_time = reference_time
         self.cycles_per_day = pack["thresholds"]["cycles_per_day"]
 
-    def _add(self, result: QueryResult, summary: str, content: dict) -> Evidence:
+    def _add(self, result: QueryResult, summary: str, content: dict, extra_degraded: str | None = None) -> Evidence:
         content = {**content, "query": result.query, "duration_s": result.duration_s}
-        return self.ledger.add("query", result.source, summary, content, degraded=result.degraded)
+        degraded = "; ".join(d for d in (result.degraded, extra_degraded) if d) or None
+        return self.ledger.add("query", result.source, summary, content, degraded=degraded)
 
     def asset_profile(self, asset_id: str) -> Evidence:
         result = self.source.asset(asset_id)
@@ -69,19 +84,19 @@ class DataTools:
         for sensor, spec in self.pack["sensors"].items():
             if all(d == "none" for d in spec["direction"].values()):
                 continue
-            values = frame[sensor].to_numpy(float)
-            baseline = values[:BASELINE_CYCLES].mean()
-            recent = values[-RECENT_CYCLES:].mean()
-            tail = frame.tail(SLOPE_CYCLES)
-            slope = np.polyfit(tail["cycle"].to_numpy(float), tail[sensor].to_numpy(float), 1)[0] if len(tail) > 2 else 0.0
-            spread = values[:BASELINE_CYCLES].std() or 1e-9
+            values = frame[sensor].to_numpy(float)           # missing values are reported by data_quality
+            baseline = _nanmean(values[:BASELINE_CYCLES])
+            recent = _nanmean(values[-RECENT_CYCLES:])
+            tail = frame.tail(SLOPE_CYCLES)[["cycle", sensor]].astype(float).dropna()
+            slope = np.polyfit(tail["cycle"], tail[sensor], 1)[0] if len(tail) > 2 else 0.0
+            spread = _nanstd(values[:BASELINE_CYCLES]) or 1e-9
             sensors[sensor] = {
                 "name": spec["name"], "unit": spec["unit"], "component": spec["component"],
                 "baseline": _num(baseline), "recent": _num(recent), "change": _num(recent - baseline),
                 "change_sigma": _num((recent - baseline) / spread, 2), "slope_per_cycle": _num(slope, 6),
             }
         first, last = int(frame.cycle.min()), int(frame.cycle.max())
-        moved = sorted(sensors, key=lambda s: -abs(sensors[s]["change_sigma"]))[:3]
+        moved = sorted(sensors, key=lambda s: -abs(sensors[s]["change_sigma"] or 0))[:3]
         moved_text = ", ".join(f"{sensors[s]['name']} {sensors[s]['change_sigma']:+.1f} sd" for s in moved)
         summary = (f"{asset_id}: {len(frame)} cycles ({first}-{last}); largest moves vs first {BASELINE_CYCLES} "
                    f"cycles: {moved_text}")
@@ -89,6 +104,29 @@ class DataTools:
                    "baseline_cycles": BASELINE_CYCLES, "recent_cycles": RECENT_CYCLES,
                    "slope_cycles": SLOPE_CYCLES, "sensors": sensors}
         return Telemetry(self._add(result, summary, content), frame)
+
+    def data_quality(self, asset_id: str, cycles: pd.DataFrame, profile: dict | None = None) -> Evidence:
+        """Plausibility of the inputs before any model reads them. Serious issues lower confidence and escalate."""
+        profile = profile or {}
+        last_cycle = profile.get("last_cycle")
+        history = self.source.history(asset_id).frame
+        issues = [*check_cycles(cycles, last_cycle, self.reference_time), *check_sensors(cycles, self.pack),
+                  *check_history(history, last_cycle if last_cycle is not None else
+                                 (int(cycles.cycle.max()) if len(cycles) else None),
+                                 profile.get("fleet_status"), self.reference_time)]
+        severity = overall(issues)
+        checked = (f"{len(cycles)} cycles, {len(self.pack['sensors'])} sensors, {len(history)} work orders")
+        if issues:
+            summary = (f"{asset_id}: input data {severity}: " + "; ".join(i.detail for i in issues[:3])
+                       + (f"; {len(issues) - 3} more" if len(issues) > 3 else ""))
+        else:
+            summary = f"{asset_id}: input data plausible ({checked} within asset-pack limits)"
+        content = {"asset_id": asset_id, "data_quality": severity, "issues": [i.as_dict() for i in issues],
+                   "checked": checked}
+        degraded = f"Data quality {severity}: {issues[0].detail}" + (
+            f" (+{len(issues) - 1} more)" if len(issues) > 1 else "") if issues else None
+        return self.ledger.add("rule", f"asset_pack:{self.pack['asset_type']}/data_quality", summary, content,
+                               degraded=degraded)
 
     def history(self, asset_id: str) -> Evidence:
         result = self.source.history(asset_id)
@@ -117,17 +155,24 @@ class DataTools:
         result = self.source.parts(part_numbers)
         rows = []
         for r in result.frame.itertuples():
-            available = (_num(r.qty_on_hand) or 0) - (_num(r.qty_reserved) or 0)
+            available = _available(r)
             rows.append({"part_number": r.part_number, "description": r.description, "component": r.component,
                          "available": available, "lead_time_days": _num(r.lead_time_days),
                          "unit_cost_usd": _num(r.unit_cost_usd, 2)})
         missing = sorted(set(part_numbers) - {r["part_number"] for r in rows})
+        issues = check_parts([{"part_number": r.part_number, "qty_on_hand": _num(r.qty_on_hand),
+                               "qty_reserved": _num(r.qty_reserved), "lead_time_days": _num(r.lead_time_days)}
+                              for r in result.frame.itertuples()])
         summary = "; ".join(
             f"{r['part_number']} ({r['description']}): {r['available']} available, lead time {r['lead_time_days']} d"
             for r in rows) or "no matching parts"
         if missing:
             summary += f"; unknown part numbers: {', '.join(missing)}"
-        return self._add(result, summary, {"parts": rows, "unknown": missing})
+        if issues:
+            summary += "; implausible stock data: " + "; ".join(i.detail for i in issues)
+        note = ("Data quality serious: " + "; ".join(i.detail for i in issues)) if issues else None
+        return self._add(result, summary, {"parts": rows, "unknown": missing, "issues": [i.as_dict() for i in issues]},
+                         extra_degraded=note)
 
     def free_slots(self, show: int = 5) -> Evidence:
         result = self.source.free_slots()
@@ -163,7 +208,7 @@ class DataTools:
             task = tasks.setdefault(r.fmea_id, {"fmea_id": r.fmea_id, "task": r.task, "task_type": r.task_type,
                                                 "trigger_severity": r.trigger_severity, "parts": []})
             if r.part_number:
-                available = (_num(r.qty_on_hand) or 0) - (_num(r.qty_reserved) or 0)
+                available = _available(r)
                 task["parts"].append({"part_number": r.part_number, "qty": _num(r.qty), "available": available,
                                       "lead_time_days": _num(r.lead_time_days)})
         for task in tasks.values():

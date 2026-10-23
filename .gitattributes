@@ -1,3 +1,6 @@
 * text=auto
 *.sql text eol=lf
 *.sh text eol=lf
+# LightGBM cannot read its model files with CRLF line endings (Windows checkouts with core.autocrlf)
+models/artifacts/** -text
+*.parquet binary
