@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T073434Z-a62a29",
+ "run_id": "20261023T083637Z-5c3de0",
  "status": "needs_review",
  "question": "What should I do about FD001-A031?",
  "mode": {
@@ -134,8 +134,9 @@
   ]
  },
  "recommendation": {
-  "action": "Remove engine; replace HPC stage 1-3 blades and case abradable seals",
+  "action": "Swap in lease engine while the removed engine waits for parts",
   "task_ids": [
+   "FM-HPC-06",
    "FM-HPC-04"
   ],
   "parts": [
@@ -165,6 +166,15 @@
     "evidence_ids": [
      "EV-MNT-02"
     ]
+   },
+   {
+    "part_number": "TF-ENG-9001",
+    "qty": 1,
+    "available": 1,
+    "lead_time_days": 21,
+    "evidence_ids": [
+     "EV-MNT-02"
+    ]
    }
   ],
   "slot": "2026-10-23",
@@ -175,6 +185,41 @@
     "evidence_ids": [
      "EV-PRG-01",
      "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Trigger severity severe: planning lower bound 0 cycles (min(A 10th percentile 7, B lower 0); severe < 25, moderate < 80).",
+    "evidence_ids": [
+     "EV-MNT-03",
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Selected tasks need TF-GEN-8102 (need 1, 30 on hand, 5 d lead), TF-HPC-1101 (need 1, 2 on hand, 35 d lead), TF-HPC-1104 (need 1, 3 on hand, 21 d lead), TF-ENG-9001 (need 1, 1 on hand, 21 d lead). In-stock substitutes do not replace a short required part.",
+    "evidence_ids": [
+     "EV-MNT-02",
+     "EV-MNT-03"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "RUL lower bound 0.0 days is shorter than parts lead time 35 d plus next free slot 1 d; swap a lease engine while the shop visit waits for parts.",
+    "evidence_ids": [
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-MNT-03",
+     "EV-DAT-04",
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "FMEA task FM-HPC-06: Swap in lease engine while the removed engine waits for parts.",
+    "evidence_ids": [
+     "EV-MNT-01"
     ],
     "confidence": "high"
    },
@@ -209,6 +254,7 @@
     "EV-PRG-01",
     "EV-PRG-02",
     "EV-DAT-04",
+    "EV-MNT-02",
     "EV-MNT-02",
     "EV-MNT-02",
     "EV-MNT-02"
@@ -305,7 +351,14 @@
   "EV-MNT-02": {
    "kind": "query",
    "source": "snapshot:parts.parquet",
-   "summary": "TF-GEN-8102 30 available, lead time 5 d; TF-HPC-1101 2 available, lead time 35 d; TF-HPC-1104 3 available, lead time 21 d",
+   "summary": "TF-ENG-9001 (Spare engine lease (per month)): 1 available, lead time 21 d; TF-GEN-8102 (Engine gasket and O-ring kit): 30 available, lead time 5 d; TF-HPC-1101 (HPC stage 1-3 blade set): 2 available, lead time 35 d; TF-HPC-1104 (HPC case abradable seal set): 3 available, lead time 21 d",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-03": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/thresholds",
+   "summary": "Trigger severity severe: planning lower bound 0 cycles (min(A 10th percentile 7, B lower 0); severe < 25, moderate < 80).",
    "produced_by": "maint_planner",
    "degraded": null
   },
@@ -338,6 +391,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T073434Z-a62a29.jsonl",
- "duration_s": 0.24
+ "trace_file": "logs\\trace-20261023T083637Z-5c3de0.jsonl",
+ "duration_s": 0.23
 }

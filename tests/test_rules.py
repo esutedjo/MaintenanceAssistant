@@ -1,6 +1,8 @@
 from datetime import date
 
-from assurance.escalation import ambiguous_fault, rul_below_lead_time, rul_divergence, run_escalations
+from assurance.escalation import (
+    ambiguous_fault, remaining_shorter_than_wait, rul_below_lead_time, rul_divergence, run_escalations,
+)
 from assurance.rules import asset_matches, claims_have_evidence, parts_exist, rul_in_range, run_rule_checks, slot_exists
 from casefile.schemas import (
     AssetRef, CaseFile, Claim, Escalation, Evidence, FaultModeFinding, Intent, PartNeed, Recommendation, RulFinding,
@@ -92,6 +94,11 @@ def test_ambiguous_fault_escalates_within_pack_gap():
     clear = _case(findings={"fault_modes": [
         FaultModeFinding(failure_mode="fan_degradation", probability=1.0, evidence_id="EV-PRG-01")]})
     assert ambiguous_fault(clear, PACK) is None
+
+
+def test_remaining_shorter_than_wait():
+    assert remaining_shorter_than_wait(3, 35, 1) is True
+    assert remaining_shorter_than_wait(40, 35, 1) is False
 
 
 def test_rul_below_lead_time_is_urgent():

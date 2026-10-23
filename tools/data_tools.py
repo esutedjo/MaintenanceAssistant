@@ -122,8 +122,9 @@ class DataTools:
                          "available": available, "lead_time_days": _num(r.lead_time_days),
                          "unit_cost_usd": _num(r.unit_cost_usd, 2)})
         missing = sorted(set(part_numbers) - {r["part_number"] for r in rows})
-        summary = "; ".join(f"{r['part_number']} {r['available']} available, lead time {r['lead_time_days']} d"
-                            for r in rows) or "no matching parts"
+        summary = "; ".join(
+            f"{r['part_number']} ({r['description']}): {r['available']} available, lead time {r['lead_time_days']} d"
+            for r in rows) or "no matching parts"
         if missing:
             summary += f"; unknown part numbers: {', '.join(missing)}"
         return self._add(result, summary, {"parts": rows, "unknown": missing})

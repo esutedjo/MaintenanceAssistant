@@ -44,6 +44,23 @@ def test_full_run_cites_resolvable_evidence(settings):
     assert all(e["status"] in {"success", "needs_revision"} for e in trace)
 
 
+def test_critical_engine_recommends_lease_swap(settings):
+    result = run_case("What should I do about FD001-A031?", settings)
+    rec = result["recommendation"]
+    assert "FM-HPC-06" in rec["task_ids"]
+    assert rec["action"].lower().startswith("swap")
+    assert any(p["part_number"] == "TF-ENG-9001" for p in rec["parts"])
+    assert any(e["rule"] == "rul_below_lead_time" for e in result["escalations"])
+
+
+def test_fan_case_swaps_when_lead_time_exceeds_rul(settings):
+    result = run_case("How long can FD003-A100 keep flying and what is wrong with it?", settings)
+    rec = result["recommendation"]
+    assert "FM-FAN-04" in rec["task_ids"]
+    assert rec["action"].lower().startswith("swap")
+    assert any(e["rule"] == "rul_below_lead_time" for e in result["escalations"])
+
+
 def test_healthy_engine_skips_similar_cases(settings):
     result = run_case("What is the status of FD001-A001?", settings)
     assert result["status"] == "needs_review"

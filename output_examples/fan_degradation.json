@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T073432Z-87e9b6",
+ "run_id": "20261023T083634Z-de4f6f",
  "status": "needs_review",
  "question": "How long can FD003-A100 keep flying and what is wrong with it?",
  "mode": {
@@ -139,8 +139,9 @@
   ]
  },
  "recommendation": {
-  "action": "Remove engine; replace fan blade set and case abradable liner",
+  "action": "Swap in lease engine while the removed engine waits for parts",
   "task_ids": [
+   "FM-FAN-04",
    "FM-FAN-03"
   ],
   "parts": [
@@ -150,7 +151,7 @@
     "available": 0,
     "lead_time_days": 75,
     "evidence_ids": [
-     "EV-MNT-04"
+     "EV-MNT-05"
     ]
    },
    {
@@ -159,7 +160,7 @@
     "available": 2,
     "lead_time_days": 28,
     "evidence_ids": [
-     "EV-MNT-04"
+     "EV-MNT-05"
     ]
    },
    {
@@ -168,7 +169,16 @@
     "available": 30,
     "lead_time_days": 5,
     "evidence_ids": [
-     "EV-MNT-04"
+     "EV-MNT-05"
+    ]
+   },
+   {
+    "part_number": "TF-ENG-9001",
+    "qty": 1,
+    "available": 1,
+    "lead_time_days": 21,
+    "evidence_ids": [
+     "EV-MNT-05"
     ]
    }
   ],
@@ -184,9 +194,44 @@
     "confidence": "high"
    },
    {
+    "text": "Trigger severity severe: planning lower bound 3 cycles (min(A 10th percentile 22, B lower 3); severe < 25, moderate < 80).",
+    "evidence_ids": [
+     "EV-MNT-06",
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Selected tasks need TF-FAN-2101 (need 1, 0 on hand, 75 d lead), TF-FAN-2103 (need 1, 2 on hand, 28 d lead), TF-GEN-8102 (need 1, 30 on hand, 5 d lead), TF-ENG-9001 (need 1, 1 on hand, 21 d lead). Short: TF-FAN-2101. In-stock substitutes do not replace a short required part.",
+    "evidence_ids": [
+     "EV-MNT-05",
+     "EV-MNT-06"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "RUL lower bound 1.4 days is shorter than parts lead time 75 d plus next free slot 1 d; swap a lease engine while the shop visit waits for parts.",
+    "evidence_ids": [
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-MNT-06",
+     "EV-DAT-04",
+     "EV-MNT-05"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "FMEA task FM-FAN-04: Swap in lease engine while the removed engine waits for parts.",
+    "evidence_ids": [
+     "EV-MNT-04"
+    ],
+    "confidence": "high"
+   },
+   {
     "text": "FMEA task FM-FAN-03: Remove engine; replace fan blade set and case abradable liner.",
     "evidence_ids": [
-     "EV-MNT-03"
+     "EV-MNT-04"
     ],
     "confidence": "high"
    },
@@ -214,9 +259,10 @@
     "EV-PRG-01",
     "EV-PRG-02",
     "EV-DAT-04",
-    "EV-MNT-04",
-    "EV-MNT-04",
-    "EV-MNT-04"
+    "EV-MNT-05",
+    "EV-MNT-05",
+    "EV-MNT-05",
+    "EV-MNT-05"
    ]
   }
  ],
@@ -326,21 +372,35 @@
   "EV-MNT-02": {
    "kind": "query",
    "source": "snapshot:parts.parquet",
-   "summary": "TF-FAN-2101 0 available, lead time 75 d; TF-FAN-2103 2 available, lead time 28 d; TF-GEN-8102 30 available, lead time 5 d",
+   "summary": "TF-ENG-9001 (Spare engine lease (per month)): 1 available, lead time 21 d; TF-FAN-2101 (Fan blade set (24 blades)): 0 available, lead time 75 d; TF-FAN-2103 (Fan case abradable liner): 2 available, lead time 28 d; TF-GEN-8102 (Engine gasket and O-ring kit): 30 available, lead time 5 d",
    "produced_by": "maint_planner",
    "degraded": null
   },
   "EV-MNT-03": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/thresholds",
+   "summary": "Trigger severity severe: planning lower bound 3 cycles (min(A 10th percentile 22, B lower 3); severe < 25, moderate < 80).",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-04": {
    "kind": "query",
    "source": "snapshot:fmea_tasks.parquet",
    "summary": "fan_degradation: 4 FMEA tasks; FM-FAN-01 inspect (minor); FM-FAN-02 replace (moderate); FM-FAN-03 replace (severe), short: TF-FAN-2101; FM-FAN-04 engine_change (severe)",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-04": {
+  "EV-MNT-05": {
    "kind": "query",
    "source": "snapshot:parts.parquet",
-   "summary": "TF-FAN-2101 0 available, lead time 75 d; TF-FAN-2103 2 available, lead time 28 d; TF-GEN-8102 30 available, lead time 5 d",
+   "summary": "TF-ENG-9001 (Spare engine lease (per month)): 1 available, lead time 21 d; TF-FAN-2101 (Fan blade set (24 blades)): 0 available, lead time 75 d; TF-FAN-2103 (Fan case abradable liner): 2 available, lead time 28 d; TF-GEN-8102 (Engine gasket and O-ring kit): 30 available, lead time 5 d",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-06": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/thresholds",
+   "summary": "Trigger severity severe: planning lower bound 3 cycles (min(A 10th percentile 22, B lower 3); severe < 25, moderate < 80).",
    "produced_by": "maint_planner",
    "degraded": null
   },
@@ -373,6 +433,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T073432Z-87e9b6.jsonl",
+ "trace_file": "logs\\trace-20261023T083634Z-de4f6f.jsonl",
  "duration_s": 0.25
 }

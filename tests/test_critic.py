@@ -1,4 +1,4 @@
-from agents.critic import deterministic_gaps, drivers_vs_fault
+from agents.critic import _parse, deterministic_gaps, drivers_vs_fault
 from casefile.schemas import AssetRef, CaseFile, Claim, Driver, FaultModeFinding
 from data.db import load_pack
 
@@ -19,3 +19,9 @@ def test_driver_gap_fires_when_shap_ignores_discriminating_sensors():
                                   evidence_ids=["EV-DIA-01"], confidence="medium")]
     assert drivers_vs_fault(case, PACK) is None
     assert deterministic_gaps(case, PACK) == []
+
+
+def test_parse_accepts_fenced_json_and_string_gaps():
+    assert _parse('```json\n{"outcome": "ACCEPT", "gaps": "missing stock"}\n```') == {
+        "outcome": "accept", "gaps": ["missing stock"]}
+    assert _parse('{"outcome": "revise", "gaps": ["a", "b"]}')["gaps"] == ["a", "b"]

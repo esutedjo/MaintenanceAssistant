@@ -3,6 +3,11 @@
 from casefile.schemas import CaseFile, Escalation
 
 
+def remaining_shorter_than_wait(rul_days: float, lead_days: float, slot_days: float) -> bool:
+    """True when the RUL lower bound (days) cannot cover parts lead time plus days to the next free slot."""
+    return rul_days < lead_days + slot_days
+
+
 def _rul_days(case: CaseFile, pack: dict) -> tuple[float | None, list[str]]:
     a, b = case.findings.rul_ml, case.findings.rul_trend
     if a is None:
@@ -58,7 +63,7 @@ def rul_below_lead_time(case: CaseFile, pack: dict) -> Escalation | None:
             slot_days = int(evidence.content["days_to_first_free"])
             evidence_ids = [*evidence_ids, evidence.id]
             break
-    if days >= lead + slot_days:
+    if not remaining_shorter_than_wait(days, lead, slot_days):
         return None
     extra = [p.evidence_ids[0] for p in rec.parts if p.evidence_ids]
     return Escalation(

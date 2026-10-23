@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T073430Z-29f8a0",
+ "run_id": "20261023T083632Z-24bec4",
  "status": "needs_review",
  "question": "What is the status of FD001-A001?",
  "mode": {
@@ -105,6 +105,15 @@
     "confidence": "high"
    },
    {
+    "text": "Trigger severity minor: planning lower bound 117 cycles (min(A 10th percentile 117, B lower 125); severe < 25, moderate < 80).",
+    "evidence_ids": [
+     "EV-MNT-01",
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
     "text": "Primary fault mode HPC degradation (p=1.00).",
     "evidence_ids": [
      "EV-DIA-01"
@@ -174,6 +183,13 @@
    "produced_by": "intake",
    "degraded": null
   },
+  "EV-MNT-01": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/thresholds",
+   "summary": "Trigger severity minor: planning lower bound 117 cycles (min(A 10th percentile 117, B lower 125); severe < 25, moderate < 80).",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
   "EV-PRG-01": {
    "kind": "model",
    "source": "model:rul_a@turbofan_cmapss/0.1.0",
@@ -203,6 +219,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T073430Z-29f8a0.jsonl",
- "duration_s": 0.19
+ "trace_file": "logs\\trace-20261023T083632Z-24bec4.jsonl",
+ "duration_s": 0.22
 }
