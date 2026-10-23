@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T083634Z-de4f6f",
+ "run_id": "20261023T163440Z-e5e026",
  "status": "needs_review",
  "question": "How long can FD003-A100 keep flying and what is wrong with it?",
  "mode": {
@@ -97,6 +97,85 @@
    "EV-DIA-03",
    "EV-DIA-04"
   ],
+  "documents": [
+   {
+    "doc_id": "SB-TF-72-0157",
+    "doc_type": "service_bulletin",
+    "section": "3.B",
+    "heading": "Recommended action",
+    "revision": "0",
+    "effective_date": "2026-08-20",
+    "precedence": 1,
+    "relevance": 0.331,
+    "failure_modes": [
+     "fan_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-02"
+   },
+   {
+    "doc_id": "SB-TF-72-0157",
+    "doc_type": "service_bulletin",
+    "section": "1.A",
+    "heading": "Reason",
+    "revision": "0",
+    "effective_date": "2026-08-20",
+    "precedence": 1,
+    "relevance": 0.244,
+    "failure_modes": [
+     "fan_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-03"
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "72-21-00",
+    "heading": "Fan blades: inspection and blend limits",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 0.339,
+    "failure_modes": [
+     "fan_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-04"
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "05-20-00",
+    "heading": "Gas-path trend monitoring",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 0.111,
+    "failure_modes": [
+     "hpc_degradation",
+     "fan_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-05"
+   }
+  ],
   "claims": [
    {
     "text": "Remaining useful life is about 27 cycles (10th-90th percentile 22-125) by the ML model; the health-index trend gives 10.",
@@ -130,6 +209,16 @@
     "confidence": "medium"
    },
    {
+    "text": "Applicable documents, highest precedence first: SB-TF-72-0157 3.B, SB-TF-72-0157 1.A, AMM-TF-R3 72-21-00, AMM-TF-R3 05-20-00.",
+    "evidence_ids": [
+     "EV-KNW-02",
+     "EV-KNW-03",
+     "EV-KNW-04",
+     "EV-KNW-05"
+    ],
+    "confidence": "medium"
+   },
+   {
     "text": "Sensors that distinguish Fan degradation from the other candidate are P30, phi, BPR, W31, W32 (not the SHAP drivers, which move under both modes).",
     "evidence_ids": [
      "EV-DIA-01"
@@ -139,7 +228,7 @@
   ]
  },
  "recommendation": {
-  "action": "Swap in lease engine while the removed engine waits for parts",
+  "action": "Swap in lease engine; module shop visit on the removed engine",
   "task_ids": [
    "FM-FAN-04",
    "FM-FAN-03"
@@ -211,7 +300,7 @@
     "confidence": "high"
    },
    {
-    "text": "RUL lower bound 1.4 days is shorter than parts lead time 75 d plus next free slot 1 d; swap a lease engine while the shop visit waits for parts.",
+    "text": "RUL lower bound 1.4 days is shorter than the time to repair on wing: short parts TF-FAN-2101 need 75 d lead time plus next free slot 1 d; swap a lease engine and do the shop visit on the removed engine.",
     "evidence_ids": [
      "EV-PRG-01",
      "EV-PRG-02",
@@ -222,7 +311,7 @@
     "confidence": "high"
    },
    {
-    "text": "FMEA task FM-FAN-04: Swap in lease engine while the removed engine waits for parts.",
+    "text": "FMEA task FM-FAN-04: Swap in lease engine; module shop visit on the removed engine.",
     "evidence_ids": [
      "EV-MNT-04"
     ],
@@ -232,6 +321,13 @@
     "text": "FMEA task FM-FAN-03: Remove engine; replace fan blade set and case abradable liner.",
     "evidence_ids": [
      "EV-MNT-04"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Limits and intervals for FM-FAN-03 follow SB-TF-72-0157 3.B (service bulletin), the highest-precedence document on that topic.",
+    "evidence_ids": [
+     "EV-KNW-02"
     ],
     "confidence": "high"
    },
@@ -249,7 +345,7 @@
   {
    "rule": "rul_below_lead_time",
    "severity": "urgent",
-   "message": "RUL lower bound is 1.4 days; parts lead time 75 d plus next free slot 1 d.",
+   "message": "RUL lower bound is 1.4 days; lead time of short parts 75 d plus next free slot 1 d.",
    "actions": [
     "Propose expedite",
     "Propose engine swap",
@@ -362,6 +458,41 @@
    "produced_by": "intake",
    "degraded": null
   },
+  "EV-KNW-01": {
+   "kind": "query",
+   "source": "snapshot:doc_chunks.parquet",
+   "summary": "13 document sections for turbofan_cmapss; 4 apply",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-02": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#SB-TF-72-0157#3.B",
+   "summary": "SB-TF-72-0157 3.B Recommended action [service bulletin, rev 0, effective 2026-08-20]: relevance 0.33",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-03": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#SB-TF-72-0157#1.A",
+   "summary": "SB-TF-72-0157 1.A Reason [service bulletin, rev 0, effective 2026-08-20]: relevance 0.24",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-04": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AMM-TF-R3#72-21-00",
+   "summary": "AMM-TF-R3 72-21-00 Fan blades: inspection and blend limits [manual, rev 3, effective 2026-03-01]: relevance 0.34",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-05": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AMM-TF-R3#05-20-00",
+   "summary": "AMM-TF-R3 05-20-00 Gas-path trend monitoring [manual, rev 3, effective 2026-03-01]: relevance 0.11",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
   "EV-MNT-01": {
    "kind": "query",
    "source": "snapshot:fmea_tasks.parquet",
@@ -414,7 +545,7 @@
   "EV-PRG-02": {
    "kind": "model",
    "source": "model:rul_b@turbofan_cmapss/0.1.0",
-   "summary": "RUL B (health-index trend): 10 cycles, health index 0.60 (healthy band up to 0.18)",
+   "summary": "RUL B (health-index trend): 10 cycles (lower 3, upper 15), health index 0.60 (healthy band up to 0.18)",
    "produced_by": "prognostics",
    "degraded": null
   },
@@ -433,6 +564,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T083634Z-de4f6f.jsonl",
- "duration_s": 0.25
+ "trace_file": "logs\\trace-20261023T163440Z-e5e026.jsonl",
+ "duration_s": 0.28
 }

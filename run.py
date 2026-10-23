@@ -1,7 +1,7 @@
 """Entry point. JSON in, JSON out.
 
   uv run python run.py --question "How long can FD003-A100 keep flying?"
-  uv run python run.py --input input_examples/critical_engine.json [--output result.json]
+  uv run python run.py --input input_examples/critical_hpc.json [--output result.json]
   uv run python run.py --serve            # POST /run {"question": "..."} on RUN_HOST:RUN_PORT
 
 SAMPLE_MODE=true runs on the committed snapshot with no Zetaris, Nightshift or network access.

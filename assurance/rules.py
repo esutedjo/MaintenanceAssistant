@@ -1,5 +1,7 @@
 """Deterministic rule checks. Run after the maintenance planner, before the critic. No LLM."""
 
+from datetime import date, timedelta
+
 from casefile.schemas import CaseFile, Verdict
 
 
@@ -45,10 +47,39 @@ def parts_exist(case: CaseFile) -> list[str]:
             gaps.append(f"part {part.part_number} cites unknown evidence {part.evidence_ids}")
         if part.available < 0:
             gaps.append(f"part {part.part_number} has negative availability {part.available}")
-        for evidence_id in part.evidence_ids:
-            evidence = case.evidence.get(evidence_id)
-            if evidence and part.part_number in (evidence.content.get("unknown") or []):
-                gaps.append(f"part {part.part_number} is not in the catalogue")
+        cited = [case.evidence[i] for i in part.evidence_ids if i in case.evidence]
+        if any(part.part_number in (e.content.get("unknown") or []) for e in cited):
+            gaps.append(f"part {part.part_number} is not in the catalogue")
+            continue
+        stock = [row for e in cited for row in e.content.get("parts") or [] if row.get("part_number") == part.part_number]
+        listed = stock or [row for e in cited for task in e.content.get("tasks") or []
+                           for row in task.get("parts") or [] if row.get("part_number") == part.part_number]
+        if not listed:
+            gaps.append(f"part {part.part_number} is not listed in the evidence it cites {part.evidence_ids}")
+        elif stock and (part.available != stock[0].get("available")
+                        or part.lead_time_days != (stock[0].get("lead_time_days") or 0)):
+            gaps.append(f"part {part.part_number}: {part.available} available, {part.lead_time_days} d lead time "
+                        f"differs from stock evidence ({stock[0].get('available')}, {stock[0].get('lead_time_days')} d)")
+    return gaps
+
+
+def findings_match_evidence(case: CaseFile, tolerance: float = 0.05) -> list[str]:
+    """Reported numbers must equal the model output they cite; a brief may not round an engine healthier."""
+    gaps = []
+    for finding in (case.findings.rul_ml, case.findings.rul_trend):
+        evidence = case.evidence.get(finding.evidence_id) if finding else None
+        if evidence is None:
+            continue
+        for name in ("rul", "lower", "upper"):
+            source = evidence.content.get(name)
+            if source is not None and abs(getattr(finding, name) - float(source)) > tolerance:
+                gaps.append(f"RUL {finding.method} {name}={getattr(finding, name)} differs from "
+                            f"{finding.evidence_id} ({source})")
+    for mode in case.findings.fault_modes:
+        evidence = case.evidence.get(mode.evidence_id)
+        source = (evidence.content.get("probabilities") or {}).get(mode.failure_mode) if evidence else None
+        if source is not None and abs(mode.probability - float(source)) > 0.01:
+            gaps.append(f"fault mode {mode.failure_mode} p={mode.probability} differs from {mode.evidence_id} ({source})")
     return gaps
 
 
@@ -67,8 +98,42 @@ def slot_exists(case: CaseFile) -> list[str]:
     return ["recommendation has a slot but no free-slot evidence"]
 
 
-def run_rule_checks(case: CaseFile, pack: dict) -> Verdict:
+def mandates_honoured(case: CaseFile, pack: dict, reference: date | None = None) -> list[str]:
+    """A mandatory document action may not be dropped, cited away or pushed past its compliance time."""
+    mandates = [d for d in case.findings.documents if d.mandatory]
+    rec = case.recommendation
+    if not mandates or rec is None:
+        return []
+    gaps = []
+    cited = {i for c in rec.rationale for i in c.evidence_ids}
+    for doc in mandates:
+        label = f"{doc.doc_id} {doc.section}"
+        if doc.required_task and doc.required_task not in rec.task_ids:
+            gaps.append(f"mandatory task {doc.required_task} from {label} is missing from the plan")
+        if doc.evidence_id not in cited:
+            gaps.append(f"recommendation does not cite mandatory document {label} ({doc.evidence_id})")
+        if reference and doc.within_cycles is not None and rec.deadline:
+            limit = reference + timedelta(days=int(doc.within_cycles / pack["thresholds"]["cycles_per_day"]))
+            if rec.deadline > limit:
+                gaps.append(f"deadline {rec.deadline} is later than {label} allows ({limit})")
+    return gaps
+
+
+def deadline_within_rul(case: CaseFile, pack: dict, reference: date | None = None) -> list[str]:
+    """The deadline may be earlier than the RUL lower bound (a document can tighten it), never later."""
+    rec, a, b = case.recommendation, case.findings.rul_ml, case.findings.rul_trend
+    if reference is None or rec is None or rec.deadline is None or a is None:
+        return []
+    lower = min(a.lower, b.lower if b else a.lower)
+    limit = reference + timedelta(days=int(lower / pack["thresholds"]["cycles_per_day"]))
+    if rec.deadline > limit:
+        return [f"deadline {rec.deadline} is later than the RUL lower bound allows ({limit}, {lower:.0f} cycles)"]
+    return []
+
+
+def run_rule_checks(case: CaseFile, pack: dict, reference: date | None = None) -> Verdict:
     cap = float(pack["thresholds"]["rul_cap_cycles"])
-    gaps = [*claims_have_evidence(case), *rul_in_range(case, cap), *asset_matches(case),
-            *parts_exist(case), *slot_exists(case)]
+    gaps = [*claims_have_evidence(case), *rul_in_range(case, cap), *findings_match_evidence(case), *asset_matches(case),
+            *parts_exist(case), *slot_exists(case), *mandates_honoured(case, pack, reference),
+            *deadline_within_rul(case, pack, reference)]
     return Verdict(round=case.round, gate="rule_checks", outcome="accept" if not gaps else "revise", gaps=gaps)

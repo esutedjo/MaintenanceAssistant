@@ -9,10 +9,11 @@ CHECKS = {
     "telemetry_pg": ["cycles", "signals", "telemetry_long"],
     "cmms_pg": ["assets", "work_orders", "findings", "parts_replaced", "planning_parts", "planning_stock",
                 "planning_hangar_slots", "planning_flight_schedule"],
+    "knowledge_pg": ["doc_chunks"],
     "s3_files": ["fmea"],
 }
 # File sources are registered per file in the Zetaris UI; only JDBC sources can re-import their tables.
-JDBC_SOURCES = {"telemetry_pg", "cmms_pg"}
+JDBC_SOURCES = {"telemetry_pg", "cmms_pg", "knowledge_pg"}
 
 
 def main() -> int:

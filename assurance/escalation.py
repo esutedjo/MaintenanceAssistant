@@ -8,6 +8,11 @@ def remaining_shorter_than_wait(rul_days: float, lead_days: float, slot_days: fl
     return rul_days < lead_days + slot_days
 
 
+def parts_wait_days(parts) -> int:
+    """Longest lead time among parts with too little stock; parts on hand do not wait."""
+    return max((int(p.lead_time_days) for p in parts if p.available < p.qty), default=0)
+
+
 def _rul_days(case: CaseFile, pack: dict) -> tuple[float | None, list[str]]:
     a, b = case.findings.rul_ml, case.findings.rul_trend
     if a is None:
@@ -26,7 +31,7 @@ def rul_divergence(case: CaseFile, pack: dict) -> Escalation | None:
         return None
     return Escalation(
         rule="rul_divergence", severity="warning",
-        message=f"RUL A ({a.rul:.0f}) and RUL B ({b.rul:.0f}) differ by {gap:.0f} cycles (limit {limit:.0f}).",
+        message=f"RUL A ({a.rul:.1f}) and RUL B ({b.rul:.1f}) differ by {gap:.1f} cycles (limit {limit:.0f}).",
         actions=["Recommend borescope inspection", "Do not average the two remaining-life estimates"],
         evidence_ids=[a.evidence_id, b.evidence_id],
     )
@@ -56,7 +61,7 @@ def rul_below_lead_time(case: CaseFile, pack: dict) -> Escalation | None:
     days, evidence_ids = _rul_days(case, pack)
     if days is None:
         return None
-    lead = max((p.lead_time_days for p in rec.parts), default=0)
+    lead = parts_wait_days(rec.parts)
     slot_days = 0
     for evidence in case.evidence.values():
         if evidence.content.get("days_to_first_free") is not None:
@@ -68,11 +73,24 @@ def rul_below_lead_time(case: CaseFile, pack: dict) -> Escalation | None:
     extra = [p.evidence_ids[0] for p in rec.parts if p.evidence_ids]
     return Escalation(
         rule="rul_below_lead_time", severity="urgent",
-        message=(f"RUL lower bound is {days:.1f} days; parts lead time {lead} d plus next free slot {slot_days} d."),
+        message=(f"RUL lower bound is {days:.1f} days; lead time of short parts {lead} d plus next free slot "
+                 f"{slot_days} d."),
         actions=["Propose expedite", "Propose engine swap", "Propose derate"],
         evidence_ids=[*evidence_ids, *extra][:8] or evidence_ids,
     )
 
 
+def document_mandates(case: CaseFile, pack: dict) -> list[Escalation]:
+    """Mandatory document actions are listed before every other escalation; no agent can remove them."""
+    return [Escalation(
+        rule="document_mandate", severity="urgent",
+        message=(f"{d.doc_id} {d.section} ({d.doc_type.replace('_', ' ')}) requires {d.required_task} "
+                 f"within {d.within_cycles} cycles: {d.action}"),
+        actions=[d.action or f"Perform {d.required_task}", "Mandatory: cannot be removed or deferred by the agents"],
+        evidence_ids=[d.evidence_id],
+    ) for d in case.findings.documents if d.mandatory]
+
+
 def run_escalations(case: CaseFile, pack: dict) -> list[Escalation]:
-    return [e for e in (rul_divergence(case, pack), ambiguous_fault(case, pack), rul_below_lead_time(case, pack)) if e]
+    rest = (rul_divergence(case, pack), ambiguous_fault(case, pack), rul_below_lead_time(case, pack))
+    return [*document_mandates(case, pack), *[e for e in rest if e]]

@@ -104,7 +104,8 @@ def node(agent: str, action: str, describe_input: Callable[[CaseFile], str]):
                 evidence_ids=sorted(evidence),
             )
             ctx.trace.write(event)
-            degraded = sorted({e.degraded for e in evidence.values() if e.degraded} - set(state.degraded))
+            degraded = sorted(({e.degraded for e in evidence.values() if e.degraded} | set(update.get("degraded", [])))
+                              - set(state.degraded))
             return {**update, "trace": [event], **({"degraded": degraded} if degraded else {})}
         # LangGraph passes `config` only if it sees it in the signature, so no functools.wraps here.
         run.__name__, run.__doc__ = fn.__name__, fn.__doc__

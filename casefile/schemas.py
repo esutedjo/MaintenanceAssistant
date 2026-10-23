@@ -112,6 +112,25 @@ class AnomalyFinding(BaseModel):
     evidence_id: str
 
 
+class DocumentFinding(BaseModel):
+    """A document section that applies to the case. Mandatory ones must stay in the plan (rule check)."""
+    doc_id: str
+    doc_type: str
+    section: str
+    heading: str
+    revision: str
+    effective_date: str
+    precedence: int                             # 0 = highest (asset pack `documents.precedence`)
+    relevance: float
+    failure_modes: list[str] = Field(default_factory=list)
+    mandatory: bool = False
+    required_task: str | None = None            # FMEA task the mandate requires
+    within_cycles: int | None = None
+    action: str | None = None
+    overridden_by: str | None = None            # "SB-TF-72-0142 3.B" when a higher document wins the topic
+    evidence_id: str
+
+
 class Findings(BaseModel):
     rul_ml: RulFinding | None = None
     rul_trend: RulFinding | None = None
@@ -119,6 +138,7 @@ class Findings(BaseModel):
     drivers: list[Driver] = Field(default_factory=list)
     anomaly: AnomalyFinding | None = None
     similar_cases: list[str] = Field(default_factory=list)     # evidence IDs of kind "case"
+    documents: list[DocumentFinding] = Field(default_factory=list)
     claims: list[Claim] = Field(default_factory=list)
 
 

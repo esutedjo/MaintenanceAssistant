@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     zetaris_org_id: str = ""
     zetaris_api_key: SecretStr = SecretStr("")
     zetaris_query_limit: int = 1000
-    zetaris_timeout_s: float = 60.0
+    zetaris_timeout_s: float = 10.0
+    zetaris_budget_s: float = 30.0
 
     context_store: Literal["meterless", "sqlite"] = "meterless"
     context_service_url: str = "http://127.0.0.1:8710"
@@ -51,6 +52,9 @@ class Settings(BaseSettings):
     llm_timeout_s: float = 180.0
     run_timeout_s: float = 120.0
     meterless_critic_model: str = "meterless/auto"
+    # Separate Nightshift app so its routing rule can keep the critic on another model family.
+    meterless_critic_app: str = "turbofan-maintenance-critic"
+    critic_timeout_s: float = 45.0
 
     # Interim cloud fallback, used only when Nightshift is unreachable (transport failure).
     nvidia_api_key: SecretStr = SecretStr("")

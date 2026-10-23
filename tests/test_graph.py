@@ -61,6 +61,15 @@ def test_fan_case_swaps_when_lead_time_exceeds_rul(settings):
     assert any(e["rule"] == "rul_below_lead_time" for e in result["escalations"])
 
 
+def test_disagreeing_methods_get_inspection_not_average(settings):
+    result = run_case("The two remaining-life estimates for FD001-A070 look different. What should I do?", settings)
+    rec = result["recommendation"]
+    assert [e["rule"] for e in result["escalations"]] == ["rul_divergence"]
+    assert rec["action"].lower().startswith("borescope")
+    assert rec["confidence"] == "low"
+    assert any("SB-TF-72-0142" in c["text"] for c in rec["rationale"])
+
+
 def test_healthy_engine_skips_similar_cases(settings):
     result = run_case("What is the status of FD001-A001?", settings)
     assert result["status"] == "needs_review"

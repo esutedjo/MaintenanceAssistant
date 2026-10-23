@@ -1,0 +1,227 @@
+{
+ "generated_at": "2026-10-23 16:28 UTC",
+ "settings": {
+  "sample_mode": true,
+  "engines": 200,
+  "rul_cap": 125.0,
+  "divergence_limit": 20
+ },
+ "fleet": {
+  "runs": 200,
+  "completion": {
+   "by_status": {
+    "needs_review": 200
+   },
+   "brief_ready_share": 1.0,
+   "crashes": 0,
+   "duration_s": {
+    "p50": 0.3,
+    "p95": 0.34,
+    "max": 0.41
+   }
+  },
+  "rul": {
+   "a": {
+    "rmse": 12.13,
+    "mae": 8.6,
+    "interval_coverage": 0.73
+   },
+   "b": {
+    "rmse": 22.31,
+    "mae": 15.72,
+    "rmse_true_rul_le_25": 7.55
+   }
+  },
+  "safety": {
+   "planning_bound_at_or_below_true_rul_share": 0.9,
+   "bound_above_true_rul": 20,
+   "of_which_flagged_for_inspection_or_low_confidence": 1,
+   "mean_overshoot_cycles": 8.7,
+   "overshoot_with_true_rul_le_30": 1,
+   "engines_with_true_rul_le_30": 45,
+   "overshoot_engines": {
+    "FD001-A001": {
+     "bound": 116.7,
+     "true_rul": 112
+    },
+    "FD001-A002": {
+     "bound": 114.2,
+     "true_rul": 98
+    },
+    "FD001-A014": {
+     "bound": 107.2,
+     "true_rul": 107
+    },
+    "FD001-A022": {
+     "bound": 122.6,
+     "true_rul": 111
+    },
+    "FD001-A050": {
+     "bound": 81.5,
+     "true_rul": 79
+    },
+    "FD001-A056": {
+     "bound": 17.0,
+     "true_rul": 15
+    },
+    "FD001-A067": {
+     "bound": 94.9,
+     "true_rul": 77
+    },
+    "FD001-A078": {
+     "bound": 120.6,
+     "true_rul": 107
+    },
+    "FD001-A085": {
+     "bound": 119.5,
+     "true_rul": 118
+    },
+    "FD003-A005": {
+     "bound": 109.0,
+     "true_rul": 101
+    },
+    "FD003-A006": {
+     "bound": 102.6,
+     "true_rul": 99
+    },
+    "FD003-A016": {
+     "bound": 70.9,
+     "true_rul": 56
+    },
+    "FD003-A019": {
+     "bound": 89.9,
+     "true_rul": 85
+    },
+    "FD003-A034": {
+     "bound": 74.1,
+     "true_rul": 65
+    },
+    "FD003-A035": {
+     "bound": 87.3,
+     "true_rul": 87
+    },
+    "FD003-A054": {
+     "bound": 116.4,
+     "true_rul": 87
+    },
+    "FD003-A065": {
+     "bound": 118.6,
+     "true_rul": 115
+    },
+    "FD003-A068": {
+     "bound": 104.6,
+     "true_rul": 103
+    },
+    "FD003-A074": {
+     "bound": 124.4,
+     "true_rul": 117
+    },
+    "FD003-A091": {
+     "bound": 101.3,
+     "true_rul": 81
+    }
+   }
+  },
+  "disagreement": {
+   "flagged": 54,
+   "flagged_share": 0.27,
+   "a_mae_flagged": 11.61,
+   "a_mae_not_flagged": 7.48
+  },
+  "fault_mode": {
+   "fd003_engines": 100,
+   "fd003_accuracy_vs_proxy": 0.97,
+   "fd003_accuracy_true_rul_le_60": 1.0,
+   "fd003_engines_true_rul_le_60": 41
+  },
+  "evidence": {
+   "claims": 2376,
+   "claims_with_resolvable_evidence_share": 1.0,
+   "numeric_claims": 1767,
+   "numeric_claims_citing_computed_evidence_share": 1.0,
+   "numeric_claims_quoting_documents_only": 0
+  },
+  "critic": {
+   "rounds": {
+    "1": 163,
+    "2": 37
+   },
+   "escalations": {
+    "rul_divergence": 54,
+    "document_mandate": 48,
+    "rul_below_lead_time": 27,
+    "ambiguous_fault": 1
+   }
+  }
+ },
+ "seeded_faults": {
+  "briefs": 30,
+  "clean_briefs_flagged": [],
+  "seeded": 290,
+  "caught": 290,
+  "catch_rate": 1.0,
+  "by_fault": {
+   "uncited_claim": {
+    "seeded": 30,
+    "caught": 30
+   },
+   "evidence_deleted": {
+    "seeded": 30,
+    "caught": 30
+   },
+   "rul_above_cap": {
+    "seeded": 30,
+    "caught": 30
+   },
+   "rul_outside_interval": {
+    "seeded": 17,
+    "caught": 17
+   },
+   "rul_inflated": {
+    "seeded": 12,
+    "caught": 12
+   },
+   "disagreement_averaged": {
+    "seeded": 6,
+    "caught": 6
+   },
+   "wrong_asset": {
+    "seeded": 30,
+    "caught": 30
+   },
+   "fabricated_part": {
+    "seeded": 30,
+    "caught": 30
+   },
+   "stock_inflated": {
+    "seeded": 3,
+    "caught": 3
+   },
+   "slot_not_free": {
+    "seeded": 30,
+    "caught": 30
+   },
+   "deadline_past_rul": {
+    "seeded": 30,
+    "caught": 30
+   },
+   "mandate_dropped": {
+    "seeded": 8,
+    "caught": 8
+   },
+   "mandate_uncited": {
+    "seeded": 8,
+    "caught": 8
+   },
+   "drivers_as_signature": {
+    "seeded": 5,
+    "caught": 5
+   },
+   "similar_cases_dropped": {
+    "seeded": 21,
+    "caught": 21
+   }
+  },
+  "missed": []
+ }
+}

@@ -94,6 +94,8 @@ def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, s
         "not only from the last inspection finding.\n"
         "TF-ENG-9001 is the lease engine in the FMEA; naming it is the lease-engine option.\n"
         "Similar past cases are supporting context, not a requirement that this engine match their removal cycle.\n"
+        "Document precedence: airworthiness directive > service bulletin > manual. A mandatory document action "
+        "stays in the plan even next to an engine swap; flag it only if it is missing.\n"
         "revise = a specific missing citation or a contradiction with the evidence; "
         "reject = the recommendation is unsafe given the evidence.\n"
         f"Question: {case.question}\nAsset: {case.asset.asset_id if case.asset else None}\n"
@@ -103,7 +105,8 @@ def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, s
     reply = None
     try:
         reply = client.chat([{"role": "user", "content": prompt}], model=ctx.settings.meterless_critic_model,
-                            temperature=0, max_tokens=1024)
+                            temperature=0, max_tokens=1024, app=ctx.settings.meterless_critic_app,
+                            response_format={"type": "json_object"}, timeout_s=ctx.settings.critic_timeout_s)
         parsed = _parse(reply.text)
         note = "critic_same_family_as_planner" if _family(reply.model) in {"anthropic", "openai"} else None
         gaps = list(parsed["gaps"])
@@ -112,7 +115,7 @@ def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, s
         return gaps, reply.model, note
     except (LlmUnavailable, LlmRefusal, ValueError, json.JSONDecodeError) as error:
         snippet = (reply.text[:240] if reply and reply.text else "")
-        log.warning("llm critic skipped (%s): %s", type(error).__name__, snippet)
+        log.warning("llm critic skipped (%s: %s): %s", type(error).__name__, str(error)[:300], snippet)
         return [], (reply.model if reply else None), f"llm_critic_skipped: {type(error).__name__}"
     finally:
         client.close()
@@ -132,6 +135,8 @@ def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
         outcome = "reject"
     recorded = [*gaps, *[g for g in llm_gaps if g not in gaps]]
     update: dict = {"verdicts": []}
+    if note and note.startswith("llm_critic_skipped"):
+        update["degraded"] = [f"LLM critic unavailable ({note.split(': ', 1)[-1]}); deterministic critic checks only"]
     if outcome == "revise" and state.round < MAX_ROUNDS:
         update["round"] = state.round + 1
     summary = f"{outcome}; {len(gaps)} gap(s)" + (f"; model={model}" if model else "; deterministic")

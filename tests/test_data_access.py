@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 
 import httpx
@@ -76,6 +77,22 @@ def test_fallback_switches_to_snapshot_once_and_flags_it(snapshot, error):
     assert source.mode == "snapshot"
     assert first.degraded and "snapshot" in first.degraded and second.degraded == first.degraded
     assert not first.frame.empty
+
+
+def test_fallback_switches_to_snapshot_when_live_queries_use_the_budget(snapshot):
+    class SlowLive:
+        calls = 0
+
+        def cycles(self, asset_id):
+            SlowLive.calls += 1
+            time.sleep(0.05)
+            return snapshot.cycles(asset_id)
+
+    source = FallbackSource(SlowLive(), snapshot, budget_s=0.01)
+    first = source.cycles("FD003-A017")
+    second = source.cycles("FD003-A017")
+    assert SlowLive.calls == 1 and first.degraded is None
+    assert source.mode == "snapshot" and "budget" in second.degraded and not second.frame.empty
 
 
 def test_sample_mode_never_touches_zetaris():

@@ -11,7 +11,7 @@ A multi-agent assistant for a maintenance engineer. It answers: **"What is wrong
 - Required sponsor tech: **Zetaris** and **Meterless** integrated; **Cursor** as IDE; **NVIDIA** where it contributes.
 - Judging: Impact 30, Technical 20, Innovation 15, Demo 15, Product/UX 10, Sponsor tech 10. Judges reward working, focused, reliable systems with real agent interaction (critique, retries, branching, escalation) and clear traces; they penalise linear pipelines, hard-coded demo paths and bolted-on sponsor tech.
 - Submission: 1–4 min demo video, slide deck, GitHub repo with README (setup, usage, dependencies), sponsor-tech explanation, logs/traces, sample inputs and outputs. Must run from a clean setup. `.env.example` only, no secrets.
-- **Nightshift is the primary AI provider.** NVIDIA models go through Nightshift's Providers tab, not through an app `NVIDIA_API_KEY`. Until NVIDIA verifies API access for org `edwinis`, the planner and critic both run on Claude via Nightshift; the trace records the served model and flags `same family as planner`.
+- **Nightshift is the primary AI provider.** NVIDIA models go through Nightshift's Providers tab (the NVIDIA key is there now), not through an app `NVIDIA_API_KEY`. The critic calls Nightshift as its own app `turbofan-maintenance-critic` (`meterless-app` header), whose Judge lane is pinned to a Nemotron model; the trace records the served model and flags `same family as planner` when Claude or GPT answered.
 - **`SAMPLE_MODE=true`** runs on committed Parquet snapshots with no Zetaris, Nightshift or network. Real logic, not replayed outputs. `run.py` is the CLI and `POST /run` entry point. Traces: `logs/trace-<run_id>.jsonl`.
 
 Positioning: a **verifiable, open, portable maintenance decision layer** on top of existing systems (no data migration). Do not claim "first AI maintenance assistant" (Siemens Senseye/Industrial Copilot, Cognite Atlas AI RCA agents, IBM Maximo Assistant exist).
@@ -39,13 +39,13 @@ Layers (top to bottom):
 ### Agent graph (as of 23 Oct)
 ```
 Intake → Planner → [Data | Prognostics | Diagnostics] (parallel)
-→ Brief (claims) → Maintenance planner → Rule checks → Evidence critic
+→ Brief (claims) → Knowledge (documents, mandates) → Maintenance planner → Rule checks → Evidence critic
    ├─ revise → Maintenance planner (max 3 rounds)
    ├─ round 3 not accepted → close case: insufficient_evidence (gaps listed)
    └─ accept → Escalation rules → status needs_review (engineer sign-off is day 4 UI)
 ```
 
-Knowledge retrieval, work-order write-back and H-MEM feedback are day 4.
+Knowledge retrieval, work-order write-back and H-MEM feedback are wired (23 Oct). Approve/reject stores the decision and gives each cited past case feedback (helpful on approve, not helpful on reject, unless the engineer marks it in the sign-off form; `wrong` = -0.20 trust and a review tag).
 
 | Agent | Responsibility | Tools | Writes |
 | --- | --- | --- | --- |
@@ -54,7 +54,7 @@ Knowledge retrieval, work-order write-back and H-MEM feedback are day 4.
 | Data agent | Telemetry, history, schedule, hangar slots | Zetaris read-only SQL, snapshot fallback | `evidence` (query) |
 | Prognostics | RUL A and B, SHAP drivers, anomaly flag | Model tools | `findings`, `evidence` (model) |
 | Diagnostics | Fault mode; similar past cases | Signature matcher, H-MEM / SQLite | `findings.fault_modes`, `evidence` (case) |
-| Knowledge | Applicable document passages | pgvector retrieval | `evidence` (document) — not wired yet |
+| Knowledge | Applicable document sections in precedence order; mandates decided in code | `knowledge_pg.doc_chunks` via Zetaris (snapshot fallback), hashed n-gram embeddings | `findings.documents`, `evidence` (document) |
 | Maintenance planner | Task, parts, slot, deadline from RUL lower bound | FMEA + stock + slots | `recommendation` |
 | Evidence critic | Try to disprove; accept/revise/reject | Deterministic checks + Nightshift LLM when not sample mode | `verdicts` |
 
@@ -100,9 +100,9 @@ Evidence IDs match `^EV-[A-Z]{3}-\d{2,}$`. Trace events are also written to `log
 
 ## 5. Assurance and reliability
 
-**Rule checks (after every agent step, no LLM):** schema valid (re-ask once with the validation error, then fail step); every claim has resolvable evidence IDs; RUL within 0..125 cap; asset ID, units, cycle ranges match; parts and slots exist; SQL read-only and within row limits.
+**Rule checks (after every agent step, no LLM):** schema valid (re-ask once with the validation error, then fail step); every claim has resolvable evidence IDs; RUL within 0..125 cap and inside its interval; RUL and fault-mode numbers equal the model evidence they cite; asset ID matches; every part is listed in its cited evidence with the same stock and lead time; slot in the free list; deadline not later than the RUL lower bound allows; mandated document tasks present, cited and on time; SQL read-only and within row limits. The numbers-match and parts-match checks were added after the eval's seeded faults got past the first version.
 
-**Evidence critic:** prompted to disprove. Deterministic checks always run (including sample mode): SHAP drivers must not be passed off as the fault-mode signature when the asset pack lists discriminating sensors. An LLM pass (`METERLESS_CRITIC_MODEL`, default `meterless/auto`) is added when Nightshift is up and `SAMPLE_MODE` is off. Returns `accept` | `revise` | `reject`. Max 3 rounds. Until Nemotron is available through Nightshift, the trace line says `same family as planner`.
+**Evidence critic:** prompted to disprove. Deterministic checks always run (including sample mode): SHAP drivers must not be passed off as the fault-mode signature when the asset pack lists discriminating sensors. An LLM pass (`METERLESS_CRITIC_MODEL`, default `meterless/auto`, app `METERLESS_CRITIC_APP`, JSON response format, `CRITIC_TIMEOUT_S` 45 s) is added when Nightshift is up and `SAMPLE_MODE` is off. It runs only when the deterministic checks found no gap; on a fully cited brief its gaps are notes for the engineer, not a veto (it cannot produce numbers). Timeout, outage or a non-JSON reply → deterministic checks only, flagged `LLM critic unavailable (...)` in `degraded`. Returns `accept` | `revise` | `reject`. Max 3 rounds.
 
 **Escalation rules (deterministic, thresholds from asset pack):**
 | Condition | Action |
@@ -112,7 +112,7 @@ Evidence IDs match `^EV-[A-Z]{3}-\d{2,}$`. Trace events are also written to `log
 | Two fault modes within 0.15 probability | Inspection targeting both modules |
 | Applicable document mandates an action | Shown first; agents cannot remove it |
 
-**Failure handling:** `tenacity` retries (3, exponential backoff); Zetaris down → Parquet snapshot + flag; Meterless down → SQLite `ContextStore`; hard limits 3 critic rounds, 25 graph steps, 120 s per run; LangGraph checkpointer resumes after crash.
+**Failure handling:** `tenacity` retries (3, exponential backoff); Zetaris down → Parquet snapshot + flag; Zetaris slow → 10 s per attempt (`ZETARIS_TIMEOUT_S`) and a 30 s live-query budget per run (`ZETARIS_BUDGET_S`), then snapshot + flag (Zetaris has random 15–170 s stalls on 1 s queries); Meterless down → SQLite `ContextStore`; hard limits 3 critic rounds, 25 graph steps, 120 s per run; LangGraph checkpointer resumes after crash.
 
 **SQL guard:** parse with `sqlglot`; block everything except `SELECT`; add `LIMIT`; summarise large results in code, never pass raw rows to the LLM.
 
@@ -125,7 +125,7 @@ Evidence IDs match `^EV-[A-Z]{3}-\d{2,}$`. Trace events are also written to `log
 | Maintenance | Postgres db `cmms`: `assets`, `work_orders`, `findings`, `parts_replaced` | Inspections every 60 cycles, line checks, removals at failure | Generated from degradation curves; wording styled on FAA SDR |
 | Spares and schedule | Postgres db `cmms`, tables prefixed `planning_` (`parts`, `stock`, `hangar_slots`, `flight_schedule`) | 20 part numbers, stock, lead times; hangar slots (2/day, 60 days); flight schedule (30 days) | Generated (`data/seed/parts.csv`) |
 | Failure-mode table | S3 CSV/Parquet + Zetaris semantic layer | component → failure mode → sensor signature → task → part | Hand-written from Saxena C-MAPSS paper |
-| Documents | Postgres db `knowledge` (pgvector) | Synthetic manual + service bulletin, SDR extracts; chunk metadata | Synthetic + FAA SDR |
+| Documents | Postgres db `knowledge` (pgvector), table `doc_chunks`; Zetaris `knowledge_pg.doc_chunks` | Synthetic manual rev 3 (+ superseded rev 2), 2 service bulletins, 1 airworthiness directive; one chunk per section | Synthetic (`asset_packs/.../docs`, `uv run task ingest-docs`) |
 
 Canonical telemetry view: `asset_id, asset_type, cycle, ts, signal, value, unit, operating_regime`.
 
@@ -216,6 +216,7 @@ tools/             zetaris, data_access, data_tools, model_tools, llm
 casefile/          schemas, trace, ContextStore, load-context
 context-service/   Node service wrapping vendored Meterless engines
 models/            train-rul, train-fault-mode, train-anomaly, artifacts/
+evaluation/        run_eval (uv run task eval), seeded faults, report.md / report.json
 asset_packs/turbofan_cmapss/   manifest.yaml, fmea.csv, docs/
 data/snapshot/     committed Parquet extracts (no answer key)
 input_examples/ output_examples/
@@ -240,9 +241,11 @@ docker-compose.yml  .env.example  README.md  AGENTS.md
 **Stretch:** second asset pack (Azure PdM) onboarded live.
 **Cut:** separate mapping agent, curation UI, Zetaris branching, Federal Register live API, N-CMAPSS, separate risk agent.
 
-Plan: D1 (22 Oct) done · D2 (23 Oct) done (models, Meterless engines, Nightshift client, schemas, data tools, end-to-end RUL) · D3 (23 Oct, in progress) graph with critic loop, rule checks, escalation, maintenance planner · D4 documents, H-MEM feedback, UI (feature freeze) · D5 eval, golden cases, fallback tests · D6 README polish, clean-setup test, video, slides, submit.
+Plan: D1 (22 Oct) done · D2 (23 Oct) done (models, Meterless engines, Nightshift client, schemas, data tools, end-to-end RUL) · D3 done (graph with critic loop, rule checks, escalation, maintenance planner) · D4 done early (documents, H-MEM feedback, UI) · D5 done early (eval harness `uv run task eval` → `evaluation/report.md`, 4 golden cases, end-to-end fallback tests, clean-setup test from a copy of the shippable files) · D6 README polish, video, slides, submit.
 
-Golden demo cases: (1) healthy engine **FD001-A001**; (2) HPC degradation, parts in stock **FD001-A031**; (3) fan degradation **FD003-A100** (critic forces a second round: SHAP drivers are common-trend sensors); (4) still to pick: A vs B disagree > 20 cycles, or lead time > RUL.
+Eval (23 Oct, sample mode, 200 engines): 200/200 `needs_review`, median 0.3 s; RUL A RMSE 12.1, B 22.3; planning bound ≤ true RUL for 90% (1 of 45 engines within 30 cycles of failure overshoots, by 2 cycles); FD003 fault mode 97%; 100% of claims resolvable; 290/290 seeded faulty briefs caught by the deterministic gates, 0 false alarms. Known weakness: A's interval covers 73% (nominal 80%).
+
+Golden demo cases: (1) healthy engine **FD001-A001**; (2) HPC degradation, parts in stock **FD001-A031**; (3) fan degradation **FD003-A100** (critic forces a second round: SHAP drivers are common-trend sensors); (4) methods disagree **FD001-A070** (A 96 vs B 40 cycles, HPC; escalation `rul_divergence`, borescope inspection, confidence low, deadline from the cautious bound). In disagreements B is usually the pessimistic one (offline check against the answer key), so inspecting rather than averaging is the safe call.
 
 ## 15. UI (decision brief)
 
@@ -250,5 +253,5 @@ Verdict line first (action, deadline, confidence, escalation in red); metric row
 
 ## 16. Open questions
 
-- NVIDIA API access for org `edwinis` is blocked (`API Access Unavailable`); waiting on help@build.nvidia.com. Critic uses Claude until Nemotron is in Nightshift Providers.
+- Nemotron critic lane: the NVIDIA key is in Nightshift and the critic app has a Judge lane. Nemotron 3.5 Lightning 30B A3B returned `502 provider_error ..._empty_response` even for "Reply with OK"; the Super VL 120B lane answered short prompts but timed out on the critic prompt. Next: try `nvidia/nemotron-3-super-120b-a12b` in the lane. Until it answers, live critic runs are deterministic-only and flagged.
 - Do judges need a live Zetaris endpoint during judging (28 Oct–6 Nov)? `SAMPLE_MODE=true` must work regardless (it does).

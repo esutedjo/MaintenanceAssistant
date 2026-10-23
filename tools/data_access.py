@@ -25,6 +25,9 @@ SLOT_COLUMNS = ["slot_date", "slot_no"]
 SCHEDULE_COLUMNS = ["flight_date", "planned_cycles"]
 FMEA_COLUMNS = ["fmea_id", "failure_mode", "task", "task_type", "trigger_severity", "part_number", "qty",
                 "qty_on_hand", "qty_reserved", "lead_time_days"]
+DOC_COLUMNS = ["chunk_id", "doc_id", "doc_type", "title", "revision", "effective_date", "superseded_by",
+               "superseded_on", "asset_type", "applies_to", "section", "heading", "components", "failure_modes",
+               "tasks", "topic", "mandate", "text", "embedding"]
 
 INT_COLUMNS = {"cycle", "last_cycle", "cycle_at", "lead_time_days", "qty_on_hand", "qty_reserved", "slot_no",
                "planned_cycles", "qty"}
@@ -89,6 +92,9 @@ class DataSource(ABC):
     @abstractmethod
     def fmea_tasks(self, failure_mode: str) -> QueryResult: ...
 
+    @abstractmethod
+    def doc_chunks(self, asset_type: str) -> QueryResult: ...
+
 
 class ZetarisSource(DataSource):
     mode = "live"
@@ -151,6 +157,12 @@ class ZetarisSource(DataSource):
                f"WHERE f.failure_mode = '{m}' ORDER BY f.fmea_id, f.part_number")
         return self._run("s3_files.fmea+cmms_pg.planning_stock", sql, FMEA_COLUMNS)
 
+    def doc_chunks(self, asset_type: str) -> QueryResult:
+        t = safe_id(asset_type)
+        sql = (f"SELECT {', '.join(DOC_COLUMNS)} FROM knowledge_pg.doc_chunks WHERE asset_type = '{t}' "
+               "ORDER BY chunk_id")
+        return self._run("knowledge_pg.doc_chunks", sql, DOC_COLUMNS)
+
     def close(self) -> None:
         self._client.close()
 
@@ -205,13 +217,20 @@ class SnapshotSource(DataSource):
         rows = t[t.failure_mode == safe_id(failure_mode)].sort_values(["fmea_id", "part_number"], na_position="first")
         return self._result("fmea_tasks", rows, FMEA_COLUMNS)
 
+    def doc_chunks(self, asset_type: str) -> QueryResult:
+        t = self._table("doc_chunks")
+        rows = t[t.asset_type == safe_id(asset_type)].sort_values("chunk_id")
+        return self._result("doc_chunks", rows, DOC_COLUMNS)
+
 
 class FallbackSource(DataSource):
-    """Live first. On the first Zetaris failure, every later call in the run uses the snapshot."""
+    """Live first. On the first Zetaris failure, or once live queries have used the run's time budget,
+    every later call in the run uses the snapshot."""
 
-    def __init__(self, live: DataSource, snapshot: DataSource):
+    def __init__(self, live: DataSource, snapshot: DataSource, budget_s: float | None = None):
         self.live, self.snapshot = live, snapshot
         self.degraded: str | None = None
+        self.budget_s, self.spent_s = budget_s, 0.0
 
     @property
     def mode(self) -> str:
@@ -220,11 +239,17 @@ class FallbackSource(DataSource):
     def _call(self, name: str, *args) -> QueryResult:
         from tools.zetaris import ZetarisError
 
+        if self.degraded is None and self.budget_s is not None and self.spent_s >= self.budget_s:
+            self.degraded = (f"Zetaris slow ({self.spent_s:.0f} s of the {self.budget_s:.0f} s query budget used); "
+                             "using snapshot")
         if self.degraded is None:
+            start = time.monotonic()
             try:
                 return getattr(self.live, name)(*args)
             except (ZetarisError, httpx.HTTPError) as error:
                 self.degraded = f"Zetaris unavailable ({type(error).__name__}: {str(error)[:160]}); using snapshot"
+            finally:
+                self.spent_s += time.monotonic() - start
         result = getattr(self.snapshot, name)(*args)
         result.degraded = self.degraded
         return result
@@ -236,6 +261,7 @@ class FallbackSource(DataSource):
     def free_slots(self): return self._call("free_slots")
     def flight_schedule(self, asset_id): return self._call("flight_schedule", asset_id)
     def fmea_tasks(self, failure_mode): return self._call("fmea_tasks", failure_mode)
+    def doc_chunks(self, asset_type): return self._call("doc_chunks", asset_type)
 
 
 def open_data_source(settings: Settings) -> DataSource:
@@ -245,7 +271,7 @@ def open_data_source(settings: Settings) -> DataSource:
     if settings.sample_mode or settings.zetaris_mode == "snapshot":
         return snapshot
     try:
-        return FallbackSource(ZetarisSource(settings), snapshot)
+        return FallbackSource(ZetarisSource(settings), snapshot, budget_s=settings.zetaris_budget_s)
     except ZetarisError as error:
         fallback = FallbackSource(snapshot, snapshot)
         fallback.degraded = f"Zetaris not configured ({error}); using snapshot"

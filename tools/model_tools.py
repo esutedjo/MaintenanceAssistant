@@ -80,7 +80,8 @@ class ModelTools:
                    "failure_thresholds": {k: round(v, 3) for k, v in model.thresholds.items()},
                    "degradation_detected": bool(level >= model.onset),
                    "offline_metrics": {k: metrics[k] for k in ("rmse", "mae")}}
-        summary = (f"RUL B (health-index trend): {estimate.rul:.0f} cycles, health index {level:.2f} "
+        spread = "" if estimate.at_cap else f" (lower {estimate.lower:.0f}, upper {estimate.upper:.0f})"
+        summary = (f"RUL B (health-index trend): {estimate.rul:.0f} cycles{spread}, health index {level:.2f} "
                    f"(healthy band up to {model.onset:.2f})" + (f"; {estimate.note}" if estimate.note else ""))
         return _finding(estimate, self.ledger.add("model", self._source("rul_b"), summary, content))
 

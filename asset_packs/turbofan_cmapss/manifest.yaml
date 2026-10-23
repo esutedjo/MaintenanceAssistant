@@ -18,6 +18,15 @@ failure_modes:
   hpc_degradation: {component: hpc, label: HPC degradation}
   fan_degradation: {component: fan, label: Fan degradation}
 failure_modes_csv: fmea.csv
+
+# Synthetic maintenance documents (markdown with front matter; one chunk per section). Ingested into
+# knowledge.doc_chunks (pgvector) and data/snapshot/doc_chunks.parquet by `uv run task ingest-docs`.
+documents:
+  directory: asset_packs/turbofan_cmapss/docs
+  files: [amm_rev3.md, amm_rev2.md, sb_72_0142.md, sb_72_0157.md, ad_2026_17_04.md]
+  # When two documents address the same topic, the earlier type wins (then the later effective date).
+  precedence: [airworthiness_directive, service_bulletin, manual, procedure]
+  top_k: 4
 # Failure modes each fleet variant can show (C-MAPSS: FD001 HPC only; FD003 HPC or fan). Keyed by assets.dataset.
 variants:
   FD001: [hpc_degradation]
@@ -75,6 +84,52 @@ thresholds:
   # Map remaining-life lower bound to an FMEA trigger severity.
   severe_rul_cycles: 25
   moderate_rul_cycles: 80
+
+# Schematic side view for the UI (upper half; drawn mirrored). Flow left to right. x: axial start/end;
+# inner/outer: radius at start and end. Not to scale.
+diagram:
+  - {component: inlet,     label: Inlet,       x: [0.0, 0.8], inner: [0.0, 0.4], outer: [3.0, 3.0]}
+  - {component: fan,       label: Fan,         x: [0.8, 1.5], inner: [0.4, 0.6], outer: [3.0, 3.0]}
+  - {component: fan,       label: Bypass duct, x: [1.5, 6.0], inner: [1.75, 1.45], outer: [3.0, 2.6]}
+  - {component: lpc,       label: LPC,         x: [1.5, 2.5], inner: [0.45, 0.5], outer: [1.65, 1.5]}
+  - {component: hpc,       label: HPC,         x: [2.5, 4.5], inner: [0.5, 0.55], outer: [1.5, 1.2]}
+  - {component: combustor, label: Combustor,   x: [4.5, 5.5], inner: [0.55, 0.55], outer: [1.2, 1.25]}
+  - {component: hpt,       label: HPT,         x: [5.5, 6.2], inner: [0.55, 0.55], outer: [1.25, 1.35]}
+  - {component: lpt,       label: LPT,         x: [6.2, 8.0], inner: [0.5, 0.45], outer: [1.35, 1.8]}
+
+# Illustrative photos from Wikimedia Commons, shown unmodified with credit. Same engine class (mostly CFM56,
+# a two-spool high-bypass turbofan), not the simulated units. Keyed by component.
+images:
+  directory: asset_packs/turbofan_cmapss/images
+  disclaimer: Illustrative photo of the same engine class, not the monitored engine.
+  items:
+    - {file: engine.jpg, component: engine, caption: "CFM56-5C4 under the wing of an Airbus A340 in the hangar",
+       author: Kiko Alario Salom, license: CC BY 2.0, license_url: "https://creativecommons.org/licenses/by/2.0",
+       source: "https://commons.wikimedia.org/wiki/File:Engine_CFM56-5C4_(8458304841).jpg"}
+    - {file: engine_core.jpg, component: engine, caption: "CFM56 with the fan cowl open: core casing, pipes and fan duct",
+       author: Olivier Cleynen, license: CC BY-SA 3.0, license_url: "https://creativecommons.org/licenses/by-sa/3.0",
+       source: "https://commons.wikimedia.org/wiki/File:Core_view_of_CFM56_(2).jpg"}
+    - {file: inspection.jpg, component: engine, caption: "Line maintenance crew inspecting a turbofan on the ramp",
+       author: Maarten Visser, license: CC BY-SA 2.0, license_url: "https://creativecommons.org/licenses/by-sa/2.0",
+       source: "https://commons.wikimedia.org/wiki/File:ANA_maintenance_personnel_inspecting_an_airliner_turbofan_engine.jpg"}
+    - {file: fan.jpg, component: fan, caption: "CFM56-5B fan module: fan blades, spinner and fan case",
+       author: David Monniaux, license: CC BY-SA 3.0, license_url: "https://creativecommons.org/licenses/by-sa/3.0",
+       source: "https://commons.wikimedia.org/wiki/File:CFM56_dsc04641.jpg"}
+    - {file: fan_inspection.jpg, component: fan, caption: "Fan blades removed for inspection on a KC-135 engine",
+       author: "Staff Sgt. Joshua Garcia, USAF", license: Public domain, license_url: null,
+       source: "https://commons.wikimedia.org/wiki/File:Visual_inspection_of_compressor_blades-090108-F-9919G-746.jpg"}
+    - {file: lpc.jpg, component: lpc, caption: "CFM56-3 low-pressure compressor (booster) rotor, partly assembled",
+       author: Nubifer, license: CC BY-SA 3.0, license_url: "https://creativecommons.org/licenses/by-sa/3.0",
+       source: "https://commons.wikimedia.org/wiki/File:CFM56_Low_Pressure_Compressor.JPG"}
+    - {file: hpc.jpg, component: hpc, caption: "CFM56-3 high-pressure compressor rotor stages",
+       author: Nubifer, license: CC BY-SA 3.0, license_url: "https://creativecommons.org/licenses/by-sa/3.0",
+       source: "https://commons.wikimedia.org/wiki/File:CFM56_High_Pressure_Compressor_Rotor.JPG"}
+    - {file: combustor.jpg, component: combustor, caption: "Cutaway of the combustion chamber of a Pratt & Whitney JT9D",
+       author: Olivier Cleynen, license: CC BY-SA 3.0, license_url: "https://creativecommons.org/licenses/by-sa/3.0",
+       source: "https://commons.wikimedia.org/wiki/File:Cannular_combustor_on_a_Pratt_%26_Whitney_JT9D_turbofan.jpg"}
+    - {file: hpt.jpg, component: hpt, caption: "CFM56-3 high-pressure turbine blade with cooling holes",
+       author: Nubifer, license: CC BY-SA 3.0, license_url: "https://creativecommons.org/licenses/by-sa/3.0",
+       source: "https://commons.wikimedia.org/wiki/File:CFM56_High_Pressure_Turbine_Blade.JPG"}
 
 models:
   directory: models/artifacts/turbofan_cmapss

@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T083637Z-5c3de0",
+ "run_id": "20261023T163437Z-79e360",
  "status": "needs_review",
  "question": "What should I do about FD001-A031?",
  "mode": {
@@ -92,6 +92,85 @@
    "EV-DIA-03",
    "EV-DIA-04"
   ],
+  "documents": [
+   {
+    "doc_id": "AD-2026-17-04",
+    "doc_type": "airworthiness_directive",
+    "section": "(g)",
+    "heading": "Required actions",
+    "revision": "0",
+    "effective_date": "2026-09-01",
+    "precedence": 0,
+    "relevance": 0.151,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": true,
+    "required_task": "FM-HPC-01",
+    "within_cycles": 10,
+    "action": "Borescope HPC stages 1-3 within 10 cycles; remove the engine if any blade is beyond limits",
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-02"
+   },
+   {
+    "doc_id": "SB-TF-72-0142",
+    "doc_type": "service_bulletin",
+    "section": "3.B",
+    "heading": "Recommended action",
+    "revision": "1",
+    "effective_date": "2026-06-15",
+    "precedence": 1,
+    "relevance": 0.124,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-03"
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "72-31-00",
+    "heading": "HPC borescope inspection",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 0.188,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": "SB-TF-72-0142 3.B",
+    "evidence_id": "EV-KNW-04"
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "05-20-00",
+    "heading": "Gas-path trend monitoring",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 0.158,
+    "failure_modes": [
+     "hpc_degradation",
+     "fan_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-05"
+   }
+  ],
   "claims": [
    {
     "text": "Remaining useful life is about 10 cycles (10th-90th percentile 7-11) by the ML model; the health-index trend gives 7.",
@@ -130,14 +209,43 @@
      "EV-DIA-04"
     ],
     "confidence": "medium"
+   },
+   {
+    "text": "AD-2026-17-04 (g) (airworthiness directive) requires FMEA task FM-HPC-01 within 10 cycles: Borescope HPC stages 1-3 within 10 cycles; remove the engine if any blade is beyond limits.",
+    "evidence_ids": [
+     "EV-KNW-02",
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-DIA-01"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "SB-TF-72-0142 3.B (service bulletin) takes precedence over AMM-TF-R3 72-31-00 (manual) on the same topic.",
+    "evidence_ids": [
+     "EV-KNW-03",
+     "EV-KNW-04"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Applicable documents, highest precedence first: AD-2026-17-04 (g), SB-TF-72-0142 3.B, AMM-TF-R3 72-31-00, AMM-TF-R3 05-20-00.",
+    "evidence_ids": [
+     "EV-KNW-02",
+     "EV-KNW-03",
+     "EV-KNW-04",
+     "EV-KNW-05"
+    ],
+    "confidence": "medium"
    }
   ]
  },
  "recommendation": {
-  "action": "Swap in lease engine while the removed engine waits for parts",
+  "action": "Swap in lease engine; module shop visit on the removed engine",
   "task_ids": [
    "FM-HPC-06",
-   "FM-HPC-04"
+   "FM-HPC-04",
+   "FM-HPC-01"
   ],
   "parts": [
    {
@@ -163,6 +271,15 @@
     "qty": 1,
     "available": 3,
     "lead_time_days": 21,
+    "evidence_ids": [
+     "EV-MNT-02"
+    ]
+   },
+   {
+    "part_number": "TF-GEN-8101",
+    "qty": 1,
+    "available": 25,
+    "lead_time_days": 5,
     "evidence_ids": [
      "EV-MNT-02"
     ]
@@ -198,7 +315,7 @@
     "confidence": "high"
    },
    {
-    "text": "Selected tasks need TF-GEN-8102 (need 1, 30 on hand, 5 d lead), TF-HPC-1101 (need 1, 2 on hand, 35 d lead), TF-HPC-1104 (need 1, 3 on hand, 21 d lead), TF-ENG-9001 (need 1, 1 on hand, 21 d lead). In-stock substitutes do not replace a short required part.",
+    "text": "Selected tasks need TF-GEN-8102 (need 1, 30 on hand, 5 d lead), TF-HPC-1101 (need 1, 2 on hand, 35 d lead), TF-HPC-1104 (need 1, 3 on hand, 21 d lead), TF-GEN-8101 (need 1, 25 on hand, 5 d lead), TF-ENG-9001 (need 1, 1 on hand, 21 d lead). In-stock substitutes do not replace a short required part.",
     "evidence_ids": [
      "EV-MNT-02",
      "EV-MNT-03"
@@ -206,7 +323,7 @@
     "confidence": "high"
    },
    {
-    "text": "RUL lower bound 0.0 days is shorter than parts lead time 35 d plus next free slot 1 d; swap a lease engine while the shop visit waits for parts.",
+    "text": "RUL lower bound 0.0 days is shorter than the time to repair on wing: all parts are on hand but the next free slot is 1 d away; swap a lease engine and do the shop visit on the removed engine.",
     "evidence_ids": [
      "EV-PRG-01",
      "EV-PRG-02",
@@ -217,7 +334,7 @@
     "confidence": "high"
    },
    {
-    "text": "FMEA task FM-HPC-06: Swap in lease engine while the removed engine waits for parts.",
+    "text": "FMEA task FM-HPC-06: Swap in lease engine; module shop visit on the removed engine.",
     "evidence_ids": [
      "EV-MNT-01"
     ],
@@ -226,6 +343,28 @@
    {
     "text": "FMEA task FM-HPC-04: Remove engine; replace HPC stage 1-3 blades and case abradable seals.",
     "evidence_ids": [
+     "EV-MNT-01"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "FMEA task FM-HPC-01: Borescope inspection HPC stages 1-9; reinspect at standard interval.",
+    "evidence_ids": [
+     "EV-MNT-01"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Limits and intervals for FM-HPC-01 follow SB-TF-72-0142 3.B (service bulletin), the highest-precedence document on that topic.",
+    "evidence_ids": [
+     "EV-KNW-03"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "AD-2026-17-04 (g) mandates FM-HPC-01 within 10 cycles; it stays in the plan whatever else is chosen.",
+    "evidence_ids": [
+     "EV-KNW-02",
      "EV-MNT-01"
     ],
     "confidence": "high"
@@ -242,9 +381,21 @@
  },
  "escalations": [
   {
+   "rule": "document_mandate",
+   "severity": "urgent",
+   "message": "AD-2026-17-04 (g) (airworthiness directive) requires FM-HPC-01 within 10 cycles: Borescope HPC stages 1-3 within 10 cycles; remove the engine if any blade is beyond limits",
+   "actions": [
+    "Borescope HPC stages 1-3 within 10 cycles; remove the engine if any blade is beyond limits",
+    "Mandatory: cannot be removed or deferred by the agents"
+   ],
+   "evidence_ids": [
+    "EV-KNW-02"
+   ]
+  },
+  {
    "rule": "rul_below_lead_time",
    "severity": "urgent",
-   "message": "RUL lower bound is 0.0 days; parts lead time 35 d plus next free slot 1 d.",
+   "message": "RUL lower bound is 0.0 days; lead time of short parts 0 d plus next free slot 1 d.",
    "actions": [
     "Propose expedite",
     "Propose engine swap",
@@ -254,6 +405,7 @@
     "EV-PRG-01",
     "EV-PRG-02",
     "EV-DAT-04",
+    "EV-MNT-02",
     "EV-MNT-02",
     "EV-MNT-02",
     "EV-MNT-02",
@@ -341,6 +493,41 @@
    "produced_by": "intake",
    "degraded": null
   },
+  "EV-KNW-01": {
+   "kind": "query",
+   "source": "snapshot:doc_chunks.parquet",
+   "summary": "13 document sections for turbofan_cmapss; 4 apply; excluded: AMM-TF-R2 72-31-00 (superseded by AMM-TF-R3)",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-02": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AD-2026-17-04#(g)",
+   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: MANDATORY: Borescope HPC stages 1-3 within 10 cycles; remove the engine if any blade is beyond limits (applies: hpc_degradation p=1.00 >= 0.5; RUL lower bound 0 < 30 cycles)",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-03": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#SB-TF-72-0142#3.B",
+   "summary": "SB-TF-72-0142 3.B Recommended action [service bulletin, rev 1, effective 2026-06-15]: relevance 0.12",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-04": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AMM-TF-R3#72-31-00",
+   "summary": "AMM-TF-R3 72-31-00 HPC borescope inspection [manual, rev 3, effective 2026-03-01]: overridden by SB-TF-72-0142 3.B on hpc_borescope_interval",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-05": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AMM-TF-R3#05-20-00",
+   "summary": "AMM-TF-R3 05-20-00 Gas-path trend monitoring [manual, rev 3, effective 2026-03-01]: relevance 0.16",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
   "EV-MNT-01": {
    "kind": "query",
    "source": "snapshot:fmea_tasks.parquet",
@@ -351,7 +538,7 @@
   "EV-MNT-02": {
    "kind": "query",
    "source": "snapshot:parts.parquet",
-   "summary": "TF-ENG-9001 (Spare engine lease (per month)): 1 available, lead time 21 d; TF-GEN-8102 (Engine gasket and O-ring kit): 30 available, lead time 5 d; TF-HPC-1101 (HPC stage 1-3 blade set): 2 available, lead time 35 d; TF-HPC-1104 (HPC case abradable seal set): 3 available, lead time 21 d",
+   "summary": "TF-ENG-9001 (Spare engine lease (per month)): 1 available, lead time 21 d; TF-GEN-8101 (Borescope plug kit): 25 available, lead time 5 d; TF-GEN-8102 (Engine gasket and O-ring kit): 30 available, lead time 5 d; TF-HPC-1101 (HPC stage 1-3 blade set): 2 available, lead time 35 d; TF-HPC-1104 (HPC case abradable seal set): 3 available, lead time 21 d",
    "produced_by": "maint_planner",
    "degraded": null
   },
@@ -372,7 +559,7 @@
   "EV-PRG-02": {
    "kind": "model",
    "source": "model:rul_b@turbofan_cmapss/0.1.0",
-   "summary": "RUL B (health-index trend): 7 cycles, health index 0.88 (healthy band up to 0.18)",
+   "summary": "RUL B (health-index trend): 7 cycles (lower 0, upper 18), health index 0.88 (healthy band up to 0.18)",
    "produced_by": "prognostics",
    "degraded": null
   },
@@ -391,6 +578,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T083637Z-5c3de0.jsonl",
+ "trace_file": "logs\\trace-20261023T163437Z-79e360.jsonl",
  "duration_s": 0.23
 }

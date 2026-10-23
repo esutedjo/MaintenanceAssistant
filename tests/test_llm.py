@@ -56,6 +56,13 @@ def test_chat_sends_contract_headers_and_reports_serving_model():
     assert request.headers["meterless-scope"] == "user"
 
 
+def test_chat_can_route_as_a_separate_app():
+    seen = []
+    client = LlmClient(settings(), meterless_transport=mock_nightshift(TOKEN, requests=seen))
+    client.chat([{"role": "user", "content": "ping"}], app="turbofan-maintenance-critic")
+    assert seen[-1].headers["meterless-app"] == "turbofan-maintenance-critic"
+
+
 def test_refusal_never_falls_back():
     calls = []
     client = LlmClient(settings(nvidia_key="k"), meterless_transport=mock_nightshift(TOKEN), nvidia_transport=nvidia_mock(calls))

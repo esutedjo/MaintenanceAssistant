@@ -65,7 +65,7 @@ class ZetarisClient:
     @retry(
         retry=retry_if_exception(_is_transient),
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, max=8),
+        wait=wait_exponential(multiplier=0.5, max=2),
         reraise=True,
     )
     def _post(self, path: str, body: dict[str, Any]) -> Any:

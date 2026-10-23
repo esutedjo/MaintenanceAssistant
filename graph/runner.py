@@ -2,6 +2,7 @@
 
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from agents.runtime import CachedSource, RunContext
@@ -15,6 +16,15 @@ from settings import ROOT, Settings, get_settings
 from tools.data_access import open_data_source
 
 MAX_GRAPH_STEPS = 25
+
+
+@dataclass
+class RunOutcome:
+    """Full case file for the UI, plus the stripped JSON `run.py` and examples use."""
+
+    case: CaseFile
+    result: dict
+    duration_s: float
 
 
 def new_run_id() -> str:
@@ -50,7 +60,7 @@ def result_json(case: CaseFile, ctx: RunContext, duration_s: float) -> dict:
     }
 
 
-def run_case(question: str, settings: Settings | None = None, run_id: str | None = None) -> dict:
+def execute_run(question: str, settings: Settings | None = None, run_id: str | None = None) -> RunOutcome:
     settings = settings or get_settings()
     ctx = open_context(settings, run_id or new_run_id())
     start = time.monotonic()
@@ -58,6 +68,12 @@ def run_case(question: str, settings: Settings | None = None, run_id: str | None
         graph = build_graph()
         config = {"configurable": {"thread_id": ctx.run_id, "ctx": ctx}, "recursion_limit": MAX_GRAPH_STEPS}
         state = graph.invoke(CaseFile(case_id=ctx.run_id, question=question), config)
-        return result_json(CaseFile.model_validate(state), ctx, time.monotonic() - start)
+        case = CaseFile.model_validate(state)
+        duration = time.monotonic() - start
+        return RunOutcome(case, result_json(case, ctx, duration), duration)
     finally:
         ctx.store.close()
+
+
+def run_case(question: str, settings: Settings | None = None, run_id: str | None = None) -> dict:
+    return execute_run(question, settings, run_id).result

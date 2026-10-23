@@ -1,4 +1,4 @@
-"""The agent graph: intake → planner → specialists in parallel → brief → maintenance planner →
+"""The agent graph: intake → planner → specialists in parallel → brief → knowledge → maintenance planner →
 rule checks → critic (revise loop, max 3) → escalation."""
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -10,6 +10,7 @@ from agents.data import data_agent
 from agents.diagnostics import diagnostics
 from agents.escalation import escalation
 from agents.intake import intake
+from agents.knowledge import knowledge
 from agents.maint_planner import maint_planner
 from agents.planner import planner
 from agents.prognostics import prognostics
@@ -25,6 +26,10 @@ def after_intake(state: CaseFile) -> str:
 
 
 def after_brief(state: CaseFile) -> str:
+    return END if state.status == "error" else "knowledge"
+
+
+def after_knowledge(state: CaseFile) -> str:
     return END if state.status == "error" else "maint_planner"
 
 
@@ -93,6 +98,7 @@ def build_graph(checkpointer=None):
     graph.add_node("prognostics", prognostics)
     graph.add_node("diagnostics", diagnostics)
     graph.add_node("brief", brief)
+    graph.add_node("knowledge", knowledge)
     graph.add_node("maint_planner", maint_planner)
     graph.add_node("rule_checks", rule_checks)
     graph.add_node("critic", critic)
@@ -103,7 +109,8 @@ def build_graph(checkpointer=None):
     for specialist in SPECIALISTS:
         graph.add_edge("planner", specialist)
     graph.add_edge(SPECIALISTS, "brief")
-    graph.add_conditional_edges("brief", after_brief, {"maint_planner": "maint_planner", END: END})
+    graph.add_conditional_edges("brief", after_brief, {"knowledge": "knowledge", END: END})
+    graph.add_conditional_edges("knowledge", after_knowledge, {"maint_planner": "maint_planner", END: END})
     graph.add_edge("maint_planner", "rule_checks")
     graph.add_conditional_edges("rule_checks", after_rule_checks,
                                 {"critic": "critic", "maint_planner": "maint_planner", "close": "close"})

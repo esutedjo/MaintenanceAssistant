@@ -113,7 +113,8 @@ class LlmClient:
         return "offline", []
 
     def chat(self, messages: list[dict[str, str]], model: str | None = None, temperature: float = 0.0,
-             max_tokens: int | None = None, response_format: dict | None = None) -> LlmResponse:
+             max_tokens: int | None = None, response_format: dict | None = None, app: str | None = None,
+             timeout_s: float | None = None) -> LlmResponse:
         requested = model or self._settings.meterless_model
         body: dict[str, Any] = {"model": requested, "messages": messages, "temperature": temperature}
         if max_tokens:
@@ -125,7 +126,9 @@ class LlmClient:
             return self._fallback(body, "METERLESS_RUNTIME_TOKEN is not set")
         start = time.monotonic()
         try:
-            response = self._meterless.post("/chat/completions", json=body, headers={"meterless-scope": "user"})
+            headers = {"meterless-scope": "user", **({"meterless-app": app} if app else {})}
+            response = self._meterless.post("/chat/completions", json=body, headers=headers,
+                                            timeout=timeout_s or self._settings.llm_timeout_s)
         except httpx.TransportError as error:
             return self._fallback(body, f"Nightshift unreachable at {self.base_url} ({type(error).__name__})")
         if response.status_code >= 400:

@@ -3,7 +3,9 @@ from datetime import date
 from assurance.escalation import (
     ambiguous_fault, remaining_shorter_than_wait, rul_below_lead_time, rul_divergence, run_escalations,
 )
-from assurance.rules import asset_matches, claims_have_evidence, parts_exist, rul_in_range, run_rule_checks, slot_exists
+from assurance.rules import (
+    asset_matches, claims_have_evidence, deadline_within_rul, findings_match_evidence, parts_exist, rul_in_range, run_rule_checks, slot_exists,
+)
 from casefile.schemas import (
     AssetRef, CaseFile, Claim, Escalation, Evidence, FaultModeFinding, Intent, PartNeed, Recommendation, RulFinding,
 )
@@ -76,6 +78,41 @@ def test_clean_case_passes_rule_checks():
     assert run_rule_checks(case, PACK).outcome == "accept"
 
 
+def _part_case(part: PartNeed) -> CaseFile:
+    rec = Recommendation(action="replace", task_ids=["FM-HPC-04"], parts=[part],
+                         rationale=[Claim(text="r", evidence_ids=["EV-PRG-01"], confidence="high")], confidence="high")
+    stock = {"parts": [{"part_number": "TF-HPC-1100", "available": 0, "lead_time_days": 21}], "unknown": []}
+    return _case(recommendation=rec, evidence={"EV-PRG-01": _ev("EV-PRG-01"), "EV-MNT-02": _ev("EV-MNT-02", stock)})
+
+
+def test_part_must_match_the_stock_evidence_it_cites():
+    good = PartNeed(part_number="TF-HPC-1100", qty=1, available=0, lead_time_days=21, evidence_ids=["EV-MNT-02"])
+    assert parts_exist(_part_case(good)) == []
+    inflated = good.model_copy(update={"available": 1})
+    assert "differs from stock evidence" in parts_exist(_part_case(inflated))[0]
+    invented = good.model_copy(update={"part_number": "TF-HPC-9999"})
+    assert "not listed in the evidence" in parts_exist(_part_case(invented))[0]
+
+
+def test_findings_must_equal_the_model_output_they_cite():
+    evidence = {"EV-PRG-01": _ev("EV-PRG-01", {"rul": 40, "lower": 30, "upper": 50}), "EV-PRG-02": _ev("EV-PRG-02")}
+    case = _case(findings={"rul_ml": _rul()}, evidence=evidence)
+    assert findings_match_evidence(case) == []
+    case.findings.rul_ml.rul = 70
+    assert "differs from EV-PRG-01" in findings_match_evidence(case)[0]
+
+
+def test_deadline_may_not_pass_the_rul_lower_bound():
+    rec = Recommendation(action="inspect", task_ids=["FM-HPC-01"], deadline=date(2026, 11, 6),
+                         rationale=[Claim(text="r", evidence_ids=["EV-PRG-01"], confidence="high")], confidence="high")
+    case = _case(findings={"rul_ml": _rul(lower=30), "rul_trend": _rul("health_index", lower=40, ev="EV-PRG-02")},
+                 recommendation=rec)
+    reference = date(2026, 10, 22)
+    assert deadline_within_rul(case, PACK, reference) == []          # 30 cycles at 2/day = 15 days
+    rec.deadline = date(2026, 11, 7)
+    assert "later than the RUL lower bound" in deadline_within_rul(case, PACK, reference)[0]
+
+
 def test_divergence_escalates_when_gap_exceeds_pack_limit():
     case = _case(findings={"rul_ml": _rul(rul=80), "rul_trend": _rul("health_index", rul=10, lower=5, upper=15,
                                                                       ev="EV-PRG-02")})
@@ -101,16 +138,24 @@ def test_remaining_shorter_than_wait():
     assert remaining_shorter_than_wait(40, 35, 1) is False
 
 
-def test_rul_below_lead_time_is_urgent():
+def _lead_time_case(available: int) -> CaseFile:
     rec = Recommendation(action="replace", task_ids=["FM-HPC-04"],
-                         parts=[PartNeed(part_number="TF-HPC-1101", qty=1, available=2, lead_time_days=35,
+                         parts=[PartNeed(part_number="TF-HPC-1101", qty=1, available=available, lead_time_days=35,
                                          evidence_ids=["EV-MNT-01"])],
                          rationale=[Claim(text="r", evidence_ids=["EV-PRG-01"], confidence="high")], confidence="high")
-    case = _case(findings={"rul_ml": _rul(rul=10, lower=7, upper=11)},
+    return _case(findings={"rul_ml": _rul(rul=10, lower=7, upper=11)},
                  recommendation=rec,
                  evidence={"EV-PRG-01": _ev("EV-PRG-01"), "EV-PRG-02": _ev("EV-PRG-02"),
                            "EV-MNT-01": _ev("EV-MNT-01"),
                            "EV-DAT-04": _ev("EV-DAT-04", {"days_to_first_free": 1, "first_free": "2026-10-23"})})
+
+
+def test_rul_below_lead_time_is_urgent():
+    case = _lead_time_case(available=0)
     item = rul_below_lead_time(case, PACK)
     assert item and item.severity == "urgent"
     assert run_escalations(case, PACK)
+
+
+def test_parts_on_hand_do_not_count_lead_time():
+    assert rul_below_lead_time(_lead_time_case(available=2), PACK) is None
