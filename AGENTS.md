@@ -160,7 +160,7 @@ Knowledge agent precedence when sources conflict: airworthiness directive > OEM 
 
 ## 9. Stack
 
-Python 3.11+ with `uv`; LangGraph (+ InMemorySaver); Pydantic / pydantic-settings; LLMs via **Meterless Nightshift** (`tools/llm.py`, OpenAI-compatible `http://127.0.0.1:8088/v1`): planner model Claude Opus 4.7 (`meterless/auto`); critic `METERLESS_CRITIC_MODEL` (Nemotron 3 Super once NVIDIA enables the `edwinis` org — email help@build.nvidia.com). Do not put an NVIDIA key in the app. pandas, scikit-learn, LightGBM (TreeSHAP built in); Postgres + pgvector; S3; Meterless World Model + H-MEM vendored in `context-service/` (Apache 2.0, commit 1742dec) served by `node:http` on port **8710**; `tenacity`, `sqlglot`; Streamlit + Plotly (day 4); Docker Compose; pytest.
+Python 3.11+ with `uv`; LangGraph (+ InMemorySaver); Pydantic / pydantic-settings; LLMs via **Meterless Nightshift** (`tools/llm.py`, OpenAI-compatible `http://127.0.0.1:8088/v1`): planner model Claude Opus 4.7 (`meterless/auto`); critic as Nightshift app `turbofan-maintenance-critic`, lane `nemotron` = Nemotron 3 Ultra 550B A55B. Do not put an NVIDIA key in the app. pandas, scikit-learn, LightGBM (TreeSHAP built in); Postgres + pgvector; S3; Meterless World Model + H-MEM vendored in `context-service/` (Apache 2.0, commit 1742dec) served by `node:http` on port **8710**; `tenacity`, `sqlglot`; Streamlit + Plotly (day 4); Docker Compose; pytest.
 
 NVIDIA hosted NIM free tier ≈ 1,000 credits/month once the key exists: **cache model and tool results** in dev and eval. Hard limits: 3 critic rounds, 25 graph steps, 120 s per run (`RUN_TIMEOUT_S`).
 
@@ -253,5 +253,5 @@ Verdict line first (action, deadline, confidence, escalation in red); metric row
 
 ## 16. Open questions
 
-- Nemotron critic lane (lane id `nemotron`, critic app policy `lanes: ["nemotron"]`): no hosted Nemotron returned a critic verdict on 23 Oct. Lightning 30B A3B: empty response even for "Reply with OK". Super VL 120B: answers short prompts; on the critic prompt it reasons past Nightshift's ~45 s provider limit (larger max_tokens, `/no_think` and a compact prompt did not help). Nemotron 3 Super 120B: 404 not entitled for the account. Nano 30B A3B and Llama 3.3 Nemotron Super 49B v1.5: 410 end of life. Live critic runs are deterministic-only and flagged until a lane answers.
+- Nemotron critic lane (lane id `nemotron`, critic app policy `lanes: ["nemotron"]`) works with **Nemotron 3 Ultra 550B A55B**: golden cases accepted in 6–37 s (close to Nightshift's ~45 s provider limit on FD001-A001). Its notes include false alarms (claims a value in an evidence summary is missing; 55 vs 56 cycles from rounded summaries), which is why LLM notes never veto a cited brief. Did not work on 23 Oct: Lightning 30B A3B (empty responses), Super VL 120B (reasons past the 45 s limit), Nemotron 3 Super 120B and Llama 3.1 Nemotron Ultra 253B (404, not entitled), Nano 30B A3B and Llama 3.3 Nemotron Super 49B (410, retired).
 - Do judges need a live Zetaris endpoint during judging (28 Oct–6 Nov)? `SAMPLE_MODE=true` must work regardless (it does).
