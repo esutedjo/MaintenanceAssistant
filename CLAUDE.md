@@ -32,7 +32,9 @@ The World Model is now the runtime source of eligible work. Zetaris still prices
 
 Name surfaces updated after the tests: `README.md`, `AGENTS.md`, `pyproject.toml` description, `ui/app.py` (browser title **Cleris**, sidebar caption "the MRO clearance assistant"). The documented Docker tag is `cleris`. The package name is still `maintenance-assistant`.
 
-`output_examples/` and `trace_examples/` were generated before features 1–7. They still say "FMEA task" where the planner now says "World Model task". Do not treat those files as the current wording until they are regenerated with `SAMPLE_MODE=true`. `tests/test_graph.py` checks behaviour (swap on FD001-A031, borescope on FD001-A070, "World Model:" in the evidence summaries), not the old sentence text.
+`output_examples/`, the four golden `trace-sample-*` files and the four `trace-live-critic-*` files were regenerated on 25 Oct on the graph-backed planner (live: Zetaris, context service, Nemotron critic, 6–14 s per run). The two `trace-sample-bad-data-*` files are still from 23 Oct. `uv run task eval` was re-run on 25 Oct: same headline results, 2,907 claims.
+
+Two fixes from the 25 Oct live runs: `casefile/world.py` lists each task once (a store loaded before edges were scoped keeps an unscoped and a scoped `addresses` edge, which doubled the list in live mode only), and the live history query leaves out the app's own `draft` work orders (two test drafts on FD003-A100 from 23 Oct are still in `cmms.work_orders`; they made the plausibility gate flag "work orders dated after the reference time"). `tests/test_graph.py` checks behaviour (swap on FD001-A031, borescope on FD001-A070, "World Model:" in the evidence summaries), not the old sentence text.
 
 ## Claims that must stay true
 
@@ -40,7 +42,7 @@ Name surfaces updated after the tests: `README.md`, `AGENTS.md`, `pyproject.toml
 - H-MEM similar-case search retrieves past removals tagged `case`, not the sign-off memory. Sign-off updates trust on the cited past cases (`helpful` +0.05, `not_helpful` −0.03, `wrong` −0.20 and a `review` tag). The asset facts in item 5 are the place the next run sees *this* engine's last decision.
 - On FD003-A100 the second critic round is the deterministic driver check (Nc, NRc, htBleed move under every fault; the graph links fan degradation to the fan). It is not the Nemotron call. Nemotron notes on a fully cited brief are shown and do not veto.
 - FD001-A031, from the last committed sample output: RUL A 9.8 (7–11), RUL B 6.7, planning lower bound 0 cycles, deadline 2026-10-22, next slot 2026-10-23, parts on hand, action is the lease-engine swap, AD-2026-17-04 keeps FM-HPC-01, H-MEM median warning 27 cycles across 127 HPC removals, this engine is 16 cycles past its first moderate finding, confidence stays high. Re-measure if you regenerate outputs.
-- Zetaris does not map sensors to components. That mapping is the asset pack, now also the World Model `monitors` edges. The essential Zetaris query is `s3_files.fmea` joined to `cmms_pg` stock and lead time. The app holds no database password. The eval answer key is revoked from the Zetaris user. Do not name the product, or a slide, "Ground Truth".
+- Zetaris does not map sensors to components. That mapping is the asset pack, now also the World Model `monitors` edges. The essential Zetaris query is `s3_files.fmea` joined to `cmms_pg` stock and lead time. Reads hold no database password; only the engineer's sign-off write logs in to Postgres, as the `cmms`-only `app_rw` user. The eval answer key is revoked from the Zetaris user. Do not name the product, or a slide, "Ground Truth".
 - Stock, lead time, hangar slots, RUL, and sensor values stay out of the World Model.
 
 ## Pitch files (outside the git repo)
@@ -64,9 +66,9 @@ The title card used to carry "The map of the machine. The data. A second opinion
 
 These were explicit requests or recommendations. They are not in the code and must not be described as built.
 
-1. **Market contrast in the pitch.** The user asked for a unique-value argument against current MRO products (federated systems of record versus a platform the plant must migrate into). The session was interrupted before any slide or script line was written. Senseye, Maximo Assistant, and Cognite are already named in `AGENTS.md` as products we do not claim to precede. A fair contrast, when written: they advise from a model or a ticket; Cleris will not issue a clearance whose work is off the machine graph or whose parts were not read from the live systems. Do not invent capabilities those products lack unless you have checked.
+1. **Market contrast in the pitch.** Written on 25 Oct as speaker notes (VALUE deck slide 2) and one narration line (video script, 3:00–3:25): Senseye, Maximo Assistant and Cognite Atlas advise from inside their own platforms; Cleris sits on the systems the shop already has, and its rule checks send back any task the machine graph does not list for the fault. No slide text was added. Do not invent capabilities those products lack unless you have checked.
 
-2. **MRO process, said as the use case.** Slide 2 already says "Airline or MRO shop". A pass that frames the whole story as the MRO process (on-wing disposition, induction, shop visit, release) was started and not finished.
+2. **MRO process, said as the use case.** One line in the slide 3 notes frames the brief as the on-wing disposition (keep on wing, inspect, or remove for a shop visit, with the release the engineer signs). A full pass through every slide was not done.
 
 3. **Further World Model work, in the order already agreed, after 1–7.** Not built: writing a memory when the task list itself changes; a second asset type in the same world; an operator edit of an `addresses` edge that the next run must obey with no code change. Also not built: putting `pack_version` on the task-list evidence record (it is stored on the asset at sign-off only).
 
@@ -74,8 +76,8 @@ These were explicit requests or recommendations. They are not in the code and mu
 
 ## If you continue
 
-Regenerate `output_examples/` and the sample traces only when the user wants the committed examples to match the graph-backed planner. Until then, say they are older.
+Before a live demo: start the context service (`uv run task context-service`), run `uv run task load-context`, and keep `ZETARIS_MODE=live` in `.env.local`. Zetaris still stalls now and then (a run falls back to the snapshot and says so); run the take again. Approving a case in live mode writes a draft work order to `cmms.work_orders`.
 
-The pitch gap that matches the judging rubric is the unfinished market contrast, written only from behaviour that is already true: one read-only join for parts, eligible work from the World Model, a critic that cannot change a number, and a clearance the engineer signs. Put that in the VALUE deck and the video script, not in a new code path.
+The 25 Oct pitch pass is in the VALUE deck and the video script: reads-only password wording, slide numbers, FD001-A031 as the live-run question, DRAFT notes replaced, Cursor plus Claude Code, the market contrast. The originals are not kept in the Pitch Material folder.
 
 Verify with `uv run pytest -q` from the repo root. Sample mode needs no credentials.

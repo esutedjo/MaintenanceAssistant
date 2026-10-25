@@ -127,7 +127,7 @@ def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, s
                             temperature=0, max_tokens=1024, app=ctx.settings.meterless_critic_app,
                             response_format={"type": "json_object"}, timeout_s=ctx.settings.critic_timeout_s)
         parsed = _parse(reply.text)
-        note = "critic_same_family_as_planner" if _family(reply.model) in {"anthropic", "openai"} else None
+        note = "critic_lane_not_nemotron" if _family(reply.model) in {"anthropic", "openai"} else None
         gaps = list(parsed["gaps"])
         if parsed["outcome"] == "reject" and "critic rejected the brief" not in gaps:
             gaps.append("critic rejected the brief")
@@ -161,8 +161,8 @@ def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
     summary = f"{outcome}; {len(gaps)} gap(s)" + (f"; model={model}" if model else "; deterministic")
     if llm_gaps and outcome == "accept":
         summary += f"; {len(llm_gaps)} LLM note(s) for the engineer"
-    if note == "critic_same_family_as_planner":
-        summary += "; same family as planner"
+    if note == "critic_lane_not_nemotron":
+        summary += "; critic lane not pinned to Nemotron"
     elif note:
         summary += f"; {note}"
     verdict = Verdict(round=state.round, gate="critic", outcome=outcome, gaps=recorded, model=model)
