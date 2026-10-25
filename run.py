@@ -12,11 +12,12 @@ import json
 import logging
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError
 
 from graph.runner import new_run_id, run_case
-from settings import get_settings
+from settings import ROOT, get_settings
 
 
 class RunRequest(BaseModel):
@@ -25,6 +26,13 @@ class RunRequest(BaseModel):
 
 def error_json(code: str, message: str, run_id: str | None = None) -> dict:
     return {"run_id": run_id, "status": "error", "error": {"code": code, "message": message}}
+
+
+def health_payload() -> dict:
+    settings = get_settings()
+    snapshot = (ROOT / "data" / "snapshot" / "cycles.parquet").exists()
+    return {"status": "ok" if snapshot else "degraded", "sample_mode": settings.sample_mode,
+            "data": "snapshot" if settings.sample_mode else settings.zetaris_mode, "snapshot": snapshot}
 
 
 def handle(payload: object) -> tuple[int, dict]:
@@ -52,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            self._send(200, {"status": "ok", "sample_mode": get_settings().sample_mode})
+            self._send(200, health_payload())
         else:
             self._send(404, error_json("not_found", f"no route GET {self.path}"))
 
@@ -80,9 +88,11 @@ def main() -> int:
 
     if args.serve:
         settings = get_settings()
-        server = ThreadingHTTPServer((settings.run_host, settings.run_port), Handler)
-        logging.info("serving POST /run on %s:%s (sample_mode=%s)", settings.run_host, settings.run_port,
-                     settings.sample_mode)
+        host = settings.run_host
+        if Path("/.dockerenv").exists() and host in {"127.0.0.1", "localhost"}:
+            host = "0.0.0.0"  # a container bound only to loopback is unreachable via the published port
+        server = ThreadingHTTPServer((host, settings.run_port), Handler)
+        logging.info("serving POST /run on %s:%s (sample_mode=%s)", host, settings.run_port, settings.sample_mode)
         server.serve_forever()
         return 0
 

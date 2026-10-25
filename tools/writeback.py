@@ -13,6 +13,7 @@ from typing import Any, Literal
 import psycopg
 
 from casefile.context_store import FeedbackKind, MemoryIn, MemoryProvenance, open_context_store
+from casefile.world import signoff_batch
 from casefile.schemas import CaseFile
 from data.db import load_pack
 from settings import ROOT, Settings
@@ -153,6 +154,7 @@ def _remember(settings: Settings, case: CaseFile, decision: Decision, comment: s
         note = f"{note}. {comment}"
     store = open_context_store(settings)
     try:
+        world = _write_asset_facts(store, case, decision)
         result = store.write_memories([
             MemoryIn(
                 content=note,
@@ -172,8 +174,22 @@ def _remember(settings: Settings, case: CaseFile, decision: Decision, comment: s
                 feedback.append({**cited, "kind": kind, "trust_after": round(trust, 3)})
             except Exception as error:
                 feedback.append({**cited, "kind": kind, "error": type(error).__name__})
-        return {"ok": True, "backend": store.backend, "result": result, "case_feedback": feedback}
+        return {"ok": True, "backend": store.backend, "result": result, "case_feedback": feedback, "world": world}
     except Exception as error:
         return {"ok": False, "error": type(error).__name__}
     finally:
         store.close()
+
+
+def _write_asset_facts(store, case: CaseFile, decision: Decision) -> dict[str, Any]:
+    """Best-effort: last sign-off becomes facts on the asset node."""
+    try:
+        pack = load_pack()
+        batch = signoff_batch(pack, case, decision)
+        try:
+            return {"ok": True, "result": store.write_world(batch)}
+        except ValueError:
+            batch.relations = []
+            return {"ok": True, "result": store.write_world(batch)}
+    except Exception as error:
+        return {"ok": False, "error": type(error).__name__}

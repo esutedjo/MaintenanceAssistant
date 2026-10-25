@@ -119,6 +119,22 @@ def mandates_honoured(case: CaseFile, pack: dict, reference: date | None = None)
     return gaps
 
 
+def world_tasks_eligible(case: CaseFile) -> list[str]:
+    """A proposed task must sit on a World Model addresses edge for the claimed fault."""
+    rec = case.recommendation
+    if rec is None or not rec.task_ids:
+        return []
+    allowed: list[str] = []
+    world = [e for e in case.evidence.values()
+             if "task_ids" in e.content and "world/" in (e.source or "")]
+    if not world:
+        return []
+    for evidence in world:
+        allowed.extend(evidence.content.get("task_ids") or [])
+    return [f"task {tid} is not on the World Model addresses edge for this fault" for tid in rec.task_ids
+            if tid not in set(allowed)]
+
+
 def deadline_within_rul(case: CaseFile, pack: dict, reference: date | None = None) -> list[str]:
     """The deadline may be earlier than the RUL lower bound (a document can tighten it), never later."""
     rec, a, b = case.recommendation, case.findings.rul_ml, case.findings.rul_trend
@@ -135,5 +151,5 @@ def run_rule_checks(case: CaseFile, pack: dict, reference: date | None = None) -
     cap = float(pack["thresholds"]["rul_cap_cycles"])
     gaps = [*claims_have_evidence(case), *rul_in_range(case, cap), *findings_match_evidence(case), *asset_matches(case),
             *parts_exist(case), *slot_exists(case), *mandates_honoured(case, pack, reference),
-            *deadline_within_rul(case, pack, reference)]
+            *deadline_within_rul(case, pack, reference), *world_tasks_eligible(case)]
     return Verdict(round=case.round, gate="rule_checks", outcome="accept" if not gaps else "revise", gaps=gaps)

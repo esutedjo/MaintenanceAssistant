@@ -102,6 +102,21 @@ def test_critic_prose_reply_is_skipped_not_trusted(tmp_path, monkeypatch):
     assert any("LLM critic unavailable (ValueError)" in d for d in result["degraded"])
 
 
+def test_llm_critic_is_skipped_when_the_run_is_almost_out_of_time(tmp_path, monkeypatch):
+    """A slow Nightshift must not turn a finished brief into status=error at the 120 s cap."""
+    called = []
+
+    def boom(self, messages, **kwargs):
+        called.append(True)
+        raise AssertionError("LLM critic should not be called when remaining time is below its timeout")
+
+    monkeypatch.setattr(LlmClient, "chat", boom)
+    result = run_case(QUESTION, _settings(tmp_path, run_timeout_s=2.0, critic_timeout_s=45.0))
+    _assert_brief(result)
+    assert called == []
+    assert any("remaining run time" in d for d in result["degraded"])
+
+
 @pytest.mark.parametrize("outcome", ["revise", "reject"])
 def test_llm_gaps_on_a_cited_brief_are_notes_not_a_veto(tmp_path, monkeypatch, outcome):
     _critic_reply(monkeypatch, f'{{"outcome": "{outcome}", "gaps": ["slot date not cited"]}}')

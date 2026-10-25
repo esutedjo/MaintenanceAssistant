@@ -1,6 +1,7 @@
 """Load the shared context: asset pack + FMEA into the World Model, past removals into H-MEM.
 Run: uv run task load-context   (start context-service first: cd context-service; npm start)"""
 
+import json
 import sys
 from pathlib import Path
 
@@ -52,7 +53,10 @@ def build_world_batch(pack: dict, fmea: pd.DataFrame, parts: pd.DataFrame) -> Wo
         discriminating = [c for c, s in moving.items() if len({s["direction"][m] for m in modes}) > 1]
         entities.append(EntityIn(type="failure_mode", key=mode, name=fm["label"],
                                  attrs={"signature": signature, "discriminating_sensors": discriminating}))
-        relations.append(RelationIn(**{"from": ref("failure_mode", mode), "type": "affects", "to": ref("component", fm["component"])}))
+        for variant, allowed in pack.get("variants", {}).items():
+            if mode in allowed:
+                relations.append(RelationIn(**{"from": ref("failure_mode", mode), "type": "affects",
+                                               "to": ref("component", fm["component"]), "context": variant}))
 
     for fmea_id, rows in fmea.groupby("fmea_id", sort=True):
         first = rows.iloc[0]
@@ -60,14 +64,52 @@ def build_world_batch(pack: dict, fmea: pd.DataFrame, parts: pd.DataFrame) -> Wo
         entities.append(EntityIn(type="task", key=fmea_id, name=first["task"], attrs={
             "task_type": first["task_type"], "trigger_severity": first["trigger_severity"], "cause": first["cause"],
             "effect": first["effect"], "detection": first["detection"], "parts": task_parts}))
-        relations.append(RelationIn(**{"from": ref("task", fmea_id), "type": "addresses", "to": ref("failure_mode", first["failure_mode"])}))
+        for variant, allowed in pack.get("variants", {}).items():
+            if first["failure_mode"] in allowed:
+                relations.append(RelationIn(**{"from": ref("task", fmea_id), "type": "addresses",
+                                               "to": ref("failure_mode", first["failure_mode"]), "context": variant}))
 
     for p in parts.itertuples():
         entities.append(EntityIn(type="part", key=p.part_number, name=p.description))
         relations.append(RelationIn(**{"from": ref("part", p.part_number), "type": "fits", "to": ref("component", p.component)}))
 
+    _add_documents(pack, entities, relations, ref)
+
     source = Source(kind="file", by="load-context", url=f"asset_packs/{system}/manifest.yaml@{pack['version']}")
     return WorldBatch(system=system, source=source, entities=entities, relations=relations)
+
+
+def _add_documents(pack: dict, entities: list[EntityIn], relations: list[RelationIn], ref) -> None:
+    """AD/SB/manual sections that name a task become document nodes with requires and applies_to edges."""
+    from tools.knowledge import parse_document
+
+    spec = pack.get("documents") or {}
+    folder = ROOT / spec.get("directory", "")
+    variants = pack.get("variants") or {}
+    for name in spec.get("files") or []:
+        for chunk in parse_document(folder / name):
+            mandate = json.loads(chunk["mandate"]) if chunk.get("mandate") else {}
+            modes = [m for m in str(chunk.get("failure_modes") or "").split(",") if m]
+            task_id = mandate.get("task") or next((t for t in str(chunk.get("tasks") or "").split(",") if t), None)
+            if not modes and not task_id:
+                continue
+            applies = [v for v in str(chunk.get("applies_to") or "").split(",") if v] or list(variants)
+            attrs = {
+                "doc_id": chunk["doc_id"], "section": chunk["section"], "doc_type": chunk["doc_type"],
+                "heading": chunk["heading"], "failure_modes": modes, "task": task_id,
+                "action": mandate.get("action"), "within_cycles": mandate.get("within_cycles"),
+            }
+            entities.append(EntityIn(type="document", key=chunk["chunk_id"], name=f"{chunk['doc_id']} {chunk['section']}",
+                                     attrs=attrs))
+            if task_id:
+                relations.append(RelationIn(**{"from": ref("document", chunk["chunk_id"]), "type": "requires",
+                                               "to": ref("task", task_id)}))
+            for mode in modes:
+                for variant in applies:
+                    if mode in (variants.get(variant) or []):
+                        relations.append(RelationIn(
+                            **{"from": ref("document", chunk["chunk_id"]), "type": "applies_to",
+                               "to": ref("failure_mode", mode), "context": f"{variant}|{mode}"}))
 
 
 def removals_live(settings: Settings) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -103,8 +145,12 @@ def case_memories(pack: dict, removals: pd.DataFrame, warnings: pd.DataFrame) ->
     memories = []
     for r in frame.itertuples():
         dataset = r.asset_id.split("-")[0]
-        warning = ("no moderate finding before removal" if pd.isna(r.first_warning)
-                   else f"first moderate finding at cycle {int(r.first_warning)}, {r.cycle_at - int(r.first_warning)} cycles before removal")
+        if pd.isna(r.first_warning):
+            warning = "no moderate finding before removal"
+        else:
+            lead = int(r.cycle_at) - int(r.first_warning)
+            warning = (f"first moderate finding at cycle {int(r.first_warning)}, "
+                       f"warning_to_removal_cycles={lead}")
         content = (f"Past case {r.asset_id} ({dataset}, synthetic): {labels[r.failure_mode]}. "
                    f"Engine removed unscheduled at cycle {r.cycle_at}; {warning}. Shop finding: {r.note}")
         memories.append(MemoryIn(

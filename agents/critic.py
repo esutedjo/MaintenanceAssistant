@@ -4,6 +4,7 @@ An LLM pass is added when Nightshift is available and SAMPLE_MODE is off. The cr
 import json
 import logging
 import re
+import time
 
 from agents.runtime import NodeResult, RunContext, node
 from casefile.schemas import CaseFile, MAX_ROUNDS, Verdict
@@ -24,8 +25,9 @@ def _family(model: str) -> str:
     return name.split("/")[0] or "unknown"
 
 
-def drivers_vs_fault(case: CaseFile, pack: dict) -> str | None:
-    """SHAP drivers are often common-trend sensors; they must not be presented as the fault-mode signature."""
+def drivers_vs_fault(case: CaseFile, pack: dict, store=None) -> str | None:
+    """SHAP drivers are often common-trend sensors; they must not be presented as the fault-mode signature.
+    When a World Model is available the check walks sensor→component and fault→component."""
     if any("distinguish" in c.text.lower() for c in case.findings.claims):
         return None
     modes, drivers = case.findings.fault_modes, case.findings.drivers
@@ -34,12 +36,21 @@ def drivers_vs_fault(case: CaseFile, pack: dict) -> str | None:
     variants = pack["variants"].get(case.asset.variant or "", [modes[0].failure_mode])
     if len(variants) < 2:
         return None
-    disc = set(discriminating(pack, variants).get(modes[0].failure_mode, {}))
+    from casefile.world import discriminating_sensors, mode_component, sensor_component
+    disc = set(discriminating_sensors(store, pack, modes[0].failure_mode) or
+               discriminating(pack, variants).get(modes[0].failure_mode, {}))
     if disc and {d.sensor for d in drivers}.isdisjoint(disc):
-        names = ", ".join(pack["sensors"][s]["name"] for s in sorted(disc))
-        driver_names = ", ".join(pack["sensors"][d.sensor]["name"] for d in drivers[:3])
-        return (f"RUL drivers listed are {driver_names}, which move under every failure mode. "
-                f"The sensors that distinguish {modes[0].failure_mode} are {names}.")
+        names = ", ".join(pack["sensors"][s]["name"] for s in sorted(disc) if s in pack["sensors"])
+        driver_names = ", ".join(pack["sensors"][d.sensor]["name"] for d in drivers[:3] if d.sensor in pack["sensors"])
+        gap = (f"RUL drivers listed are {driver_names}, which move under every failure mode. "
+               f"The sensors that distinguish {modes[0].failure_mode} are {names}.")
+        if store is not None:
+            fault_comp = mode_component(store, pack, modes[0].failure_mode, case.asset.variant)
+            driver_comps = sorted({sensor_component(store, pack, d.sensor) or d.component for d in drivers} - {None})
+            if fault_comp and driver_comps and fault_comp not in driver_comps:
+                gap += (f" Those drivers monitor {', '.join(driver_comps)}; "
+                        f"the World Model links {modes[0].failure_mode} to {fault_comp}.")
+        return gap
     return None
 
 
@@ -53,8 +64,8 @@ def similar_cases_if_degraded(case: CaseFile) -> str | None:
     return None
 
 
-def deterministic_gaps(case: CaseFile, pack: dict) -> list[str]:
-    return [g for g in (drivers_vs_fault(case, pack), similar_cases_if_degraded(case)) if g]
+def deterministic_gaps(case: CaseFile, pack: dict, store=None) -> list[str]:
+    return [g for g in (drivers_vs_fault(case, pack, store), similar_cases_if_degraded(case)) if g]
 
 
 def _parse(text: str) -> dict:
@@ -74,10 +85,18 @@ def _parse(text: str) -> dict:
     return {"outcome": outcome, "gaps": [str(g) for g in raw_gaps]}
 
 
+def _remaining_s(ctx: RunContext) -> float:
+    return ctx.settings.run_timeout_s - (time.monotonic() - ctx.started)
+
+
 def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, str | None]:
     """Returns (gaps, model_name, error_note). Empty model_name means the LLM was not called."""
     if ctx.settings.sample_mode:
         return [], None, None
+    remaining = _remaining_s(ctx)
+    if remaining < ctx.settings.critic_timeout_s + 1:
+        return [], None, (f"llm_critic_skipped: remaining run time {remaining:.0f}s "
+                          f"< critic timeout {ctx.settings.critic_timeout_s:.0f}s")
     evidence_lines = "\n".join(f"- {e.id} [{e.kind}] {e.summary}" for e in case.evidence.values())
     claims = "\n".join(f"- {c.confidence}: {c.text} ({', '.join(c.evidence_ids)})" for c in case.findings.claims)
     rec = case.recommendation
@@ -123,7 +142,7 @@ def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, s
 
 @node("critic", "disprove", lambda s: f"round={s.round} claims={len(s.findings.claims)}")
 def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
-    gaps = deterministic_gaps(state, ctx.pack)
+    gaps = deterministic_gaps(state, ctx.pack, ctx.store)
     # Cheap checks first: skip the LLM when we already know we will revise. The LLM may annotate
     # a fully cited brief; it cannot invent a stop-the-line gap (it never produces numbers).
     if gaps:

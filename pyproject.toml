@@ -1,7 +1,7 @@
 [project]
 name = "maintenance-assistant"
 version = "0.1.0"
-description = "Evidence-backed turbofan maintenance decision agent"
+description = "Cleris, the MRO clearance assistant: evidence-backed turbofan maintenance decisions"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -1,11 +1,12 @@
-"""Maintenance planner: task, parts, slot and deadline from the RUL lower bound and the FMEA table.
-Numbers come from DataTools; this node only selects among them."""
+"""Maintenance planner: task, parts, slot and deadline from the RUL lower bound.
+Eligible work comes from the World Model; DataTools only prices parts and slots."""
 
 from datetime import date as date_cls, timedelta
 
 from agents.runtime import NodeResult, RunContext, node
 from assurance.escalation import parts_wait_days, remaining_shorter_than_wait
 from casefile.schemas import CaseFile, Claim, Confidence, EvidenceLedger, PartNeed, Recommendation
+from casefile.world import asset_state, fmea_extra, mandated_for_mode, tasks_addressing
 from tools.data_tools import DataTools
 
 SEVERITY_RANK = {"none": 0, "minor": 1, "moderate": 2, "severe": 3}
@@ -63,13 +64,14 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
 
     ledger = EvidenceLedger("maint_planner", state.evidence)
     tools = DataTools(ctx.data, ledger, pack, ctx.settings.reference_time)
-    chosen, part_rows, fmea_ids, catalogue = [], [], [], []
-    if not healthy:
-        for mode in top_modes or ["hpc_degradation"]:
-            fmea = tools.fmea_tasks(mode)
-            fmea_ids.append(fmea.id)
-            catalogue.extend(fmea.content["tasks"])
-            picked = _pick_tasks(fmea.content["tasks"], severity, prefer_inspect)
+    variant = state.asset.variant if state.asset else None
+    chosen, part_rows, world_ids, catalogue = [], [], [], []
+    for mode in top_modes or (["hpc_degradation"] if not healthy else []):
+        world = _world_tasks(ctx, ledger, mode, variant, tools)
+        world_ids.append(world.id)
+        catalogue.extend(world.content["tasks"])
+        if not healthy:
+            picked = _pick_tasks(world.content["tasks"], severity, prefer_inspect)
             chosen.extend(picked)
             for task in picked:
                 part_rows.extend(task["parts"])
@@ -96,10 +98,10 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         task = next((t for t in catalogue if t["fmea_id"] == doc.required_task), None)
         if task is None:
             for mode in doc.failure_modes:
-                fmea = tools.fmea_tasks(mode)
-                fmea_ids.append(fmea.id)
-                catalogue.extend(fmea.content["tasks"])
-                task = next((t for t in fmea.content["tasks"] if t["fmea_id"] == doc.required_task), None)
+                extra = _world_tasks(ctx, ledger, mode, variant, tools)
+                world_ids.append(extra.id)
+                catalogue.extend(extra.content["tasks"])
+                task = next((t for t in extra.content["tasks"] if t["fmea_id"] == doc.required_task), None)
                 if task:
                     break
         if task:
@@ -126,7 +128,7 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
             out.append(PartNeed(part_number=number, qty=max(int(row.get("qty") or 1), 1),
                                 available=int(info.get("available") or 0),
                                 lead_time_days=int(info.get("lead_time_days") or row.get("lead_time_days") or 0),
-                                evidence_ids=[parts_ev.id] if parts_ev else fmea_ids))
+                                evidence_ids=[parts_ev.id] if parts_ev else world_ids))
         return out
 
     rul_days = lower / cycles_per_day
@@ -207,8 +209,8 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
                   f"swap a lease engine and do the shop visit on the removed engine."),
             evidence_ids=wait_ids, confidence="high"))
     for task in chosen:
-        rationale.append(Claim(text=f"FMEA task {task['fmea_id']}: {task['task']}.",
-                               evidence_ids=fmea_ids or rul_ids, confidence=confidence))
+        rationale.append(Claim(text=f"World Model task {task['fmea_id']}: {task['task']}.",
+                               evidence_ids=world_ids or rul_ids, confidence=confidence))
     for task_id, doc in _governing_documents(state, [t["fmea_id"] for t in chosen]).items():
         rationale.append(Claim(
             text=(f"Limits and intervals for {task_id} follow {doc.doc_id} {doc.section} "
@@ -218,12 +220,48 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         rationale.append(Claim(
             text=(f"{doc.doc_id} {doc.section} mandates {doc.required_task} within {doc.within_cycles} cycles; "
                   "it stays in the plan whatever else is chosen."),
-            evidence_ids=[doc.evidence_id, *(fmea_ids or [])], confidence="high"))
+            evidence_ids=[doc.evidence_id, *(world_ids or [])], confidence="high"))
     if findings.fault_modes:
         top = findings.fault_modes[0]
         rationale.append(Claim(text=f"Primary fault mode {pack['failure_modes'][top.failure_mode]['label']} "
                                     f"(p={top.probability:.2f}).",
                                evidence_ids=[top.evidence_id], confidence="high" if top.probability >= 0.85 else "medium"))
+        if not world_ids:
+            world = _world_tasks(ctx, ledger, top.failure_mode, variant, tools)
+            world_ids.append(world.id)
+        world_ev = next((ledger.records[i] for i in world_ids if i in ledger.records), None)
+        listed = (world_ev.content.get("task_ids") if world_ev else []) or []
+        used = ", ".join(t["fmea_id"] for t in chosen)
+        shown = ", ".join(listed) or "none"
+        if healthy or not used:
+            text = (f"World Model lists tasks for this fault ({shown}); none selected while the engine "
+                    "is still in the healthy band.")
+        else:
+            text = f"World Model lists tasks for this fault ({shown}); the plan uses {used}."
+        rationale.append(Claim(text=text, evidence_ids=world_ids[:1], confidence="high"))
+        graph_mandates = mandated_for_mode(ctx.store, pack, top.failure_mode, variant)
+        if graph_mandates and world_ev:
+            names = ", ".join(f"{m['doc_id']} {m['section']}→{m['task']}" for m in graph_mandates)
+            rationale.append(Claim(
+                text=f"World Model links mandatory document actions for this fault: {names}.",
+                evidence_ids=world_ids[:1], confidence="high"))
+        prior = asset_state(ctx.store, pack, state.asset.asset_id) if state.asset else {}
+        if prior.get("last_decision") and world_ev:
+            rationale.append(Claim(
+                text=(f"World Model records the last sign-off on this asset as {prior['last_decision']}"
+                      + (f" ({prior.get('last_action')})" if prior.get("last_action") else "") + "."),
+                evidence_ids=world_ids[:1], confidence="medium"))
+    cohort = next((e for e in state.evidence.values() if e.content.get("median_warning_cycles") is not None), None)
+    if cohort is not None:
+        median = int(cohort.content["median_warning_cycles"])
+        age = _cycles_since_moderate(state)
+        detail = (f" This engine is {age} cycles past its first moderate finding." if age is not None else "")
+        rationale.append(Claim(
+            text=(f"Similar past removals in case memory gave a median of {median} cycles of warning "
+                  f"({cohort.content['n']} cases).{detail}"),
+            evidence_ids=[cohort.id], confidence="medium" if age is None or age < median else "low"))
+        if age is not None and age >= median:
+            confidence = "low"
 
     last_verdict = state.verdicts[-1] if state.verdicts else None
     extra_claims = []
@@ -237,6 +275,46 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         from casefile.schemas import Findings
         update["findings"] = Findings(claims=extra_claims)
     return NodeResult(update, f"{action}; deadline {deadline}; {len(parts)} parts", confidence={"low": 0.3, "medium": 0.6, "high": 0.9}[confidence])
+
+
+def _world_tasks(ctx: RunContext, ledger: EvidenceLedger, mode: str, variant: str | None,
+                 tools: DataTools | None = None):
+    """Eligible tasks from the graph for this fault and variant. Live FMEA extras are recorded as drift."""
+    degraded = ctx.store.degraded_reason
+    try:
+        tasks = tasks_addressing(ctx.store, ctx.pack, mode, variant)
+    except Exception as error:
+        return ledger.add("rule", f"{ctx.store.backend}:world/{mode}",
+                          f"World Model lookup failed ({type(error).__name__})",
+                          {"failure_mode": mode, "task_ids": [], "tasks": []},
+                          degraded=f"World Model unavailable ({type(error).__name__})")
+    ids = [t["fmea_id"] for t in tasks]
+    extra = []
+    if tools is not None:
+        try:
+            extra = fmea_extra(ids, [t["fmea_id"] for t in tools.fmea_tasks(mode).content["tasks"]])
+        except Exception:
+            extra = []
+    note = f"; FMEA table lists extra {', '.join(extra)}" if extra else ""
+    return ledger.add("rule", f"{ctx.store.backend}:world/{mode}",
+                      f"World Model: {len(ids)} tasks address {mode}{note}",
+                      {"failure_mode": mode, "task_ids": ids, "tasks": tasks, "fmea_drift_extra": extra},
+                      degraded=degraded)
+
+
+def _cycles_since_moderate(state: CaseFile) -> int | None:
+    last = first = None
+    for evidence in state.evidence.values():
+        content = evidence.content or {}
+        if content.get("fleet_status") and content.get("last_cycle") is not None:
+            last = int(content["last_cycle"])
+        for finding in content.get("findings") or []:
+            if isinstance(finding, dict) and finding.get("severity") in {"moderate", "severe"} and finding.get("cycle") is not None:
+                cycle = int(finding["cycle"])
+                first = cycle if first is None else min(first, cycle)
+    if last is None or first is None:
+        return None
+    return last - first
 
 
 def _governing_documents(state: CaseFile, task_ids: list[str]) -> dict:

@@ -4,7 +4,8 @@ from assurance.escalation import (
     ambiguous_fault, remaining_shorter_than_wait, rul_below_lead_time, rul_divergence, run_escalations,
 )
 from assurance.rules import (
-    asset_matches, claims_have_evidence, deadline_within_rul, findings_match_evidence, parts_exist, rul_in_range, run_rule_checks, slot_exists,
+    asset_matches, claims_have_evidence, deadline_within_rul, findings_match_evidence, parts_exist, rul_in_range,
+    run_rule_checks, slot_exists, world_tasks_eligible,
 )
 from casefile.schemas import (
     AssetRef, CaseFile, Claim, Escalation, Evidence, FaultModeFinding, Intent, PartNeed, Recommendation, RulFinding,
@@ -65,6 +66,17 @@ def test_slot_must_be_in_the_free_list():
     assert slot_exists(case)
     rec.slot = date(2026, 10, 24)
     assert slot_exists(case) == []
+
+
+def test_task_off_the_world_model_fails_rule_checks():
+    rec = Recommendation(action="invent", task_ids=["FM-HPC-99"],
+                         rationale=[Claim(text="r", evidence_ids=["EV-PRG-01"], confidence="high")], confidence="high")
+    case = _case(recommendation=rec, evidence={
+        "EV-PRG-01": _ev("EV-PRG-01"),
+        "EV-MNT-04": _ev("EV-MNT-04", {"failure_mode": "hpc_degradation", "task_ids": ["FM-HPC-01"]}),
+    })
+    case.evidence["EV-MNT-04"].source = "sqlite:world/hpc_degradation"
+    assert world_tasks_eligible(case)
 
 
 def test_clean_case_passes_rule_checks():

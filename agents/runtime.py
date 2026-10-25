@@ -88,7 +88,10 @@ def node(agent: str, action: str, describe_input: Callable[[CaseFile], str]):
             input_summary = describe_input(state)
             start = time.monotonic()
             try:
-                if time.monotonic() - ctx.started > ctx.settings.run_timeout_s:
+                overtime = time.monotonic() - ctx.started > ctx.settings.run_timeout_s
+                # Specialists that have not produced a brief yet must stop. Once we have findings, finish
+                # the case (critic skips the LLM; rule checks, escalation and close are milliseconds).
+                if overtime and agent not in {"critic", "rule_checks", "escalation", "close", "maint_planner"}:
                     raise TimeoutError(f"run exceeded {ctx.settings.run_timeout_s:.0f}s")
                 result = fn(state, ctx)
             except Exception as error:  # the trace must record every failed step; the run ends as "error"

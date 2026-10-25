@@ -33,6 +33,8 @@ def test_approve_with_one_case_marked_wrong_reports_trust_changes(app, monkeypat
     first.set_value("Wrong").run()
     next(b for b in app.button if b.label == "Approve and draft work order").click().run()
     assert not app.exception
-    note = next(c.value for c in app.caption if c.value.startswith("Case memory updated"))
+    notes = [c.value for c in app.caption if c.value and str(c.value).startswith("Case memory updated")]
+    assert notes, "approve ran but the UI did not report case-memory feedback"
+    note = notes[0]
     assert note.count("wrong") == 1 and note.count("helpful") == 2
     assert (tmp_path / "draft_work_orders.jsonl").exists()

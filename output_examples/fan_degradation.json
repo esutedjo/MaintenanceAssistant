@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T184006Z-43336c",
+ "run_id": "20261023T212429Z-6b6011",
  "status": "needs_review",
  "question": "How long can FD003-A100 keep flying and what is wrong with it?",
  "mode": {
@@ -240,7 +240,7 @@
     "available": 0,
     "lead_time_days": 75,
     "evidence_ids": [
-     "EV-MNT-05"
+     "EV-MNT-06"
     ]
    },
    {
@@ -249,7 +249,7 @@
     "available": 2,
     "lead_time_days": 28,
     "evidence_ids": [
-     "EV-MNT-05"
+     "EV-MNT-06"
     ]
    },
    {
@@ -258,7 +258,7 @@
     "available": 30,
     "lead_time_days": 5,
     "evidence_ids": [
-     "EV-MNT-05"
+     "EV-MNT-06"
     ]
    },
    {
@@ -267,7 +267,7 @@
     "available": 1,
     "lead_time_days": 21,
     "evidence_ids": [
-     "EV-MNT-05"
+     "EV-MNT-06"
     ]
    }
   ],
@@ -285,7 +285,7 @@
    {
     "text": "Trigger severity severe: planning lower bound 3 cycles (min(A 10th percentile 22, B lower 3); severe < 25, moderate < 80).",
     "evidence_ids": [
-     "EV-MNT-06",
+     "EV-MNT-07",
      "EV-PRG-01",
      "EV-PRG-02"
     ],
@@ -294,8 +294,8 @@
    {
     "text": "Selected tasks need TF-FAN-2101 (need 1, 0 on hand, 75 d lead), TF-FAN-2103 (need 1, 2 on hand, 28 d lead), TF-GEN-8102 (need 1, 30 on hand, 5 d lead), TF-ENG-9001 (need 1, 1 on hand, 21 d lead). Short: TF-FAN-2101. In-stock substitutes do not replace a short required part.",
     "evidence_ids": [
-     "EV-MNT-05",
-     "EV-MNT-06"
+     "EV-MNT-06",
+     "EV-MNT-07"
     ],
     "confidence": "high"
    },
@@ -304,23 +304,23 @@
     "evidence_ids": [
      "EV-PRG-01",
      "EV-PRG-02",
-     "EV-MNT-06",
+     "EV-MNT-07",
      "EV-DAT-05",
-     "EV-MNT-05"
+     "EV-MNT-06"
     ],
     "confidence": "high"
    },
    {
     "text": "FMEA task FM-FAN-04: Swap in lease engine; module shop visit on the removed engine.",
     "evidence_ids": [
-     "EV-MNT-04"
+     "EV-MNT-05"
     ],
     "confidence": "high"
    },
    {
     "text": "FMEA task FM-FAN-03: Remove engine; replace fan blade set and case abradable liner.",
     "evidence_ids": [
-     "EV-MNT-04"
+     "EV-MNT-05"
     ],
     "confidence": "high"
    },
@@ -337,6 +337,20 @@
      "EV-DIA-01"
     ],
     "confidence": "high"
+   },
+   {
+    "text": "World Model lists tasks for this fault (FM-FAN-01, FM-FAN-02, FM-FAN-03, FM-FAN-04); the plan uses FM-FAN-04, FM-FAN-03.",
+    "evidence_ids": [
+     "EV-MNT-08"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Similar past removals in case memory gave a median of 45 cycles of warning (43 cases). This engine is 7 cycles past its first moderate finding.",
+    "evidence_ids": [
+     "EV-DIA-05"
+    ],
+    "confidence": "medium"
    }
   ],
   "confidence": "high"
@@ -355,10 +369,10 @@
     "EV-PRG-01",
     "EV-PRG-02",
     "EV-DAT-05",
-    "EV-MNT-05",
-    "EV-MNT-05",
-    "EV-MNT-05",
-    "EV-MNT-05"
+    "EV-MNT-06",
+    "EV-MNT-06",
+    "EV-MNT-06",
+    "EV-MNT-06"
    ]
   }
  ],
@@ -440,21 +454,28 @@
   "EV-DIA-02": {
    "kind": "case",
    "source": "sqlite:cmms:work_orders/WO-001133",
-   "summary": "Past case FD003-H072 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 232; first moderate finding at cycle 232, 0 cycles before removal. Shop finding: ENGINE REMOVED UNSCHEDULED AT 232 CYC FOR PERFORMANCE DETERIORATI",
+   "summary": "Past case FD003-H072 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 232; first moderate finding at cycle 232, warning_to_removal_cycles=0. Shop finding: ENGINE REMOVED UNSCHEDULED AT 232 CYC FOR PERFORMANCE DETERIO",
    "produced_by": "diagnostics",
    "degraded": null
   },
   "EV-DIA-03": {
    "kind": "case",
    "source": "sqlite:cmms:work_orders/WO-000713",
-   "summary": "Past case FD003-H002 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 253; first moderate finding at cycle 240, 13 cycles before removal. Shop finding: ENGINE REMOVED UNSCHEDULED AT 253 CYC FOR PERFORMANCE DETERIORAT",
+   "summary": "Past case FD003-H002 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 253; first moderate finding at cycle 240, warning_to_removal_cycles=13. Shop finding: ENGINE REMOVED UNSCHEDULED AT 253 CYC FOR PERFORMANCE DETERI",
    "produced_by": "diagnostics",
    "degraded": null
   },
   "EV-DIA-04": {
    "kind": "case",
    "source": "sqlite:cmms:work_orders/WO-000747",
-   "summary": "Past case FD003-H007 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 424; first moderate finding at cycle 300, 124 cycles before removal. Shop finding: ENGINE REMOVED UNSCHEDULED AT 424 CYC FOR PERFORMANCE DETERIORA",
+   "summary": "Past case FD003-H007 (FD003, synthetic): Fan degradation. Engine removed unscheduled at cycle 424; first moderate finding at cycle 300, warning_to_removal_cycles=124. Shop finding: ENGINE REMOVED UNSCHEDULED AT 424 CYC FOR PERFORMANCE DETER",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-05": {
+   "kind": "case",
+   "source": "sqlite:hmem/fan_degradation/warning",
+   "summary": "H-MEM: 43 past Fan degradation removals, median 45 cycles from the first moderate finding to removal",
    "produced_by": "diagnostics",
    "degraded": null
   },
@@ -522,23 +543,37 @@
    "degraded": null
   },
   "EV-MNT-04": {
+   "kind": "rule",
+   "source": "sqlite:world/fan_degradation",
+   "summary": "World Model: 4 tasks address fan_degradation",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-05": {
    "kind": "query",
    "source": "snapshot:fmea_tasks.parquet",
    "summary": "fan_degradation: 4 FMEA tasks; FM-FAN-01 inspect (minor); FM-FAN-02 replace (moderate); FM-FAN-03 replace (severe), short: TF-FAN-2101; FM-FAN-04 engine_change (severe)",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-05": {
+  "EV-MNT-06": {
    "kind": "query",
    "source": "snapshot:parts.parquet",
    "summary": "TF-ENG-9001 (Spare engine lease (per month)): 1 available, lead time 21 d; TF-FAN-2101 (Fan blade set (24 blades)): 0 available, lead time 75 d; TF-FAN-2103 (Fan case abradable liner): 2 available, lead time 28 d; TF-GEN-8102 (Engine gasket and O-ring kit): 30 available, lead time 5 d",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-06": {
+  "EV-MNT-07": {
    "kind": "rule",
    "source": "asset_pack:turbofan_cmapss/thresholds",
    "summary": "Trigger severity severe: planning lower bound 3 cycles (min(A 10th percentile 22, B lower 3); severe < 25, moderate < 80).",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-08": {
+   "kind": "rule",
+   "source": "sqlite:world/fan_degradation",
+   "summary": "World Model: 4 tasks address fan_degradation",
    "produced_by": "maint_planner",
    "degraded": null
   },
@@ -571,6 +606,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T184006Z-43336c.jsonl",
- "duration_s": 0.26
+ "trace_file": "logs\\trace-20261023T212429Z-6b6011.jsonl",
+ "duration_s": 0.25
 }

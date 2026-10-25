@@ -278,8 +278,10 @@ class SqliteStore(ContextStore):
         facts = self._db.execute("SELECT * FROM facts WHERE about = ? ORDER BY at", (id_,)).fetchall()
         return {
             "entity": self._entity(row),
-            "outgoing": [{"type": r["type"], "to": get(r["to_id"]), "attrs": json.loads(r["attrs"] or "null")} for r in out],
-            "incoming": [{"type": r["type"], "from": get(r["from_id"]), "attrs": json.loads(r["attrs"] or "null")} for r in inc],
+            "outgoing": [{"type": r["type"], "to": get(r["to_id"]), "context": r["context"] or None,
+                          "attrs": json.loads(r["attrs"] or "null")} for r in out],
+            "incoming": [{"type": r["type"], "from": get(r["from_id"]), "context": r["context"] or None,
+                          "attrs": json.loads(r["attrs"] or "null")} for r in inc],
             "facts": [{"about": f["about"], "predicate": f["predicate"], "value": json.loads(f["value"]),
                        "confidence": f["confidence"], "assertedAt": f["at"]} for f in facts],
         }
@@ -292,8 +294,11 @@ class SqliteStore(ContextStore):
         created, ids = 0, []
         with self._db:
             for m in memories:
-                row = self._db.execute("SELECT id FROM memories WHERE source = ?", (m.source,)).fetchone()
+                row = self._db.execute("SELECT id, content FROM memories WHERE source = ?", (m.source,)).fetchone()
                 if row:
+                    if row["content"] != m.content:
+                        self._db.execute("UPDATE memories SET content = ?, tags = ? WHERE id = ?",
+                                         (m.content, json.dumps(m.tags), row["id"]))
                     ids.append(row["id"])
                     continue
                 id_ = f"mem-{self._db.execute('SELECT COUNT(*) FROM memories').fetchone()[0] + 1}"

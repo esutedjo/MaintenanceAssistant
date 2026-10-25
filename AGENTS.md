@@ -1,16 +1,16 @@
-# AGENTS.md — Turbofan Maintenance Agent
+# AGENTS.md — Cleris
 
-Context for AI coding agents (Cursor) working in this repository. Read fully before making changes.
+Context for AI coding agents working in this repository. Read fully before making changes. The 25 Oct 2026 session handoff for the next agent is `CLAUDE.md`.
 
 ## 1. What we are building
 
-A multi-agent assistant for a maintenance engineer. It answers: **"What is wrong with this engine, how long do I have, and what should I do?"** and returns an evidence-backed decision brief that the engineer approves before any work order is created.
+**Cleris** is the MRO clearance assistant: a multi-agent assistant for a maintenance engineer. It answers: **"What is wrong with this engine, how long do I have, and what should I do?"** and returns an evidence-backed decision brief that the engineer approves before any work order is created.
 
 - Event: GenAI.works **Open Agent Hackathon 2026**, solo entry, track **"The Agent That Can Explain Why"**.
 - Build window: 22 Oct 00:00 UTC to **27 Oct 23:45 UTC (hard deadline)**. No new code after 27 Oct 12:00 UTC.
 - Required sponsor tech: **Zetaris** and **Meterless** integrated; **Cursor** as IDE; **NVIDIA** where it contributes.
 - Judging: Impact 30, Technical 20, Innovation 15, Demo 15, Product/UX 10, Sponsor tech 10. Judges reward working, focused, reliable systems with real agent interaction (critique, retries, branching, escalation) and clear traces; they penalise linear pipelines, hard-coded demo paths and bolted-on sponsor tech.
-- Submission: 1–4 min demo video, slide deck, GitHub repo with README (setup, usage, dependencies), sponsor-tech explanation, logs/traces, sample inputs and outputs. Must run from a clean setup. `.env.example` only, no secrets.
+- Submission: 1–4 min demo video, slide deck, GitHub repo with README (setup, usage, dependencies), sponsor-tech explanation, logs/traces, sample inputs and outputs. Must run from a clean setup. No secrets in the repo.
 - **Nightshift is the primary AI provider.** NVIDIA models go through Nightshift's Providers tab (the NVIDIA key is there now), not through an app `NVIDIA_API_KEY`. The critic calls Nightshift as its own app `turbofan-maintenance-critic` (`meterless-app` header), whose Judge lane is pinned to a Nemotron model; the trace records the served model and flags `same family as planner` when Claude or GPT answered.
 - **`SAMPLE_MODE=true`** runs on committed Parquet snapshots with no Zetaris, Nightshift or network. Real logic, not replayed outputs. `run.py` is the CLI and `POST /run` entry point. Traces: `logs/trace-<run_id>.jsonl`.
 
@@ -223,12 +223,12 @@ evaluation/        run_eval (uv run task eval), seeded faults, report.md / repor
 asset_packs/turbofan_cmapss/   manifest.yaml, fmea.csv, docs/
 data/snapshot/     committed Parquet extracts (no answer key)
 input_examples/ output_examples/
-docker-compose.yml  .env.example  README.md  AGENTS.md
+docker-compose.yml  README.md  AGENTS.md
 ```
 
 ## 13. Rules for coding agents
 
-- **Secrets:** never read, print, copy or hard-code values from `.env.local` (or any `.env*` file). Reference env var names only. Never put example secrets in code, tests or docs. `.env*` files are git- and cursor-ignored; only `.env.example` is committed, and it lists every variable the code reads.
+- **Secrets:** never read, print, copy or hard-code values from `.env.local` (or any `.env*` file other than the committed placeholder `.env.example`). Reference env var names only. Never put real or example secrets in code, tests, docs, or `.env.example`. `.env.local` and other `.env*` files are git- and cursor-ignored; `.env.example` is the exception and holds empty placeholders. The names the code reads are the fields of `Settings` in `settings.py`.
 - **Cloud agents:** do not request security-group changes or access to AWS/Zetaris. Use `SAMPLE_MODE=true` (committed Parquet in `data/snapshot/`) and a local Docker Postgres for tests. Anything touching AWS runs locally on the developer's machine.
 - **Agents are read-only** on data. Writes (work orders, findings, case memory) go through the application write service only.
 - Every agent returns a typed Pydantic object; every numeric claim references an evidence ID.

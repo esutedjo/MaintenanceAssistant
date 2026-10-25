@@ -111,6 +111,7 @@ def test_minor_data_issue_is_flagged_without_escalation(settings):
     assert case.status == "needs_review"
     assert any(d.startswith("Data quality minor") for d in case.degraded)
     assert not any(e.rule == "data_quality" for e in case.escalations)
+    assert not case.recommendation.action.startswith("Confirm the input data")
     assert case.recommendation.confidence != "low"
 
 

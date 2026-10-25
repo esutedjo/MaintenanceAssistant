@@ -1,10 +1,21 @@
-# MaintenanceAssistant
+# Cleris
 
-Evidence-backed maintenance decision agent for turbofan engines. Open Agent Hackathon 2026, track "The Agent That Can Explain Why". Design notes: `AGENTS.md`.
+The MRO clearance assistant. An evidence-backed maintenance decision agent for turbofan engines. Open Agent Hackathon 2026, track "The Agent That Can Explain Why". Design notes: `AGENTS.md`.
 
 It answers: **what is wrong with this engine, how long do I have, and what should I do?** Every number is computed in Python or SQL and stored as evidence. Claims without a resolvable evidence ID fail the rule checks.
 
 All maintenance, spares and document data in this project is **synthetic**. Telemetry is the NASA C-MAPSS simulated dataset (FD001 / FD003).
+
+**Judges / clean clone:** set `SAMPLE_MODE=true` and run. That path uses only committed Parquet snapshots and SQLite case memory. It does not need Zetaris, Nightshift, Docker, Node, or any credentials. If a live service is down during judging, the same snapshot path is used automatically and the brief is flagged `degraded`.
+
+```powershell
+uv sync
+$env:SAMPLE_MODE = "true"
+uv run python run.py --question "What should I do about FD001-A031?"
+# or: docker build -t cleris . ; docker run --rm -p 8000:8000 cleris
+# then: curl http://127.0.0.1:8000/health
+#       curl -X POST http://127.0.0.1:8000/run -H "Content-Type: application/json" --data-binary @input_examples/critical_hpc.json
+```
 
 ## Prerequisites
 
@@ -17,8 +28,9 @@ All maintenance, spares and document data in this project is **synthetic**. Tele
 
 ```powershell
 uv sync
-Copy-Item .env.example .env.local   # then fill in values; never commit .env.local
 ```
+
+Sample mode needs no environment file. For live mode, copy `.env.example` to `.env.local` and replace the empty placeholders. `.env.example` has names only; `.env.local` is gitignored. The names are the fields of `Settings` in `settings.py`. The NVIDIA key stays in Nightshift's Providers tab.
 
 ## Sample mode (no credentials, no network)
 
@@ -84,7 +96,7 @@ The LLM critic runs as its own Nightshift app (`METERLESS_CRITIC_APP=turbofan-ma
 | Context service (Meterless) down | SQLite case memory | `context-service unreachable ...; using SQLite` |
 | Nightshift down, critic timeout (`CRITIC_TIMEOUT_S`, 45 s) or a non-JSON critic reply | Deterministic critic checks only; the run still completes | `LLM critic unavailable (...); deterministic critic checks only` |
 
-Hard limits: 3 critic rounds, 25 graph steps, 120 s per run. `tests/test_fallbacks.py` runs each failure end to end offline.
+Hard limits: 3 critic rounds, 25 graph steps, 120 s per run. If the LLM critic would exceed the remaining run time, it is skipped and the deterministic checks still finish the brief. `tests/test_fallbacks.py` runs each failure end to end offline.
 
 ## Case memory feedback
 
@@ -128,7 +140,8 @@ The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up 
 | `uv run task sensor-ranges` | Plausible sensor ranges and steps from the training engines (`asset_packs/.../sensor_ranges.json`) |
 | `uv run python run.py --question "..."` | One decision brief as JSON |
 | `uv run task ui` | Streamlit decision brief (approve / reject, fleet, trace, asset pack) |
-| `uv run python run.py --serve` | `POST /run` on `RUN_HOST:RUN_PORT` |
+| `uv run python run.py --serve` | `POST /run` on `RUN_HOST:RUN_PORT` (`GET /health` included) |
+| `docker build -t cleris .` then `docker run --rm -p 8000:8000 cleris` | Sample-mode API, no credentials |
 | `uv run task check` | Read-only connectivity check (live credentials) |
 | `uv run task check-llm` | Nightshift `GET /v1/models` plus one chat request |
 | `uv run task context-service` | Meterless World Model + H-MEM on 127.0.0.1:8710 |
@@ -143,7 +156,7 @@ The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up 
 ## Sponsor tech
 
 - **Zetaris:** all structured reads go through the AI Data Gateway REST SQL API (`tools/zetaris.py`), guarded to `SELECT` only. Snapshot fallback when it is down.
-- **Meterless:** (1) Nightshift is the primary model provider (`tools/llm.py`). (2) World Model and H-MEM run in `context-service/`, wrapping the official reference engines.
+- **Meterless:** (1) Nightshift is the only model call, the evidence critic (`tools/llm.py`). (2) The World Model holds the asset graph; the maintenance planner reads which tasks address the fault mode. (3) H-MEM holds past removals. Diagnostics cites similar cases and the median warning those cases gave; the engineer's approve/reject updates their trust. Both engines run in `context-service/`. SQLite is the fallback when that service is down.
 - **NVIDIA:** the critic calls Nightshift as a separate app whose lane is pinned to an NVIDIA Nemotron model, so it is a different model family from the planner (the NVIDIA key lives in Nightshift Providers, not in this app). The lane runs **Nemotron 3 Ultra 550B A55B** (`nvidia/nemotron-3-ultra-550b-a55b`); on the four golden cases it answered in 6–37 s and the trace records it as the critic model. Other hosted Nemotron models did not work for this account on 23 Oct (empty responses, the 45 s Nightshift provider limit, not entitled, or retired). If the critic does not answer, the deterministic checks carry the verdict and the brief says `LLM critic unavailable`.
 - **Cursor:** this repository was developed in Cursor.
 
@@ -159,5 +172,5 @@ The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up 
 Each run writes `logs/trace-<run_id>.jsonl` (timestamp, run_id, agent_name, action, input_summary, output_summary, target_agent, model, confidence, retry_count, status). The served model name is logged for every LLM request.
 
 Committed examples in `trace_examples/`:
-- `trace-sample-*`: the four golden cases in sample mode, plus FD001-A031 with a corrupted T30 reading (serious: `data_quality` escalation, confidence low) and with a gap in the cycles (minor: flagged only).
-- `trace-live-critic-*`: the four golden cases with the LLM critic answered through Nightshift by Nemotron 3 Ultra 550B (`model` on the critic line), data from the snapshot. Recorded before the input-plausibility check was added, so the Data agent's evidence IDs differ by one from the sample traces.
+- `trace-sample-*`: the four golden cases in sample mode, plus FD001-A031 with a corrupted T30 reading (serious: `data_quality` escalation, confidence low) and with a gap in the cycles (minor: flagged only). Degraded engines include the World Model task lookup and the H-MEM median warning.
+- `trace-live-critic-*`: the four golden cases with the LLM critic answered through Nightshift by Nemotron 3 Ultra 550B (`model` on the critic line), data from the snapshot. Recorded before the input-plausibility check, the World Model task lookup and the H-MEM median warning, so the Data agent's evidence IDs differ by one from the sample traces and those two lines are absent. Nightshift was not reachable when the sample files were regenerated, so these live files were left as recorded.

@@ -145,8 +145,8 @@ export class ContextEngines {
 
   queryEntity(id: string): {
     entity: Entity;
-    outgoing: { type: string; to: Entity; attrs?: Record<string, unknown> }[];
-    incoming: { type: string; from: Entity; attrs?: Record<string, unknown> }[];
+    outgoing: { type: string; to: Entity; context?: string; attrs?: Record<string, unknown> }[];
+    incoming: { type: string; from: Entity; context?: string; attrs?: Record<string, unknown> }[];
     facts: Fact[];
   } {
     const graph = this.world.view("graph");
@@ -155,8 +155,8 @@ export class ContextEngines {
     const edges = this.openEdges();
     return {
       entity,
-      outgoing: edges.filter((e) => e.from === entity.id).map((e) => ({ type: e.type, to: graph.entity(e.to)!, attrs: e.attrs })),
-      incoming: edges.filter((e) => e.to === entity.id).map((e) => ({ type: e.type, from: graph.entity(e.from)!, attrs: e.attrs })),
+      outgoing: edges.filter((e) => e.from === entity.id).map((e) => ({ type: e.type, to: graph.entity(e.to)!, context: e.context, attrs: e.attrs })),
+      incoming: edges.filter((e) => e.to === entity.id).map((e) => ({ type: e.type, from: graph.entity(e.from)!, context: e.context, attrs: e.attrs })),
       facts: this.world.view("facts").about(entity.id),
     };
   }

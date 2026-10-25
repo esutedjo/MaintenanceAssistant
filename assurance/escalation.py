@@ -97,6 +97,26 @@ def serious_data_issues(case: CaseFile) -> list[tuple[str, dict]]:
             if isinstance(issue, dict) and issue.get("severity") == "serious"]
 
 
+def knowledge_drift(case: CaseFile, pack: dict) -> Escalation | None:
+    """Live FMEA rows that the World Model does not link to this fault."""
+    extras = []
+    evidence_ids = []
+    for evidence in case.evidence.values():
+        extra = evidence.content.get("fmea_drift_extra") or []
+        if extra:
+            extras.extend(extra)
+            evidence_ids.append(evidence.id)
+    if not extras:
+        return None
+    listed = ", ".join(dict.fromkeys(extras))
+    return Escalation(
+        rule="knowledge_drift", severity="warning",
+        message=f"Live FMEA lists tasks the World Model does not link to this fault: {listed}.",
+        actions=["Treat the graph as the eligible work list", "Do not schedule a task that is only in the live table"],
+        evidence_ids=evidence_ids,
+    )
+
+
 def data_quality(case: CaseFile, pack: dict) -> Escalation | None:
     found = serious_data_issues(case)
     if not found:
@@ -112,6 +132,6 @@ def data_quality(case: CaseFile, pack: dict) -> Escalation | None:
 
 
 def run_escalations(case: CaseFile, pack: dict) -> list[Escalation]:
-    rest = (data_quality(case, pack), rul_divergence(case, pack), ambiguous_fault(case, pack),
-            rul_below_lead_time(case, pack))
+    rest = (data_quality(case, pack), knowledge_drift(case, pack), rul_divergence(case, pack),
+            ambiguous_fault(case, pack), rul_below_lead_time(case, pack))
     return [*document_mandates(case, pack), *[e for e in rest if e]]

@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T184009Z-93fc8f",
+ "run_id": "20261023T212428Z-6f0bca",
  "status": "needs_review",
  "question": "What is the status of FD001-A001?",
  "mode": {
@@ -216,6 +216,13 @@
      "EV-DIA-01"
     ],
     "confidence": "high"
+   },
+   {
+    "text": "World Model lists tasks for this fault (FM-HPC-01, FM-HPC-02, FM-HPC-03, FM-HPC-04, FM-HPC-05, FM-HPC-06); none selected while the engine is still in the healthy band.",
+    "evidence_ids": [
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
    }
   ],
   "confidence": "high"
@@ -329,6 +336,13 @@
    "produced_by": "maint_planner",
    "degraded": null
   },
+  "EV-MNT-02": {
+   "kind": "rule",
+   "source": "sqlite:world/hpc_degradation",
+   "summary": "World Model: 6 tasks address hpc_degradation",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
   "EV-PRG-01": {
    "kind": "model",
    "source": "model:rul_a@turbofan_cmapss/0.1.0",
@@ -358,6 +372,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T184009Z-93fc8f.jsonl",
- "duration_s": 0.23
+ "trace_file": "logs\\trace-20261023T212428Z-6f0bca.jsonl",
+ "duration_s": 0.22
 }

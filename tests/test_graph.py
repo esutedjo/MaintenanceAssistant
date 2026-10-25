@@ -4,7 +4,7 @@ import pytest
 
 from agents.intake import parse
 from graph.runner import run_case
-from run import handle
+from run import handle, health_payload
 from settings import ROOT, Settings
 from tools.model_tools import ModelTools
 
@@ -49,6 +49,9 @@ def test_critical_engine_recommends_lease_swap(settings):
     rec = result["recommendation"]
     assert "FM-HPC-06" in rec["task_ids"]
     assert rec["action"].lower().startswith("swap")
+    summaries = " ".join(e["summary"] for e in result["evidence"].values())
+    assert "World Model:" in summaries
+    assert "H-MEM:" in summaries and "median" in summaries
     assert any(p["part_number"] == "TF-ENG-9001" for p in rec["parts"])
     assert any(e["rule"] == "rul_below_lead_time" for e in result["escalations"])
 
@@ -103,3 +106,8 @@ def test_run_rejects_bad_input_with_structured_error(payload):
     status, body = handle(payload)
     assert status == 400
     assert body["status"] == "error" and body["error"]["code"] == "invalid_input"
+
+
+def test_health_reports_snapshot_without_credentials():
+    payload = health_payload()
+    assert payload["status"] == "ok" and payload["snapshot"] is True

@@ -54,7 +54,7 @@ GOLDEN = [
 
 
 def main() -> None:
-    st.set_page_config(page_title="Maintenance Assistant", layout="wide")
+    st.set_page_config(page_title="Cleris", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
     settings = get_settings()
     pack = load_pack()
@@ -78,7 +78,8 @@ def _explain(key: str) -> None:
 
 
 def _sidebar(settings) -> None:
-    st.sidebar.markdown("**Maintenance Assistant**")
+    st.sidebar.markdown("**Cleris**")
+    st.sidebar.caption("the MRO clearance assistant")
     mode = "sample (snapshot, no network)" if settings.sample_mode else f"live · data {settings.zetaris_mode}"
     st.sidebar.caption(f"Mode: {mode}")
     st.sidebar.markdown(
