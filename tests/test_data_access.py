@@ -67,6 +67,15 @@ def test_snapshot_queries_filter_by_asset(snapshot):
     assert snapshot.cycles("FD003-Z999").frame.empty
 
 
+def test_live_history_leaves_out_sign_off_drafts():
+    from tools.data_access import ZetarisSource
+
+    source = ZetarisSource.__new__(ZetarisSource)
+    source._run = lambda name, sql, columns: sql
+    sql = source.history("FD003-A100")
+    assert "COALESCE(w.status, '') <> 'draft'" in sql and sql.index("draft") < sql.index("ORDER BY")
+
+
 @pytest.mark.parametrize("error", [ZetarisError("boom"), httpx.ConnectTimeout("slow")])
 def test_fallback_switches_to_snapshot_once_and_flags_it(snapshot, error):
     live = BrokenLive(error)

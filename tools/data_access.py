@@ -126,7 +126,9 @@ class ZetarisSource(DataSource):
         a = safe_id(asset_id)
         sql = ("SELECT w.wo_id, w.wo_type, w.cycle_at, w.opened_at, w.component, w.description, "
                "f.severity, f.failure_mode, f.note FROM cmms_pg.work_orders w "
-               f"LEFT JOIN cmms_pg.findings f ON f.wo_id = w.wo_id WHERE w.asset_id = '{a}' ORDER BY w.cycle_at, w.wo_id")
+               f"LEFT JOIN cmms_pg.findings f ON f.wo_id = w.wo_id WHERE w.asset_id = '{a}' "
+               # The app's own sign-off drafts are proposals, not maintenance history.
+               "AND COALESCE(w.status, '') <> 'draft' ORDER BY w.cycle_at, w.wo_id")
         return self._run("cmms_pg.work_orders+findings", sql, HISTORY_COLUMNS)
 
     def parts(self, part_numbers: list[str]) -> QueryResult:
