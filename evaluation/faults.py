@@ -2,6 +2,7 @@
 might. The eval checks that the deterministic gates (rule checks, then the critic's deterministic checks) stop it.
 A fault returns None when it does not apply to the case (no mandate to drop, no short part to inflate)."""
 
+import re
 from collections.abc import Callable
 from datetime import timedelta
 
@@ -146,8 +147,18 @@ def similar_cases_dropped(case, pack):
     return c
 
 
+def claim_number_altered(case, pack):
+    """A number in a supporting claim changed, outside the RUL and fault-mode figures the older checks compare."""
+    c = _copy(case)
+    for claim in c.recommendation.rationale:
+        if claim.text.startswith("Similar past removals in case memory gave a median of "):
+            claim.text = re.sub(r"median of (\d+)", lambda m: f"median of {int(m.group(1)) + 40}", claim.text, count=1)
+            return c
+    return None
+
+
 FAULTS: dict[str, Fault] = {f.__name__: f for f in (
     uncited_claim, evidence_deleted, rul_above_cap, rul_outside_interval, rul_inflated, disagreement_averaged,
     wrong_asset, fabricated_part, stock_inflated, slot_not_free, deadline_past_rul, mandate_dropped,
-    mandate_uncited, drivers_as_signature, similar_cases_dropped,
+    mandate_uncited, drivers_as_signature, similar_cases_dropped, claim_number_altered,
 )}

@@ -27,6 +27,7 @@ FAULT_TEXT = {
     "mandate_uncited": "Remove the citation of the mandating document",
     "drivers_as_signature": "Pass sensors that move under every fault off as the fault signature",
     "similar_cases_dropped": "Drop the similar past cases from case memory",
+    "claim_number_altered": "Change the warning median that case memory gave by 40 cycles",
 }
 
 

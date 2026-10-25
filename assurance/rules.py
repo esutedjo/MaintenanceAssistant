@@ -147,9 +147,24 @@ def deadline_within_rul(case: CaseFile, pack: dict, reference: date | None = Non
     return []
 
 
+def numbers_supported(case: CaseFile, pack: dict) -> list[str]:
+    """Every number a claim states must be in its cited evidence, a pack threshold, a sum or difference of two
+    cited values, or a cycles-to-days conversion. 0 of 2,907 clean claims fail this on the fleet (25 Oct)."""
+    from assurance.challenges import all_claims, unsupported_numbers
+    gaps = []
+    for claim in all_claims(case):
+        if claim.evidence_ids and not case.unresolved(claim.evidence_ids):
+            bad = unsupported_numbers(case, claim, pack)
+            if bad:
+                gaps.append(f"claim states {', '.join(f'{n:g}' for n in bad)}, which its cited evidence "
+                            f"({', '.join(claim.evidence_ids)}) does not support: {claim.text[:120]}")
+    return gaps
+
+
 def run_rule_checks(case: CaseFile, pack: dict, reference: date | None = None) -> Verdict:
     cap = float(pack["thresholds"]["rul_cap_cycles"])
     gaps = [*claims_have_evidence(case), *rul_in_range(case, cap), *findings_match_evidence(case), *asset_matches(case),
             *parts_exist(case), *slot_exists(case), *mandates_honoured(case, pack, reference),
-            *deadline_within_rul(case, pack, reference), *world_tasks_eligible(case)]
+            *deadline_within_rul(case, pack, reference), *world_tasks_eligible(case),
+            *numbers_supported(case, pack)]
     return Verdict(round=case.round, gate="rule_checks", outcome="accept" if not gaps else "revise", gaps=gaps)

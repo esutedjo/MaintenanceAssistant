@@ -254,12 +254,18 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     cohort = next((e for e in state.evidence.values() if e.content.get("median_warning_cycles") is not None), None)
     if cohort is not None:
         median = int(cohort.content["median_warning_cycles"])
-        age = _cycles_since_moderate(state)
-        detail = (f" This engine is {age} cycles past its first moderate finding." if age is not None else "")
+        age, first, last, age_ids = _cycles_since_moderate(state)
+        detail, cited = "", [cohort.id]
+        if age is not None:
+            detail = f" This engine is {age} cycles past its first moderate finding."
+            cited.append(ledger.add(
+                "rule", "case_file:history",
+                f"First moderate or severe finding at cycle {first}; last observed cycle {last}; {age} cycles since.",
+                {"age_cycles": age, "first_moderate_cycle": first, "last_cycle": last, "from": age_ids}).id)
         rationale.append(Claim(
             text=(f"Similar past removals in case memory gave a median of {median} cycles of warning "
                   f"({cohort.content['n']} cases).{detail}"),
-            evidence_ids=[cohort.id], confidence="medium" if age is None or age < median else "low"))
+            evidence_ids=cited, confidence="medium" if age is None or age < median else "low"))
         if age is not None and age >= median:
             confidence = "low"
 
@@ -302,19 +308,23 @@ def _world_tasks(ctx: RunContext, ledger: EvidenceLedger, mode: str, variant: st
                       degraded=degraded)
 
 
-def _cycles_since_moderate(state: CaseFile) -> int | None:
+def _cycles_since_moderate(state: CaseFile) -> tuple[int | None, int | None, int | None, list[str]]:
+    """Cycles from the first moderate or severe finding to the last observed cycle: (age, first, last, the evidence
+    they come from: the asset profile and the maintenance history)."""
     last = first = None
+    last_id = first_id = None
     for evidence in state.evidence.values():
         content = evidence.content or {}
         if content.get("fleet_status") and content.get("last_cycle") is not None:
-            last = int(content["last_cycle"])
+            last, last_id = int(content["last_cycle"]), evidence.id
         for finding in content.get("findings") or []:
             if isinstance(finding, dict) and finding.get("severity") in {"moderate", "severe"} and finding.get("cycle") is not None:
                 cycle = int(finding["cycle"])
-                first = cycle if first is None else min(first, cycle)
+                if first is None or cycle < first:
+                    first, first_id = cycle, evidence.id
     if last is None or first is None:
-        return None
-    return last - first
+        return None, None, None, []
+    return last - first, first, last, list(dict.fromkeys([last_id, first_id]))
 
 
 def _governing_documents(state: CaseFile, task_ids: list[str]) -> dict:
