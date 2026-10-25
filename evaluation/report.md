@@ -1,11 +1,11 @@
 # Evaluation report (sample mode, synthetic fleet)
 
-Generated 2026-10-23 18:38 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
+Generated 2026-10-25 19:42 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
 
 ## Run completion
 
 - Statuses: needs_review 200; crashes 0.
-- Time per run: median 0.33 s, 95th percentile 0.39 s, max 0.45 s (limit 120 s).
+- Time per run: median 0.36 s, 95th percentile 0.42 s, max 0.47 s (limit 120 s).
 
 ## Remaining life
 
@@ -20,8 +20,8 @@ Generated 2026-10-23 18:38 UTC by `uv run task eval`. 200 active engines through
 
 ## Evidence
 
-- 2376 claims; 100.0% cite evidence IDs that resolve.
-- 1767 claims state a quantity (identifiers such as document sections excluded); 100.0% cite model, query, rule or case-memory evidence computed in code, and 0 quote a limit from a document only.
+- 2907 claims; 100.0% cite evidence IDs that resolve.
+- 1898 claims state a quantity (identifiers such as document sections excluded); 100.0% cite model, query, rule or case-memory evidence computed in code, and 0 quote a limit from a document only.
 
 ## Critic and escalation
 

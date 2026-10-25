@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-23 18:38 UTC",
+ "generated_at": "2026-10-25 19:42 UTC",
  "settings": {
   "sample_mode": true,
   "engines": 200,
@@ -15,9 +15,9 @@
    "brief_ready_share": 1.0,
    "crashes": 0,
    "duration_s": {
-    "p50": 0.33,
-    "p95": 0.39,
-    "max": 0.45
+    "p50": 0.36,
+    "p95": 0.42,
+    "max": 0.47
    }
   },
   "rul": {
@@ -135,9 +135,9 @@
    "fd003_engines_true_rul_le_60": 41
   },
   "evidence": {
-   "claims": 2376,
+   "claims": 2907,
    "claims_with_resolvable_evidence_share": 1.0,
-   "numeric_claims": 1767,
+   "numeric_claims": 1898,
    "numeric_claims_citing_computed_evidence_share": 1.0,
    "numeric_claims_quoting_documents_only": 0
   },

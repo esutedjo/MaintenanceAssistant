@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T212429Z-2a339e",
+ "run_id": "20261025T194149Z-8c80c8",
  "status": "needs_review",
  "question": "The two remaining-life estimates for FD001-A070 look different. What should I do?",
  "mode": {
@@ -237,7 +237,7 @@
     "available": 25,
     "lead_time_days": 5,
     "evidence_ids": [
-     "EV-MNT-02"
+     "EV-MNT-03"
     ]
    }
   ],
@@ -255,7 +255,7 @@
    {
     "text": "Trigger severity moderate: planning lower bound 33 cycles (min(A 10th percentile 74, B lower 33); severe < 25, moderate < 80).",
     "evidence_ids": [
-     "EV-MNT-03",
+     "EV-MNT-04",
      "EV-PRG-01",
      "EV-PRG-02"
     ],
@@ -264,15 +264,15 @@
    {
     "text": "Selected tasks need TF-GEN-8101 (need 1, 25 on hand, 5 d lead). In-stock substitutes do not replace a short required part.",
     "evidence_ids": [
-     "EV-MNT-02",
-     "EV-MNT-03"
+     "EV-MNT-03",
+     "EV-MNT-04"
     ],
     "confidence": "high"
    },
    {
-    "text": "FMEA task FM-HPC-01: Borescope inspection HPC stages 1-9; reinspect at standard interval.",
+    "text": "World Model task FM-HPC-01: Borescope inspection HPC stages 1-9; reinspect at standard interval.",
     "evidence_ids": [
-     "EV-MNT-01"
+     "EV-MNT-02"
     ],
     "confidence": "low"
    },
@@ -293,7 +293,14 @@
    {
     "text": "World Model lists tasks for this fault (FM-HPC-01, FM-HPC-02, FM-HPC-03, FM-HPC-04, FM-HPC-05, FM-HPC-06); the plan uses FM-HPC-01.",
     "evidence_ids": [
-     "EV-MNT-04"
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "World Model links mandatory document actions for this fault: AD-2026-17-04 (g)\u2192FM-HPC-01, AMM-TF-R2 72-31-00\u2192FM-HPC-01, AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-31-00\u2192FM-HPC-01, AMM-TF-R3 72-31-10\u2192FM-HPC-02, SB-TF-72-0142 3.B\u2192FM-HPC-01.",
+    "evidence_ids": [
+     "EV-MNT-02"
     ],
     "confidence": "high"
    },
@@ -459,23 +466,23 @@
    "degraded": null
   },
   "EV-MNT-02": {
+   "kind": "rule",
+   "source": "sqlite:world/hpc_degradation",
+   "summary": "World Model: 6 tasks address hpc_degradation",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-03": {
    "kind": "query",
    "source": "snapshot:parts.parquet",
    "summary": "TF-GEN-8101 (Borescope plug kit): 25 available, lead time 5 d",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-03": {
+  "EV-MNT-04": {
    "kind": "rule",
    "source": "asset_pack:turbofan_cmapss/thresholds",
    "summary": "Trigger severity moderate: planning lower bound 33 cycles (min(A 10th percentile 74, B lower 33); severe < 25, moderate < 80).",
-   "produced_by": "maint_planner",
-   "degraded": null
-  },
-  "EV-MNT-04": {
-   "kind": "rule",
-   "source": "sqlite:world/hpc_degradation",
-   "summary": "World Model: 6 tasks address hpc_degradation",
    "produced_by": "maint_planner",
    "degraded": null
   },
@@ -508,6 +515,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T212429Z-2a339e.jsonl",
- "duration_s": 0.2
+ "trace_file": "logs\\trace-20261025T194149Z-8c80c8.jsonl",
+ "duration_s": 0.3
 }

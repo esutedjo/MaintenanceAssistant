@@ -1,5 +1,5 @@
 {
- "run_id": "20261023T212428Z-6f0bca",
+ "run_id": "20261025T194146Z-056270",
  "status": "needs_review",
  "question": "What is the status of FD001-A001?",
  "mode": {
@@ -204,7 +204,7 @@
    {
     "text": "Trigger severity minor: planning lower bound 117 cycles (min(A 10th percentile 117, B lower 125); severe < 25, moderate < 80).",
     "evidence_ids": [
-     "EV-MNT-01",
+     "EV-MNT-03",
      "EV-PRG-01",
      "EV-PRG-02"
     ],
@@ -219,6 +219,13 @@
    },
    {
     "text": "World Model lists tasks for this fault (FM-HPC-01, FM-HPC-02, FM-HPC-03, FM-HPC-04, FM-HPC-05, FM-HPC-06); none selected while the engine is still in the healthy band.",
+    "evidence_ids": [
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "World Model links mandatory document actions for this fault: AD-2026-17-04 (g)\u2192FM-HPC-01, AMM-TF-R2 72-31-00\u2192FM-HPC-01, AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-31-00\u2192FM-HPC-01, AMM-TF-R3 72-31-10\u2192FM-HPC-02, SB-TF-72-0142 3.B\u2192FM-HPC-01.",
     "evidence_ids": [
      "EV-MNT-02"
     ],
@@ -330,9 +337,9 @@
    "degraded": null
   },
   "EV-MNT-01": {
-   "kind": "rule",
-   "source": "asset_pack:turbofan_cmapss/thresholds",
-   "summary": "Trigger severity minor: planning lower bound 117 cycles (min(A 10th percentile 117, B lower 125); severe < 25, moderate < 80).",
+   "kind": "query",
+   "source": "snapshot:fmea_tasks.parquet",
+   "summary": "hpc_degradation: 6 FMEA tasks; FM-HPC-01 inspect (minor); FM-HPC-02 restore (minor); FM-HPC-03 inspect (moderate); FM-HPC-04 replace (severe); FM-HPC-05 replace (severe); FM-HPC-06 engine_change (severe)",
    "produced_by": "maint_planner",
    "degraded": null
   },
@@ -340,6 +347,13 @@
    "kind": "rule",
    "source": "sqlite:world/hpc_degradation",
    "summary": "World Model: 6 tasks address hpc_degradation",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-03": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/thresholds",
+   "summary": "Trigger severity minor: planning lower bound 117 cycles (min(A 10th percentile 117, B lower 125); severe < 25, moderate < 80).",
    "produced_by": "maint_planner",
    "degraded": null
   },
@@ -372,6 +386,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261023T212428Z-6f0bca.jsonl",
- "duration_s": 0.22
+ "trace_file": "logs\\trace-20261025T194146Z-056270.jsonl",
+ "duration_s": 0.25
 }
