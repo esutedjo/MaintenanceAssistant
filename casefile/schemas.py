@@ -196,12 +196,14 @@ class TraceEvent(BaseModel):
 
 
 def merge_evidence(left: dict[str, Evidence], right: dict[str, Evidence]) -> dict[str, Evidence]:
-    """Reducer for parallel branches: evidence is append-only; an ID may never change content."""
+    """Reducer for parallel branches: evidence is append-only; an ID keeps its first record and may never change
+    content."""
     merged = dict(left)
     for key, value in right.items():
-        if key in merged and merged[key].content != value.content:
+        if key not in merged:
+            merged[key] = value
+        elif merged[key].content != value.content:
             raise ValueError(f"evidence {key} was rewritten")
-        merged[key] = value
     return merged
 
 
