@@ -1,0 +1,715 @@
+{
+ "summary": {
+  "generated_at": "2026-10-25 21:47 UTC",
+  "models": [
+   "nvidia/nemotron-3-ultra-550b-a55b"
+  ],
+  "seeded": 42,
+  "answered": 41,
+  "caught_by_confirmed_challenge": 3,
+  "flagged_in_free_text": 34,
+  "challenges_raised": 150,
+  "challenges_refuted": 147,
+  "clean_briefs": 4,
+  "clean_false_vetoes": 0,
+  "median_seconds": 7.4
+ },
+ "rows": [
+  {
+   "asset": "FD001-A001",
+   "fault": "clean",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 8.2,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A001",
+   "fault": "uncited_claim",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 1.3,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A001",
+   "fault": "evidence_deleted",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 1.1,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A001",
+   "fault": "rul_above_cap",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 1.3,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A001",
+   "fault": "wrong_asset",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 1.4,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A001",
+   "fault": "fabricated_part",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 1.2,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A001",
+   "fault": "slot_not_free",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 1.8,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A001",
+   "fault": "deadline_past_rul",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 1.1,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "clean",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 3.9,
+   "free_text_gaps": 2,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 0",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 0",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 0"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "uncited_claim",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 7.7,
+   "free_text_gaps": 2,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 0",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 0",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 0"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "evidence_deleted",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 8.4,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "rul_above_cap",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 7.0,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "rul_outside_interval",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 7.4,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "rul_inflated",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 5.2,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "wrong_asset",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 6.8,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "fabricated_part",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 5.2,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "slot_not_free",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 5.8,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "deadline_past_rul",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 15.0,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [
+    "deadline after bound: deadline 2026-11-21 is after 2026-10-22, the bound of 0 cycles (raised by nvidia/nemotron-3-ultra-550b-a55b, confirmed by code)"
+   ],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "mandate_dropped",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 6.1,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "mandate_uncited",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 5.9,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "similar_cases_dropped",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 6.7,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD001-A031",
+   "fault": "claim_number_altered",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 6.4,
+   "free_text_gaps": 3,
+   "challenges": 4,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 7",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "clean",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 10.1,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "uncited_claim",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 11.0,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "evidence_deleted",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 9.2,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "rul_above_cap",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 23.0,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "wrong_asset",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 11.0,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "fabricated_part",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 12.3,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [
+    "part not in evidence: part TF-HPC-9999 is not in the evidence it cites (raised by nvidia/nemotron-3-ultra-550b-a55b, confirmed by code)"
+   ],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "stock_inflated",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 10.3,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "slot_not_free",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 12.5,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "deadline_past_rul",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 15.2,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "drivers_as_signature",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 7.4,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-MNT-09, EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "similar_cases_dropped",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 10.9,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD003-A100",
+   "fault": "claim_number_altered",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 8.4,
+   "free_text_gaps": 3,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 3",
+    "part not in evidence challenge refuted by code: every part is in the evidence it cites",
+    "missing mandate challenge refuted by code: every mandated task is in the plan"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "clean",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 7.2,
+   "free_text_gaps": 2,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 55",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "uncited_claim",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 8.1,
+   "free_text_gaps": 2,
+   "challenges": 3,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 55",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "evidence_deleted",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 6.2,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [
+    "unsupported number: claim [0] states 96, which none of EV-PRG-01, EV-PRG-02 evidence contains (raised by nvidia/nemotron-3-ultra-550b-a55b, confirmed by code)"
+   ],
+   "refuted": [
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "rul_above_cap",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 10.2,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 96",
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "rul_outside_interval",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 5.2,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 96",
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "disagreement_averaged",
+   "model": null,
+   "note": "llm_critic_skipped: LlmUnavailable",
+   "seconds": 45.3,
+   "free_text_gaps": 0,
+   "challenges": 0,
+   "confirmed": [],
+   "refuted": []
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "wrong_asset",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 16.8,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 96",
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "fabricated_part",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 6.5,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 96",
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "slot_not_free",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 9.7,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 96",
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "deadline_past_rul",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 8.8,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 96",
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "similar_cases_dropped",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 42.0,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 96",
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  },
+  {
+   "asset": "FD001-A070",
+   "fault": "claim_number_altered",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "note": null,
+   "seconds": 7.3,
+   "free_text_gaps": 3,
+   "challenges": 6,
+   "confirmed": [],
+   "refuted": [
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 96",
+    "unsupported number challenge refuted by code: claim [0] does not state 74",
+    "unsupported number challenge refuted by code: claim [0] does not state 108",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 74",
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+   ]
+  }
+ ]
+}

@@ -23,5 +23,7 @@ def test_driver_gap_fires_when_shap_ignores_discriminating_sensors():
 
 def test_parse_accepts_fenced_json_and_string_gaps():
     assert _parse('```json\n{"outcome": "ACCEPT", "gaps": "missing stock"}\n```') == {
-        "outcome": "accept", "gaps": ["missing stock"]}
+        "outcome": "accept", "gaps": ["missing stock"], "challenges": []}
+    parsed = _parse('{"outcome": "accept", "gaps": [], "challenges": [{"kind": "missing_mandate"}, {"kind": "vibes"}]}')
+    assert parsed["challenges"] == [{"kind": "missing_mandate"}]
     assert _parse('{"outcome": "revise", "gaps": ["a", "b"]}')["gaps"] == ["a", "b"]

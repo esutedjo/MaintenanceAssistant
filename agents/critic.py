@@ -7,6 +7,7 @@ import re
 import time
 
 from agents.runtime import NodeResult, RunContext, node
+from assurance.challenges import KINDS, prompt_section, verify
 from casefile.schemas import CaseFile, MAX_ROUNDS, Verdict
 from models.fault_mode import discriminating
 from tools.llm import LlmClient, LlmRefusal, LlmUnavailable
@@ -82,30 +83,30 @@ def _parse(text: str) -> dict:
     raw_gaps = data.get("gaps") or []
     if isinstance(raw_gaps, str):
         raw_gaps = [raw_gaps]
-    return {"outcome": outcome, "gaps": [str(g) for g in raw_gaps]}
+    challenges = [c for c in data.get("challenges") or [] if isinstance(c, dict) and c.get("kind") in KINDS]
+    return {"outcome": outcome, "gaps": [str(g) for g in raw_gaps], "challenges": challenges}
 
 
 def _remaining_s(ctx: RunContext) -> float:
     return ctx.settings.run_timeout_s - (time.monotonic() - ctx.started)
 
 
-def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, str | None]:
-    """Returns (gaps, model_name, error_note). Empty model_name means the LLM was not called."""
+def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, str | None, list[dict]]:
+    """Returns (gaps, model_name, error_note, challenges). Empty model_name means the LLM was not called."""
     if ctx.settings.sample_mode:
-        return [], None, None
+        return [], None, None, []
     remaining = _remaining_s(ctx)
     if remaining < ctx.settings.critic_timeout_s + 1:
         return [], None, (f"llm_critic_skipped: remaining run time {remaining:.0f}s "
-                          f"< critic timeout {ctx.settings.critic_timeout_s:.0f}s")
+                          f"< critic timeout {ctx.settings.critic_timeout_s:.0f}s"), []
     evidence_lines = "\n".join(f"- {e.id} [{e.kind}] {e.summary}" for e in case.evidence.values())
-    claims = "\n".join(f"- {c.confidence}: {c.text} ({', '.join(c.evidence_ids)})" for c in case.findings.claims)
     rec = case.recommendation
     rec_text = rec.action if rec else "(none)"
     limit = ctx.pack["thresholds"]["rul_divergence_cycles"]
     prompt = (
         "You are an independent evidence critic for a turbofan maintenance brief. Try to DISPROVE it.\n"
         "Reply with one JSON object only, no markdown: "
-        "{\"outcome\": \"accept\"|\"revise\"|\"reject\", \"gaps\": [\"...\"]}.\n"
+        "{\"outcome\": \"accept\"|\"revise\"|\"reject\", \"gaps\": [\"...\"], \"challenges\": [...]}.\n"
         "Do not invent numbers. Cite evidence IDs already listed.\n"
         f"The two RUL methods are allowed to differ by up to {limit} cycles; that is not a gap.\n"
         "The planning lower bound is min(RUL A 10th percentile, RUL B lower), not an average and not A alone.\n"
@@ -118,7 +119,7 @@ def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, s
         "revise = a specific missing citation or a contradiction with the evidence; "
         "reject = the recommendation is unsafe given the evidence.\n"
         f"Question: {case.question}\nAsset: {case.asset.asset_id if case.asset else None}\n"
-        f"Recommendation: {rec_text}\nClaims:\n{claims}\nEvidence:\n{evidence_lines}\n"
+        f"Recommendation: {rec_text}\n{prompt_section(case)}Evidence:\n{evidence_lines}\n"
     )
     client = LlmClient(ctx.settings)
     reply = None
@@ -131,24 +132,42 @@ def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, s
         gaps = list(parsed["gaps"])
         if parsed["outcome"] == "reject" and "critic rejected the brief" not in gaps:
             gaps.append("critic rejected the brief")
-        return gaps, reply.model, note
+        return gaps, reply.model, note, parsed["challenges"]
     except (LlmUnavailable, LlmRefusal, ValueError, json.JSONDecodeError) as error:
         snippet = (reply.text[:240] if reply and reply.text else "")
         log.warning("llm critic skipped (%s: %s): %s", type(error).__name__, str(error)[:300], snippet)
-        return [], (reply.model if reply else None), f"llm_critic_skipped: {type(error).__name__}"
+        return [], (reply.model if reply else None), f"llm_critic_skipped: {type(error).__name__}", []
     finally:
         client.close()
+
+
+def checked_challenges(case: CaseFile, ctx: RunContext, challenges: list[dict], model: str | None
+                       ) -> tuple[list[str], list[str]]:
+    """Code verifies each challenge the model raised: (confirmed gaps that send the brief back, refuted notes)."""
+    confirmed, refuted = [], []
+    reference = ctx.settings.reference_time.date()
+    for challenge in challenges:
+        ok, reason = verify(case, ctx.pack, reference, challenge)
+        kind = str(challenge.get("kind")).replace("_", " ")
+        if ok:
+            confirmed.append(f"{kind}: {reason} (raised by {model}, confirmed by code)")
+        else:
+            refuted.append(f"{kind} challenge refuted by code: {reason}")
+    return confirmed, refuted
 
 
 @node("critic", "disprove", lambda s: f"round={s.round} claims={len(s.findings.claims)}")
 def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
     gaps = deterministic_gaps(state, ctx.pack, ctx.store)
-    # Cheap checks first: skip the LLM when we already know we will revise. The LLM may annotate
-    # a fully cited brief; it cannot invent a stop-the-line gap (it never produces numbers).
+    # Cheap checks first: skip the LLM when we already know we will revise. On a fully cited brief the LLM's
+    # free-text gaps are notes; its checkable challenges send the brief back only when code confirms them.
     if gaps:
-        llm_gaps, model, note = [], None, None
+        llm_gaps, model, note, challenges = [], None, None, []
     else:
-        llm_gaps, model, note = _llm_gaps(state, ctx)
+        llm_gaps, model, note, challenges = _llm_gaps(state, ctx)
+    confirmed, refuted = checked_challenges(state, ctx, challenges, model)
+    gaps = [*gaps, *confirmed]
+    llm_gaps = [*llm_gaps, *refuted]
     outcome = "accept" if not gaps else "revise"
     if state.round >= MAX_ROUNDS and outcome == "revise":
         outcome = "reject"
@@ -159,6 +178,8 @@ def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
     if outcome == "revise" and state.round < MAX_ROUNDS:
         update["round"] = state.round + 1
     summary = f"{outcome}; {len(gaps)} gap(s)" + (f"; model={model}" if model else "; deterministic")
+    if challenges:
+        summary += f"; {len(challenges)} challenge(s): {len(confirmed)} confirmed by code, {len(refuted)} refuted"
     if llm_gaps and outcome == "accept":
         summary += f"; {len(llm_gaps)} LLM note(s) for the engineer"
     if note == "critic_lane_not_nemotron":
