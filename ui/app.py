@@ -90,6 +90,11 @@ def _ask_bar(settings) -> None:
     """Question, Run and the golden cases at the top of the page, so a tablet needs no sidebar."""
     if "question" not in st.session_state:
         st.session_state.question = GOLDEN[2][1]
+        # A link such as ?engine=FD001-A031 opens that engine's brief directly.
+        linked = st.query_params.get("engine")
+        if linked:
+            st.session_state.question = f"What should I do about {linked}?"
+            st.session_state.run_now = True
     st.markdown('<div class="brand"><b>Cleris</b><span>the MRO clearance assistant</span></div>',
                 unsafe_allow_html=True)
     with st.container(key="ask"):
