@@ -21,6 +21,7 @@ import ui.fleet
 import ui.help
 import ui.engine
 import ui.methods
+import ui.stress
 
 # Streamlit reruns only this script; reload the helpers so edits show up without a server restart.
 importlib.reload(ui.brief)
@@ -28,6 +29,7 @@ importlib.reload(ui.engine)
 importlib.reload(ui.fleet)
 importlib.reload(ui.help)
 importlib.reload(ui.methods)
+importlib.reload(ui.stress)
 
 from casefile.schemas import CaseFile
 from data.db import load_pack
@@ -35,7 +37,8 @@ from graph.runner import execute_run
 from settings import get_settings
 from tools.writeback import approve_case, cited_cases, reject_case
 from ui.brief import (
-    CSS, asset_context, check_summary, decision_rows, driving_sensor_figure, escalation_view, fault_label, fmt_rul,
+    CSS, asset_context, check_summary, decision_boundaries, decision_rows, driving_sensor_figure, escalation_view,
+    fault_label, fmt_rul,
     load_trace_file, primary_fault, rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries,
     trace_chips, trace_rows, verdict_headline, verdict_meta, verdict_tone, world_eligibility,
 )
@@ -43,6 +46,9 @@ from ui.engine import component_probabilities, credit, engine_figure, photos
 from ui.fleet import list_active_assets, load_cycles
 from ui.help import GLOSSARY, HOW_TO_READ, SECTION_HELP, plain_summary
 from ui.methods import drivers_figure, health_index_figure, method_facts
+from ui.stress import gate_result, stress_rows
+from agents.intake import FLEET_QUESTION
+from tools.triage import build_triage, load_triage, save_triage
 
 GOLDEN = [
     ("Healthy · FD001-A001", "What is the status of FD001-A001?"),
@@ -54,18 +60,21 @@ GOLDEN = [
 
 
 def main() -> None:
-    st.set_page_config(page_title="Cleris", layout="wide")
+    st.set_page_config(page_title="Cleris", layout="wide", initial_sidebar_state="collapsed")
     st.markdown(CSS, unsafe_allow_html=True)
     settings = get_settings()
     pack = load_pack()
-    _sidebar(settings)
-    brief, fleet, trace_tab, pack_tab, help_tab = st.tabs(["Decision brief", "Fleet", "Trace", "Asset pack", "Help"])
+    _ask_bar(settings)
+    brief, fleet, trace_tab, stress_tab, pack_tab, help_tab = st.tabs(
+        ["Decision brief", "Fleet", "Trace", "Stress test", "Asset pack", "Help"])
     with brief:
         _brief_page(settings, pack)
     with fleet:
         _fleet_page()
     with trace_tab:
         _trace_page()
+    with stress_tab:
+        _stress_page(settings, pack)
     with pack_tab:
         _pack_page(pack)
     with help_tab:
@@ -73,34 +82,34 @@ def main() -> None:
 
 
 def _explain(key: str) -> None:
-    if st.session_state.get("explain", True):
+    if st.session_state.get("explain", False):
         st.markdown(f'<div class="explain">{SECTION_HELP[key]}</div>', unsafe_allow_html=True)
 
 
-def _sidebar(settings) -> None:
-    st.sidebar.markdown("**Cleris**")
-    st.sidebar.caption("the MRO clearance assistant")
-    mode = "sample (snapshot, no network)" if settings.sample_mode else f"live · data {settings.zetaris_mode}"
-    st.sidebar.caption(f"Mode: {mode}")
-    st.sidebar.markdown(
-        '<div class="synthetic">Telemetry: NASA C-MAPSS (simulated). '
-        "Maintenance, spares and documents are synthetic.</div>",
-        unsafe_allow_html=True,
-    )
+def _ask_bar(settings) -> None:
+    """Question, Run and the golden cases at the top of the page, so a tablet needs no sidebar."""
     if "question" not in st.session_state:
         st.session_state.question = GOLDEN[2][1]
-    st.sidebar.text_area("Question", key="question", height=90)
-    st.sidebar.caption("Golden cases (click to run)")
-    cols = st.sidebar.columns(1)
-    for label, question in GOLDEN:
-        cols[0].button(label, width="stretch", on_click=_set_question, args=(question, True))
-    if st.sidebar.button("Run", type="primary", width="stretch", key="run_case") or st.session_state.pop("run_now", False):
+    st.markdown('<div class="brand"><b>Cleris</b><span>the MRO clearance assistant</span></div>',
+                unsafe_allow_html=True)
+    with st.container(key="ask"):
+        ask, run = st.columns([5, 1], vertical_alignment="bottom")
+        ask.text_input("Ask about an engine", key="question", placeholder="What should I do about FD001-A031?")
+        clicked = run.button("Run", type="primary", width="stretch", key="run_case")
+    with st.container(key="grid2-golden"):
+        for col, (label, question) in zip(st.columns(len(GOLDEN)), GOLDEN):
+            col.button(label, width="stretch", on_click=_set_question, args=(question, True))
+    mode = "Sample mode: committed snapshot, no network" if settings.sample_mode else \
+        f"Live mode: data {settings.zetaris_mode}"
+    result = st.session_state.get("result") or {}
+    last = f" · last run {result.get('duration_s', 0):.1f} s" if result else ""
+    note, toggle = st.columns([4, 1], vertical_alignment="center")
+    note.caption(f"{mode}{last}. Telemetry is NASA C-MAPSS (simulated); maintenance, spares and documents are "
+                 "synthetic.")
+    toggle.toggle("Explain", value=False, key="explain",
+                  help="Show a short plain-language note under each section. The Help tab has a glossary.")
+    if clicked or st.session_state.pop("run_now", False):
         _run(settings)
-    st.sidebar.toggle("Explain as I go", value=True, key="explain",
-                      help="Show a short plain-language note under each section. The Help tab has a glossary.")
-    result = (st.session_state.get("result") or {})
-    if result:
-        st.sidebar.caption(f"{result.get('run_id', '')} · {result.get('duration_s', 0):.1f}s")
 
 
 def _set_question(question: str, run: bool = False) -> None:
@@ -111,13 +120,13 @@ def _set_question(question: str, run: bool = False) -> None:
 def _run(settings) -> None:
     question = (st.session_state.question or "").strip()
     if not question:
-        st.sidebar.error("Ask a question first.")
+        st.error("Ask a question first.")
         return
     try:
         with st.spinner("Running specialists and assurance gates…"):
             outcome = execute_run(question, settings)
     except Exception as error:
-        st.sidebar.error(f"{type(error).__name__}: {error}")
+        st.error(f"{type(error).__name__}: {error}")
         return
     st.session_state.case = outcome.case.model_dump(mode="json")
     st.session_state.result = outcome.result
@@ -135,13 +144,10 @@ def _run(settings) -> None:
 def _brief_page(settings, pack: dict) -> None:
     case = st.session_state.get("case")
     if not case:
-        st.markdown("### What is wrong with this engine, how long do I have, and what should I do?")
-        st.write("Pick a golden case in the sidebar (or type a question naming an engine, e.g. FD001-A031) "
-                 "and press **Run**. The tool reads the engine's sensor data, maintenance record and parts stock, "
-                 "estimates remaining life two ways, checks its own work, and gives you a recommendation to "
-                 "approve or reject.")
-        st.markdown("**How to read the brief**")
-        st.markdown("\n".join(f"{i}. {step}" for i, step in enumerate(HOW_TO_READ, 1)))
+        st.markdown("#### What is wrong with this engine, how long do I have, and what should I do?")
+        st.write("Pick an example engine above, or type a question that names one (e.g. FD001-A031), and press "
+                 "**Run**. You get one recommendation to approve or reject, with the evidence behind every number. "
+                 "The Help tab explains how to read it.")
         return
     if case.get("degraded"):
         st.warning("Degraded: " + "; ".join(case["degraded"]))
@@ -156,11 +162,6 @@ def _brief_page(settings, pack: dict) -> None:
         st.markdown('<div class="checks">' + "".join(f'<span class="{tone}">{html.escape(text)}</span>'
                                                      for text, tone in chips) + "</div>", unsafe_allow_html=True)
     _explain("verdict")
-    summary = plain_summary(case, pack)
-    if summary:
-        text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(" ".join(summary), quote=False))
-        st.markdown(f'<div class="plain"><div class="plain-title">In plain words</div>{text}</div>',
-                    unsafe_allow_html=True)
     ctx = asset_context(case, pack)
     _context_strip(case, ctx)
     for esc in case.get("escalations") or []:
@@ -176,6 +177,18 @@ def _brief_page(settings, pack: dict) -> None:
     _explain("metrics")
     _overview_cards(case, pack)
     _plan_summary(case)
+    why = decision_boundaries(case, pack)
+    if why:
+        with st.container(border=True):
+            st.markdown("**Why this plan and not another**")
+            st.markdown("\n".join(f"- {line}" for line in why))
+            st.caption("Each line is a rule the planner applied, this engine's value, and the value at which the plan "
+                       "would change. Computed from the planner's decision record and the asset pack thresholds.")
+    summary = plain_summary(case, pack)
+    if summary:
+        text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(" ".join(summary), quote=False))
+        with st.expander("In plain words", expanded=st.session_state.get("explain", False)):
+            st.markdown(f'<div class="plain">{text}</div>', unsafe_allow_html=True)
     _sign_off(settings, case)
     _details(case, ctx, pack)
 
@@ -206,7 +219,8 @@ def _overview_cards(case: dict, pack: dict) -> None:
     fault, prob = primary_fault(findings, pack)
     rc = rul_context(findings, pack)
     a, b = findings.get("rul_ml"), findings.get("rul_trend")
-    c1, c2, c3, c4 = st.columns(4)
+    with st.container(key="grid2-kpis"):
+        c1, c2, c3, c4 = st.columns(4)
 
     with c1.container(border=True):
         st.metric("Flights left · method A (range)", fmt_rul(a, with_range=True),
@@ -261,6 +275,11 @@ def _plan_summary(case: dict) -> None:
         intent = case.get("intent") or {}
         if intent.get("needs_clarification"):
             st.info(intent.get("clarification") or "Need a clearer question.")
+        if intent.get("clarification") == FLEET_QUESTION:
+            triage = load_triage()
+            if triage is not None:
+                st.markdown("**Engines due within 7 days** (fleet triage; the Fleet tab has the full ranking)")
+                _triage_table(triage, 7, "brief_triage")
         return
     esc = html.escape
     facts = []
@@ -296,24 +315,24 @@ def _plan_summary(case: dict) -> None:
 def _details(case: dict, ctx: dict, pack: dict) -> None:
     st.divider()
     st.markdown("### Details")
-    st.caption("Drill down: each tab shows the working and the evidence records behind one part of the overview.")
+    st.caption("Drill down: each tab shows the working and the evidence records behind one part of the brief.")
     evidence_count = len(case.get("evidence") or {})
     docs = (case.get("findings") or {}).get("documents") or []
-    tabs = st.tabs(["Remaining life", "Fault and sensors", "Plan and parts", f"Documents ({len(docs)})",
-                    "Engine history", "Checks and trace", f"All evidence ({evidence_count})"])
+    tabs = st.tabs(["Remaining life", "Fault", f"Plan and documents ({len(docs)})", "History",
+                    f"Checks and evidence ({evidence_count})"])
     with tabs[0]:
         _tab_life(case, pack)
     with tabs[1]:
         _tab_fault(case, ctx, pack)
     with tabs[2]:
         _tab_plan(case)
-    with tabs[3]:
+        st.markdown("#### Documents")
         _tab_documents(case, pack)
-    with tabs[4]:
+    with tabs[3]:
         _tab_history(case, ctx)
-    with tabs[5]:
+    with tabs[4]:
         _tab_checks(case)
-    with tabs[6]:
+        st.markdown("#### All evidence")
         _evidence(case)
 
 
@@ -361,7 +380,8 @@ def _tab_life(case: dict, pack: dict) -> None:
     findings = case.get("findings") or {}
     rc = rul_context(findings, pack)
     a, b, anomaly = findings.get("rul_ml"), findings.get("rul_trend"), findings.get("anomaly")
-    d1, d2, d3, d4 = st.columns(4)
+    with st.container(key="grid2-life"):
+        d1, d2, d3, d4 = st.columns(4)
     d1.metric("Method A", fmt_rul(a, with_range=True), help="LightGBM, 10th–90th percentile range.")
     d2.metric("Method B", fmt_rul(b), help="Health-index trend extrapolated to the failure threshold.")
     if "gap" in rc:
@@ -385,7 +405,8 @@ def _tab_life(case: dict, pack: dict) -> None:
              f"{rc['divergence_limit']} flights, the tool treats that as a warning, lowers its confidence and "
              "suggests a borescope inspection. It never averages them.")
 
-    left, right = st.columns(2)
+    with st.container(key="stack-methods"):
+        left, right = st.columns(2)
     with left.container(border=True):
         st.markdown("#### Method A · learned from past engines")
         st.caption("Machine learning (LightGBM gradient-boosted trees)")
@@ -579,8 +600,6 @@ def _context_strip(case: dict, ctx: dict) -> None:
     if items:
         st.markdown('<div class="context">' + "".join(f"<span>{i}</span>" for i in items) + "</div>",
                     unsafe_allow_html=True)
-    st.caption(f"Question: “{case.get('question', '')}” · goal "
-               f"{((case.get('intent') or {}).get('goal') or '—').replace('_', ' ')}")
 
 
 def _chart(case: dict, pack: dict) -> None:
@@ -694,16 +713,19 @@ def _sign_off(settings, case: dict) -> None:
         return
     st.subheader("Your decision")
     _explain("signoff")
-    st.caption("Review the Details tabs below if you want to check the working first.")
     comment = st.text_area("Comment (optional)", key="signoff_comment", height=70)
-    feedback = _case_feedback_form(CaseFile.model_validate(case))
+    cited = cited_cases(CaseFile.model_validate(case))
+    feedback = {}
+    if cited:
+        with st.expander(f"Rate the {len(cited)} cited past case{'s' if len(cited) != 1 else ''} (optional)"):
+            feedback = _case_feedback_form(CaseFile.model_validate(case))
     left, right = st.columns(2)
-    if left.button("Approve and draft work order", type="primary", key="approve_case"):
+    if left.button("Approve and draft work order", type="primary", key="approve_case", width="stretch"):
         record = approve_case(CaseFile.model_validate(case), settings, comment, case_feedback=feedback)
         st.session_state.decision = {"kind": "approved", "record": record}
         st.session_state.case = {**case, "status": "approved"}
         st.rerun()
-    if right.button("Reject", key="reject_case"):
+    if right.button("Reject", key="reject_case", width="stretch"):
         record = reject_case(CaseFile.model_validate(case), settings, comment, case_feedback=feedback)
         st.session_state.decision = {"kind": "rejected", "record": record}
         st.session_state.case = {**case, "status": "rejected"}
@@ -729,15 +751,36 @@ def _case_feedback_form(case: CaseFile) -> dict[str, str]:
     return out
 
 
+TRIAGE_COLUMNS = {"asset_id": "engine", "decision": "decision", "deadline": "deadline", "days_to_deadline": "days left",
+                  "lower_bound_cycles": "bound (cycles)", "fault_mode": "fault", "escalations": "escalations"}
+
+
+def _triage_table(triage: pd.DataFrame, due_days: int | None, key: str) -> pd.DataFrame:
+    shown = triage if due_days is None else triage[triage["days_to_deadline"] <= due_days]
+    pack = load_pack()
+    table = shown.assign(fault_mode=shown["fault_mode"].map(lambda m: fault_label(m, pack) if m else ""))
+    st.dataframe(table[list(TRIAGE_COLUMNS)].rename(columns=TRIAGE_COLUMNS), hide_index=True, width="stretch", key=key,
+                 height=min(38 + 35 * len(shown), 420))
+    return shown
+
+
 def _fleet_page() -> None:
-    st.caption("Active fleet from the snapshot (200 engines). Scoring every engine with the models is out of scope.")
-    assets = list_active_assets()
-    query = st.text_input("Filter", placeholder="FD003-A100 or ESN-700")
-    if query:
-        q = query.strip().upper()
-        assets = assets[assets.apply(lambda r: q in str(r["asset_id"]).upper() or q in str(r["esn"]).upper(), axis=1)]
-    st.dataframe(assets, hide_index=True, width="stretch")
-    pick = st.selectbox("Ask about", assets["asset_id"].tolist() if not assets.empty else [""])
+    triage = load_triage()
+    if triage is None:
+        st.info("No fleet triage yet. Run `uv run task fleet-triage`, or press Recompute below.")
+        assets = list_active_assets()
+    else:
+        counts = triage["decision"].value_counts()
+        st.markdown('<div class="checks">' + "".join(
+            f'<span class="{"flag" if d != "keep flying" else "ok"}">{int(counts.get(d, 0))} {d}</span>'
+            for d in ("remove, swap or repair", "inspect", "keep flying")) + "</div>", unsafe_allow_html=True)
+        due = st.radio("Due within", ["7 days", "30 days", "All engines"], horizontal=True, key="triage_due")
+        shown = _triage_table(triage, {"7 days": 7, "30 days": 30}.get(due), "triage_table")
+        st.caption(f"Ranked by decision, then deadline. Computed {triage.attrs.get('generated_at') or ''} by running "
+                   f"the full agent graph on all {len(triage)} active engines in sample mode (`uv run task "
+                   "fleet-triage`). Live data can differ: open an engine for its live brief.")
+        assets = shown
+    pick = st.selectbox("Open an engine", assets["asset_id"].tolist() if not assets.empty else [""])
     if pick:
         st.button(f"Run the brief for {pick}", type="primary", on_click=_set_question,
                   args=(f"What is wrong with {pick}, how long do I have, and what should I do?", True))
@@ -746,6 +789,10 @@ def _fleet_page() -> None:
             st.markdown(f'<div class="verdict {verdict_tone(case)}"><h2>{html.escape(verdict_headline(case))}</h2>'
                         f'<div class="meta">{html.escape(verdict_meta(case))}</div></div>', unsafe_allow_html=True)
             st.caption("Open the Decision brief tab for the evidence and the sign-off.")
+    if st.button("Recompute the triage now (about a minute)", key="triage_recompute"):
+        bar = st.progress(0.0, text="Running the agent graph on every active engine")
+        save_triage(build_triage(progress=lambda n, total: bar.progress(n / total, text=f"{n} of {total} engines")))
+        st.rerun()
 
 
 def _trace_page() -> None:
@@ -784,6 +831,45 @@ def _trace_page() -> None:
         )
     with st.expander("Full JSONL"):
         st.code("\n".join(json.dumps(e) for e in events), language="json")
+
+
+def _stress_page(settings, pack: dict) -> None:
+    case = st.session_state.get("case")
+    if not case or not case.get("recommendation"):
+        st.caption("Run a brief first. Then corrupt it here and watch the gates.")
+        return
+    model = CaseFile.model_validate(case)
+    reference = settings.reference_time.date()
+    st.markdown(f"#### Try to break the brief for {model.asset.asset_id if model.asset else 'this engine'}")
+    st.write("Pick a mistake a careless or hallucinating agent could make. Cleris applies it to this brief and runs "
+             "the same gates as a real run: rule checks first, then the critic's deterministic checks. No model is "
+             "asked and nothing is saved.")
+    clean = gate_result(model, pack, reference)
+    if clean["caught_by"]:
+        st.warning(f"The unmodified brief is already flagged by {clean['caught_by']}: " + "; ".join(clean["gaps"]))
+    else:
+        st.caption("The unmodified brief passes both gates.")
+    rows = stress_rows(model, pack, reference)
+    usable = [r for r in rows if r["applies"]]
+    if not usable:
+        st.info("None of the seeded mistakes applies to this brief.")
+        return
+    pick = st.selectbox("Mistake to inject", [r["what"] for r in usable], key="stress_pick")
+    row = next(r for r in usable if r["what"] == pick)
+    if row["caught_by"]:
+        st.success(f"Caught by {row['caught_by']}. The brief goes back to the maintenance planner and never reaches "
+                   "the sign-off.")
+        st.markdown("\n".join(f"- {gap}" for gap in row["gaps"]))
+    else:
+        st.error("Not caught. This brief would reach the engineer with the mistake in it.")
+    caught = sum(1 for r in usable if r["caught_by"])
+    st.markdown(f"**Every mistake that applies to this brief: {caught} of {len(usable)} caught.** "
+                f"{len(rows) - len(usable)} of the {len(rows)} do not apply here (for example, no part is short).")
+    st.dataframe(pd.DataFrame([{
+        "mistake": r["what"],
+        "result": (f"caught by {r['caught_by']}" if r["caught_by"] else "NOT CAUGHT") if r["applies"] else "does not apply",
+    } for r in rows]), hide_index=True, width="stretch")
+    st.caption("The evaluation runs the same mistakes on 30 briefs: `uv run task eval`, section Seeded faulty briefs.")
 
 
 def _help_page() -> None:

@@ -48,6 +48,19 @@ CSS = """
 .tl-model { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; color: #a5b4fc;
             margin-left: .4rem; }
 .tl-sum { grid-column: 2; color: #cbd5e1; font-size: .86rem; }
+.brand { display: flex; align-items: baseline; gap: .6rem; margin: 0 0 .2rem 0; }
+.brand b { font-size: 1.2rem; }
+.brand span { color: #94a3b8; font-size: .9rem; }
+/* Tablet: four-up rows become 2 x 2 and the two method cards stack (phones already stack every column). */
+@media (max-width: 1024px) {
+  .block-container { padding-left: 1.2rem; padding-right: 1.2rem; }
+  [class*="st-key-grid2"] [data-testid="stHorizontalBlock"] { flex-wrap: wrap; row-gap: .6rem; }
+  [class*="st-key-grid2"] [data-testid="stColumn"] { flex: 1 1 calc(50% - 1rem) !important;
+                                                    min-width: calc(50% - 1rem) !important; }
+  [class*="st-key-stack"] [data-testid="stHorizontalBlock"] { flex-wrap: wrap; row-gap: .8rem; }
+  [class*="st-key-stack"] [data-testid="stColumn"] { flex: 1 1 100% !important; min-width: 100% !important; }
+  .verdict h2 { font-size: 1.2rem; }
+}
 .verdict { padding: 1rem 1.15rem; border-radius: 8px; margin: 0 0 1rem 0; }
 .verdict h2 { margin: 0 0 .35rem 0; font-size: 1.35rem; line-height: 1.3; }
 .verdict .meta { opacity: .9; font-size: .95rem; }
@@ -62,8 +75,7 @@ CSS = """
 .context { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; font-size: .9rem; color: #cbd5e1;
            margin: -.4rem 0 1rem 0; }
 .context b { color: #e8eef5; font-weight: 600; }
-.plain { background: #16202e; border-left: 4px solid #60a5fa; padding: .75rem 1rem; border-radius: 6px;
-         margin: 0 0 1rem 0; line-height: 1.6; font-size: 1.02rem; }
+.plain { line-height: 1.6; font-size: 1.02rem; }
 .plain-title { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: #93c5fd;
                margin-bottom: .25rem; }
 .explain { color: #94a3b8; font-size: .88rem; border-left: 2px solid #334155; padding: .1rem 0 .1rem .6rem;
@@ -302,6 +314,75 @@ def check_summary(case: dict) -> list[tuple[str, str]]:
         chips.append((f"{len(escalations)} escalation{'s' if len(escalations) > 1 else ''}", "flag"))
     chips.append((f"{len(case.get('evidence') or {})} evidence records", "plain"))
     return chips
+
+
+def _days(n: float) -> str:
+    return f"{n:g} day" if n == 1 else f"{n:g} days"
+
+
+def decision_boundaries(case: dict, pack: dict) -> list[str]:
+    """Why this action and not another: each rule the planner applied, this engine's value, and the value at which
+    the plan would change. Computed from the planner's own decision record and the asset pack thresholds."""
+    findings, rec = case.get("findings") or {}, case.get("recommendation") or {}
+    a, b = findings.get("rul_ml"), findings.get("rul_trend")
+    evidence = (case.get("evidence") or {}).values()
+    plan = next((e["content"] for e in evidence if e.get("produced_by") == "maint_planner"
+                 and "rul_lower_cycles" in (e.get("content") or {})), None)
+    if not rec or not a or plan is None:
+        return []
+    th = pack["thresholds"]
+    cpd, severe, moderate, limit = (th["cycles_per_day"], th["severe_rul_cycles"], th["moderate_rul_cycles"],
+                                    th["rul_divergence_cycles"])
+    lower, severity, action = plan["rul_lower_cycles"], plan["severity"], rec.get("action") or ""
+    gap = abs(a["rul"] - b["rul"]) if b else None
+    diverge = gap is not None and gap > limit
+    at_cap = [name for name, f in (("method A", a), ("method B", b)) if f and f.get("at_cap")]
+    lines = []
+    if action.startswith("Confirm the input data first"):
+        lines.append("**Confirm the data first** because a serious plausibility issue was found in the inputs. "
+                     "Clean data would remove this step.")
+    if at_cap and not diverge:
+        lines.append(f"**Kept in service** because {' and '.join(at_cap)} has not left the "
+                     f"{th['rul_cap_cycles']:.0f}-cycle cap, so there is no measurable wear yet, and the methods agree "
+                     f"within {limit} cycles. Wear below the cap on both methods, or a gap above {limit} cycles, would "
+                     "change the plan.")
+    elif diverge:
+        lines.append(f"**Inspection, not a repair,** because the two methods are {gap:.0f} cycles apart (limit {limit}). "
+                     f"If they agreed within {limit} cycles, the planner would pick the {severity} task for this fault.")
+    if not (at_cap and not diverge):
+        from_rul = "severe" if lower < severe else "moderate" if lower < moderate else "minor"
+        bands = {"severe": f"under {severe}", "moderate": f"{severe} to {moderate - 1}", "minor": f"{moderate} or more"}
+        text = (f"**Severity {from_rul}** because the planning bound is {lower:.0f} cycles ({bands[from_rul]}). "
+                f"Severe is under {severe} cycles, moderate under {moderate}, minor above.")
+        if severity != from_rul:
+            text += f" The last inspection finding raised it to {severity}."
+        lines.append(text)
+    world = next((e["content"] for e in evidence if e.get("produced_by") == "maint_planner"
+                  and ":world/" in (e.get("source") or "") and "tasks" in (e.get("content") or {})), {})
+    swap_ids = {t.get("fmea_id") for t in world.get("tasks") or [] if t.get("task_type") == "engine_change"}
+    wait = plan["lead_days"] + plan["slot_days"]
+    if not diverge and not (at_cap and not diverge) and not action.startswith("Inspection targeting"):
+        if swap_ids & set(rec.get("task_ids") or []):
+            text = (f"**Lease-engine swap** because the bound covers {plan['rul_days']:.1f} days, but a repair on "
+                    f"wing needs {plan['lead_days']} d for parts plus {plan['slot_days']} d to the first free slot "
+                    f"({wait} d).")
+            short = [p["part_number"] for p in plan.get("short_parts") or []]
+            if short and plan["rul_days"] >= plan["slot_days"]:
+                text += (f" With {', '.join(short)} on the shelf the wait would be {plan['slot_days']} d, which the "
+                         "bound covers, so the repair would be planned on wing.")
+            elif wait * cpd <= th["rul_cap_cycles"]:
+                text += (f" With a bound of {_days(wait)} ({wait * cpd} cycles) or more, the repair would be planned "
+                         "on wing instead.")
+            lines.append(text)
+        elif swap_ids:
+            lines.append(f"**No engine swap** because the bound covers {plan['rul_days']:.1f} days, enough for parts "
+                         f"({plan['lead_days']} d) plus the first free slot ({plan['slot_days']} d). Below "
+                         f"{_days(wait)} ({wait * cpd} cycles) Cleris would plan a lease-engine swap.")
+    for doc in findings.get("documents") or []:
+        if doc.get("mandatory") and doc.get("required_task"):
+            lines.append(f"**{doc['doc_id']} {doc['section']}** requires {doc['required_task']} within "
+                         f"{doc.get('within_cycles')} cycles. No change in the numbers removes it from the plan.")
+    return lines
 
 
 AGENT_LABELS = {"maint_planner": "maintenance planner", "rule_checks": "rule checks", "escalation": "escalation rules"}
