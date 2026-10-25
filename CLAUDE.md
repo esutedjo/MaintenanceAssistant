@@ -6,7 +6,7 @@ The product name is **Cleris, the MRO clearance assistant**. The hackathon track
 
 This session's work was committed and pushed to `main` on 25 Oct. Do not commit unless the user asks. Do not read `.env.local` or any secret file. Code freeze in `AGENTS.md` is 27 Oct 2026 12:00 UTC.
 
-The GitHub branch `claude/magical-cannon-jlrs9d` is a parallel line from a Claude Code web session, built on the 23 Oct `main`: a separate sign-off write service and runner streaming. It is not merged and overlaps files changed here. Its `merge_evidence` fix (keep the first record of an ID) was ported to `main`.
+The GitHub branch `claude/magical-cannon-jlrs9d` was a parallel line from a Claude Code web session, built on the 23 Oct `main`: a separate sign-off write service and runner streaming. Its `merge_evidence` fix (keep the first record of an ID) was ported to `main`; the rest was not merged. The branch was deleted from GitHub on 25 Oct. Its two commits are kept in the developer's local clone as `refs/backup/claude-magical-cannon-jlrs9d` (not a branch, not pushed).
 
 ## What Cleris is
 
