@@ -71,7 +71,8 @@ GLOSSARY: list[tuple[str, str]] = [
 ]
 
 HOW_TO_READ = [
-    "Read the coloured box first: it is the recommendation and its deadline.",
+    "Read the coloured box first: it is the recommendation and its deadline. The chips under it say how the brief "
+    "was checked (rule checks, critic rounds, the model that answered).",
     "Read **In plain words** for a one-paragraph explanation.",
     "Check the numbers row: remaining flights by two methods, and which part is wearing.",
     "Look at **Plan** for the task, parts and hangar slot.",

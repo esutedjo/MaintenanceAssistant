@@ -9,7 +9,45 @@ import plotly.graph_objects as go
 
 CSS = """
 <style>
-.block-container { padding-top: 1.1rem; max-width: 1180px; }
+.block-container { padding-top: 3.6rem; max-width: 1180px; }
+[data-testid="stMetricValue"] { font-size: 1.7rem; }
+[data-testid="stMetricValue"] p, [data-testid="stMetricLabel"] p {
+  white-space: normal !important; overflow-wrap: anywhere; line-height: 1.2; }
+.checks { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.4rem 0 1rem 0; }
+.checks span { background: #1a2332; border: 1px solid #2b3a4f; border-radius: 999px; padding: .15rem .7rem;
+               font-size: .82rem; color: #cbd5e1; }
+.checks span.ok { border-color: #15803d; }
+.checks span.flag { border-color: #b45309; }
+.esc { border: 1px solid; border-radius: 8px; padding: .55rem .9rem; margin: 0 0 .6rem 0; }
+.esc.urgent { background: #2a1015; border-color: #e11d48; }
+.esc.warning { background: #2a2210; border-color: #f59e0b; }
+.esc-title { font-weight: 700; font-size: .95rem; }
+.esc-sev { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-right: .5rem; }
+.esc.urgent .esc-sev { color: #fda4af; }
+.esc.warning .esc-sev { color: #fcd34d; }
+.esc-msg { color: #e2e8f0; font-size: .92rem; margin-top: .15rem; }
+.esc-act { color: #cbd5e1; font-size: .85rem; margin-top: .3rem; }
+.plan-card { background: #16202e; border: 1px solid #2b3a4f; border-radius: 8px; padding: .8rem 1rem;
+             margin: .4rem 0 1.2rem 0; }
+.plan-label { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: #93c5fd; }
+.plan-action { font-size: 1.1rem; font-weight: 600; margin: .15rem 0 .5rem 0; }
+.plan-facts { display: flex; flex-wrap: wrap; gap: .3rem 1.6rem; font-size: .9rem; color: #cbd5e1; }
+.plan-facts b { color: #e8eef5; }
+.plan-graph { margin-top: .55rem; font-size: .88rem; color: #cbd5e1; }
+.tl-row { display: grid; grid-template-columns: 2rem 1fr; gap: 0 .6rem; padding: .45rem .2rem;
+          border-bottom: 1px solid #1f2b3b; }
+.tl-n { color: #64748b; font-size: .85rem; text-align: right; padding-top: .1rem; }
+.tl-head { font-size: .92rem; }
+.tl-head b { color: #e8eef5; }
+.tl-to { color: #93c5fd; }
+.tl-badge { font-size: .72rem; border-radius: 999px; padding: .05rem .5rem; margin-left: .4rem; border: 1px solid #334155; }
+.tl-row.ok .tl-badge { border-color: #15803d; color: #86efac; }
+.tl-row.flag { background: #221c0e; }
+.tl-row.flag .tl-badge { border-color: #b45309; color: #fcd34d; }
+.tl-row.bad .tl-badge { border-color: #e11d48; color: #fda4af; }
+.tl-model { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; color: #a5b4fc;
+            margin-left: .4rem; }
+.tl-sum { grid-column: 2; color: #cbd5e1; font-size: .86rem; }
 .verdict { padding: 1rem 1.15rem; border-radius: 8px; margin: 0 0 1rem 0; }
 .verdict h2 { margin: 0 0 .35rem 0; font-size: 1.35rem; line-height: 1.3; }
 .verdict .meta { opacity: .9; font-size: .95rem; }
@@ -201,6 +239,97 @@ def signature_sensors(pack: dict, variant: str | None) -> list[str]:
         return []
     return [s for s, spec in pack.get("sensors", {}).items()
             if len({spec["direction"].get(m) for m in modes}) > 1]
+
+
+ESCALATION_TITLES = {
+    "document_mandate": "Mandatory document action",
+    "rul_below_lead_time": "The engine wears out before a normal repair can happen",
+    "rul_divergence": "The two remaining-life methods disagree",
+    "ambiguous_fault": "Two fault modes are too close to call",
+    "data_quality": "Input data failed a plausibility check",
+    "knowledge_drift": "The failure-mode table lists work the World Model does not",
+}
+
+
+def escalation_view(esc: dict) -> dict[str, Any]:
+    """One escalation in the engineer's words: title, message, proposed actions and fixed notes."""
+    message = esc.get("message") or ""
+    proposed, notes = [], []
+    for action in esc.get("actions") or []:
+        if action.startswith("Mandatory:"):
+            notes.append(action.removeprefix("Mandatory:").strip().capitalize())
+        elif action not in message:
+            proposed.append(action.removeprefix("Propose ").strip())
+    rule = esc.get("rule") or ""
+    return {"severity": esc.get("severity") or "warning", "title": ESCALATION_TITLES.get(rule, rule.replace("_", " ")),
+            "message": message, "proposed": proposed, "notes": notes}
+
+
+def world_eligibility(case: dict) -> dict[str, Any] | None:
+    """The World Model's eligible tasks for the fault next to the tasks the plan uses."""
+    for eid, item in sorted((case.get("evidence") or {}).items()):
+        content = item.get("content") or {}
+        if item.get("produced_by") == "maint_planner" and ":world/" in (item.get("source") or "") \
+                and "task_ids" in content:
+            listed = list(dict.fromkeys(content.get("task_ids") or []))
+            used = (case.get("recommendation") or {}).get("task_ids") or []
+            return {"evidence_id": eid, "listed": listed, "used": [t for t in used if t in listed],
+                    "off_graph": [t for t in used if t not in listed], "degraded": item.get("degraded")}
+    return None
+
+
+def check_summary(case: dict) -> list[tuple[str, str]]:
+    """How the brief was checked, as (text, tone) chips: tone is ok, flag or plain."""
+    verdicts = case.get("verdicts") or []
+    rules = [v for v in verdicts if v.get("gate") == "rule_checks"]
+    critic = [v for v in verdicts if v.get("gate") == "critic"]
+    chips: list[tuple[str, str]] = []
+    if rules:
+        sent_back = sum(v.get("outcome") != "accept" for v in rules)
+        chips.append(("rule checks passed" if not sent_back else f"rule checks sent it back {sent_back}×",
+                      "ok" if rules[-1].get("outcome") == "accept" else "flag"))
+    if critic:
+        revisions = sum(v.get("outcome") == "revise" for v in critic)
+        last = critic[-1].get("outcome") or ""
+        text = f"critic {'accepted' if last == 'accept' else last}"
+        if revisions:
+            text += f" after {revisions} revision{'s' if revisions > 1 else ''}"
+        chips.append((text, "ok" if last == "accept" else "flag"))
+        models = list(dict.fromkeys(v["model"] for v in critic if v.get("model")))
+        chips.append((f"LLM critic: {', '.join(models)}" if models else "critic: deterministic checks only", "plain"))
+    escalations = case.get("escalations") or []
+    if escalations:
+        chips.append((f"{len(escalations)} escalation{'s' if len(escalations) > 1 else ''}", "flag"))
+    chips.append((f"{len(case.get('evidence') or {})} evidence records", "plain"))
+    return chips
+
+
+AGENT_LABELS = {"maint_planner": "maintenance planner", "rule_checks": "rule checks", "escalation": "escalation rules"}
+STATUS_TONE = {"success": "ok", "needs_revision": "flag", "fallback": "flag", "skipped": "plain", "rejected": "bad",
+               "error": "bad"}
+
+
+def trace_rows(events: list[dict]) -> list[dict[str, Any]]:
+    """Trace events as a readable timeline: who acted, who it went to, outcome, model and summary."""
+    rows = []
+    for n, event in enumerate(events, 1):
+        agent = event.get("agent_name") or "?"
+        status = event.get("status") or ""
+        targets = [t for t in (event.get("target_agent") or "").split(",") if t]
+        if status == "needs_revision" and not targets:
+            targets = ["maint_planner"]
+        rows.append({
+            "step": n,
+            "agent": AGENT_LABELS.get(agent, agent),
+            "to": ", ".join(AGENT_LABELS.get(t, t) for t in targets),
+            "action": (event.get("action") or "").replace("_", " "),
+            "status": status.replace("_", " "),
+            "tone": STATUS_TONE.get(status, "plain"),
+            "model": event.get("model") or "",
+            "summary": event.get("output_summary") or "",
+            "seconds": event.get("duration_s"),
+        })
+    return rows
 
 
 def decision_rows(case: dict) -> list[dict]:

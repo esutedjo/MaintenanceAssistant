@@ -35,9 +35,9 @@ from graph.runner import execute_run
 from settings import get_settings
 from tools.writeback import approve_case, cited_cases, reject_case
 from ui.brief import (
-    CSS, asset_context, decision_rows, driving_sensor_figure, fault_label, fmt_rul, load_trace_file, primary_fault,
-    rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries, trace_chips,
-    verdict_headline, verdict_meta, verdict_tone,
+    CSS, asset_context, check_summary, decision_rows, driving_sensor_figure, escalation_view, fault_label, fmt_rul,
+    load_trace_file, primary_fault, rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries,
+    trace_chips, trace_rows, verdict_headline, verdict_meta, verdict_tone, world_eligibility,
 )
 from ui.engine import component_probabilities, credit, engine_figure, photos
 from ui.fleet import list_active_assets, load_cycles
@@ -90,11 +90,11 @@ def _sidebar(settings) -> None:
     if "question" not in st.session_state:
         st.session_state.question = GOLDEN[2][1]
     st.sidebar.text_area("Question", key="question", height=90)
-    st.sidebar.caption("Golden cases")
+    st.sidebar.caption("Golden cases (click to run)")
     cols = st.sidebar.columns(1)
     for label, question in GOLDEN:
-        cols[0].button(label, width="stretch", on_click=_set_question, args=(question,))
-    if st.sidebar.button("Run", type="primary", width="stretch", key="run_case"):
+        cols[0].button(label, width="stretch", on_click=_set_question, args=(question, True))
+    if st.sidebar.button("Run", type="primary", width="stretch", key="run_case") or st.session_state.pop("run_now", False):
         _run(settings)
     st.sidebar.toggle("Explain as I go", value=True, key="explain",
                       help="Show a short plain-language note under each section. The Help tab has a glossary.")
@@ -103,8 +103,9 @@ def _sidebar(settings) -> None:
         st.sidebar.caption(f"{result.get('run_id', '')} · {result.get('duration_s', 0):.1f}s")
 
 
-def _set_question(question: str) -> None:
+def _set_question(question: str, run: bool = False) -> None:
     st.session_state.question = question
+    st.session_state.run_now = run
 
 
 def _run(settings) -> None:
@@ -150,6 +151,10 @@ def _brief_page(settings, pack: dict) -> None:
         f'<div class="meta">{verdict_meta(case)}</div></div>',
         unsafe_allow_html=True,
     )
+    chips = check_summary(case)
+    if chips:
+        st.markdown('<div class="checks">' + "".join(f'<span class="{tone}">{html.escape(text)}</span>'
+                                                     for text, tone in chips) + "</div>", unsafe_allow_html=True)
     _explain("verdict")
     summary = plain_summary(case, pack)
     if summary:
@@ -159,14 +164,18 @@ def _brief_page(settings, pack: dict) -> None:
     ctx = asset_context(case, pack)
     _context_strip(case, ctx)
     for esc in case.get("escalations") or []:
-        st.markdown(f'<p class="escalation">{esc.get("severity", "").upper()}: {esc.get("message", "")}</p>',
+        view = escalation_view(esc)
+        extra = "".join(f'<div class="esc-act">{html.escape(note)}</div>' for note in view["notes"])
+        if view["proposed"]:
+            extra += f'<div class="esc-act">Proposed: {html.escape(" · ".join(view["proposed"]))}</div>'
+        st.markdown(f'<div class="esc {view["severity"]}"><div class="esc-title"><span class="esc-sev">'
+                    f'{html.escape(view["severity"])}</span>{html.escape(view["title"])}</div>'
+                    f'<div class="esc-msg">{html.escape(view["message"])}</div>{extra}</div>',
                     unsafe_allow_html=True)
-        if esc.get("actions"):
-            st.caption("Proposed: " + "; ".join(esc["actions"]))
 
     _explain("metrics")
     _overview_cards(case, pack)
-    _plan_summary(case.get("recommendation") or {})
+    _plan_summary(case)
     _sign_off(settings, case)
     _details(case, ctx, pack)
 
@@ -200,9 +209,9 @@ def _overview_cards(case: dict, pack: dict) -> None:
     c1, c2, c3, c4 = st.columns(4)
 
     with c1.container(border=True):
-        st.metric("Flights left · A, ML (likely range)", fmt_rul(a, with_range=True),
+        st.metric("Flights left · method A (range)", fmt_rul(a, with_range=True),
                   None if "a_lower_days" not in rc else f"≥ {rc['a_lower_days']:.0f} days at 10th pct",
-                  delta_color="off")
+                  delta_color="off", delta_arrow="off")
         with st.popover("Why?", width="stretch"):
             st.write("A machine-learning model trained on 160 engines that ran to failure reads the last 30 "
                      "flights. 8 in 10 similar engines fall inside the range.")
@@ -212,8 +221,8 @@ def _overview_cards(case: dict, pack: dict) -> None:
                 st.caption(f"`{a['evidence_id']}` {evidence.get(a['evidence_id'], {}).get('summary', '')}")
 
     with c2.container(border=True):
-        st.metric("Flights left · B, trend", fmt_rul(b),
-                  None if "b_days" not in rc else f"≈ {rc['b_days']:.0f} days", delta_color="off")
+        st.metric("Flights left · method B (trend)", fmt_rul(b),
+                  None if "b_days" not in rc else f"≈ {rc['b_days']:.0f} days", delta_color="off", delta_arrow="off")
         with st.popover("Why?", width="stretch"):
             st.write("Combines the sensors that worsen with wear into one health score and projects when it "
                      "reaches the failure level.")
@@ -225,7 +234,8 @@ def _overview_cards(case: dict, pack: dict) -> None:
                 st.caption(f"`{b['evidence_id']}` {evidence.get(b['evidence_id'], {}).get('summary', '')}")
 
     with c3.container(border=True):
-        st.metric("Fault mode", fault, None if prob is None else f"p = {prob:.2f}", delta_color="off")
+        st.metric("Fault mode", fault, None if prob is None else f"p = {prob:.2f}", delta_color="off",
+                  delta_arrow="off")
         with st.popover("Why?", width="stretch"):
             st.write("Which part of the engine is wearing, judged from the sensors that move differently for "
                      "each fault.")
@@ -245,27 +255,42 @@ def _overview_cards(case: dict, pack: dict) -> None:
                 st.caption(line)
 
 
-def _plan_summary(rec: dict) -> None:
+def _plan_summary(case: dict) -> None:
+    rec = case.get("recommendation") or {}
     if not rec:
-        intent = (st.session_state.get("case") or {}).get("intent") or {}
+        intent = case.get("intent") or {}
         if intent.get("needs_clarification"):
             st.info(intent.get("clarification") or "Need a clearer question.")
         return
-    bits = [f"**Plan:** {rec.get('action', '')}"]
-    if rec.get("task_ids"):
-        bits.append("tasks " + ", ".join(rec["task_ids"]))
-    if rec.get("slot"):
-        bits.append(f"hangar slot {rec['slot']}")
+    esc = html.escape
+    facts = []
     if rec.get("deadline"):
-        bits.append(f"deadline {rec['deadline']}")
+        facts.append(f"Deadline <b>{esc(str(rec['deadline']))}</b>")
+    if rec.get("slot"):
+        facts.append(f"Hangar slot <b>{esc(str(rec['slot']))}</b>")
     parts = rec.get("parts") or []
     if parts:
         short = [p for p in parts if p["available"] < p["qty"]]
-        text = f"{len(parts)} part(s)"
-        if short:
-            text += f", {len(short)} out of stock (longest lead {max(p['lead_time_days'] for p in short)} d)"
-        bits.append(text)
-    st.markdown(" · ".join(bits))
+        facts.append(f"Parts <b>{len(parts) - len(short)} of {len(parts)} on hand</b>"
+                     + (f", longest lead {max(p['lead_time_days'] for p in short)} d" if short else ""))
+    if rec.get("task_ids"):
+        facts.append("Tasks <b>" + esc(" · ".join(rec["task_ids"])) + "</b>")
+    graph = world_eligibility(case)
+    line = ""
+    if graph:
+        used = f"the plan uses {len(graph['used'])}" if graph["used"] else "none selected"
+        line = (f"World Model: {len(graph['listed'])} eligible task{'s' if len(graph['listed']) != 1 else ''} "
+                f"for this fault ({esc(', '.join(graph['listed']) or 'none')}); {used}. "
+                f'<span class="ev-tag">{esc(graph["evidence_id"])}</span>')
+        if graph["degraded"]:
+            line += f" · {esc(graph['degraded'])}"
+    st.markdown(
+        f'<div class="plan-card"><div class="plan-label">Plan</div>'
+        f'<div class="plan-action">{esc(rec.get("action") or "")}</div>'
+        f'<div class="plan-facts">{"".join(f"<span>{f}</span>" for f in facts)}</div>'
+        + (f'<div class="plan-graph">{line}</div>' if line else "") + "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _details(case: dict, ctx: dict, pack: dict) -> None:
@@ -714,9 +739,13 @@ def _fleet_page() -> None:
     st.dataframe(assets, hide_index=True, width="stretch")
     pick = st.selectbox("Ask about", assets["asset_id"].tolist() if not assets.empty else [""])
     if pick:
-        st.button("Ask this engine", on_click=_set_question,
-                  args=(f"What is wrong with {pick}, how long do I have, and what should I do?",))
-        st.caption("Puts the question in the sidebar; press Run there.")
+        st.button(f"Run the brief for {pick}", type="primary", on_click=_set_question,
+                  args=(f"What is wrong with {pick}, how long do I have, and what should I do?", True))
+        case = st.session_state.get("case") or {}
+        if (case.get("asset") or {}).get("asset_id") == pick:
+            st.markdown(f'<div class="verdict {verdict_tone(case)}"><h2>{html.escape(verdict_headline(case))}</h2>'
+                        f'<div class="meta">{html.escape(verdict_meta(case))}</div></div>', unsafe_allow_html=True)
+            st.caption("Open the Decision brief tab for the evidence and the sign-off.")
 
 
 def _trace_page() -> None:
@@ -725,18 +754,34 @@ def _trace_page() -> None:
     if not case:
         st.caption("Run a question on the Decision brief tab to see a trace.")
         return
-    st.write(f"Run `{result.get('run_id', case.get('case_id'))}` · {result.get('duration_s', '')}s")
     events = case.get("trace") or load_trace_file(ROOT / (result.get("trace_file") or ""))
     if not events:
         st.caption("No trace events.")
         return
-    st.dataframe(
-        pd.DataFrame([{
-            "agent": e.get("agent_name"), "action": e.get("action"), "status": e.get("status"),
-            "s": e.get("duration_s"), "model": e.get("model"), "out": e.get("output_summary"),
-        } for e in events]),
-        hide_index=True, width="stretch",
-    )
+    rows = trace_rows(events)
+    sent_back = sum(r["status"] == "needs revision" for r in rows)
+    st.write(f"Run `{result.get('run_id', case.get('case_id'))}` · {result.get('duration_s', '')}s · "
+             f"{len(rows)} steps · sent back for revision {sent_back}×")
+    st.caption("Every step the agents and gates took, in order. Amber rows are where a gate sent the work back. "
+               "The model column names the model that actually answered; blank means the step was code.")
+    esc = html.escape
+    st.markdown("".join(
+        f'<div class="tl-row {r["tone"]}"><span class="tl-n">{r["step"]}</span><div>'
+        f'<div class="tl-head"><b>{esc(r["agent"])}</b>'
+        + (f' <span class="tl-to">→ {esc(r["to"])}</span>' if r["to"] else "")
+        + f' · {esc(r["action"])}<span class="tl-badge">{esc(r["status"])}</span>'
+        + (f'<span class="tl-model">{esc(r["model"])}</span>' if r["model"] else "")
+        + (f' <span class="tl-n">{r["seconds"]:.2f}s</span>' if r["seconds"] is not None else "")
+        + f'</div><div class="tl-sum">{esc(r["summary"])}</div></div></div>'
+        for r in rows), unsafe_allow_html=True)
+    with st.expander("Table"):
+        st.dataframe(
+            pd.DataFrame([{
+                "agent": e.get("agent_name"), "action": e.get("action"), "status": e.get("status"),
+                "s": e.get("duration_s"), "model": e.get("model"), "out": e.get("output_summary"),
+            } for e in events]),
+            hide_index=True, width="stretch",
+        )
     with st.expander("Full JSONL"):
         st.code("\n".join(json.dumps(e) for e in events), language="json")
 
