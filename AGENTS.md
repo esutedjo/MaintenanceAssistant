@@ -49,7 +49,7 @@ Knowledge retrieval, work-order write-back and H-MEM feedback are wired (23 Oct)
 
 | Agent | Responsibility | Tools | Writes |
 | --- | --- | --- | --- |
-| Intake | Parse question, resolve asset, ask back | Deterministic parser + asset registry | `intent`, `asset` |
+| Intake | Parse question, resolve asset, ask back | Deterministic parser + asset registry; Nemotron (critic lane) only when the parser finds no engine, answer grounded and registry-checked in code | `intent`, `asset` |
 | Planner | Task list for round 1 specialists | none (deterministic) | `plan`, `round` |
 | Data agent | Telemetry, input plausibility, history, schedule, hangar slots | Zetaris read-only SQL, snapshot fallback; `tools/data_quality.py` | `evidence` (query; rule for data quality) |
 | Prognostics | RUL A and B, SHAP drivers, anomaly flag | Model tools | `findings`, `evidence` (model) |
@@ -146,7 +146,7 @@ Other datasets: FAA SDR (faa.gov/av-info/download_SDR), Kaggle aircraft maintena
 | RUL B | Health index (linear combination of degrading sensors) + exponential extrapolation to threshold |
 
 Status 22 Oct (`models/rul.py`, `uv run task train-rul`, artifacts and `rul_report.json` in `models/artifacts/turbofan_cmapss/`). Trained on 160 historical engines, 40 held out for early stopping; scored on the 200 active engines against the NASA RUL files (offline only):
-- A: RMSE 12.1, MAE 8.6; 10th–90th interval covers 73% (nominal 80%). Features use the 14 sensors that move under any failure mode.
+- A: RMSE 12.1, MAE 8.6; 10th–90th interval covers 80% (nominal 80%) after per-side conformal calibration on the held-out engines (`models/calibrate_rul.py`, margins in `rul_a.json`: lower 1.8 cycles, upper 0); 73% before. Features use the 14 sensors that move under any failure mode.
 - B: RMSE 22.3, MAE 15.7; accurate near failure (RMSE ~7 when true RUL ≤ 25). Uses only the 9 sensors that move the same way under both failure modes, measured from each engine's own first 20 cycles (engines start with different wear). Returns the cap with a note when history < 20 cycles or the index is still inside the healthy fleet band (69 of 200 engines). Its range reflects threshold spread only and is narrow; show A's range in the brief.
 - Disagreement rule changed from "> 25% or > 20 cycles" to "> 20 cycles": the relative rule flagged 44% of engines with no link to A's error; the absolute rule flags 27% and flagged engines have A error 11.6 vs 7.5.
 - Inference input is the `cycles` rows of one asset from cycle 1 (B needs the full history; A needs the last 30 cycles). Values from Zetaris arrive as strings; `normalise` coerces them.
@@ -163,7 +163,7 @@ Knowledge agent precedence when sources conflict: airworthiness directive > OEM 
 
 ## 9. Stack
 
-Python 3.11+ with `uv`; LangGraph (+ InMemorySaver); Pydantic / pydantic-settings; LLMs via **Meterless Nightshift** (`tools/llm.py`, OpenAI-compatible `http://127.0.0.1:8088/v1`): the critic is the only model call (planning is code), as Nightshift app `turbofan-maintenance-critic`, lane `nemotron` = Nemotron 3 Ultra 550B A55B. Do not put an NVIDIA key in the app. pandas, scikit-learn, LightGBM (TreeSHAP built in); Postgres + pgvector; S3; Meterless World Model + H-MEM vendored in `context-service/` (Apache 2.0, commit 1742dec) served by `node:http` on port **8710**; `tenacity`, `sqlglot`; Streamlit + Plotly (day 4); Docker Compose; pytest.
+Python 3.11+ with `uv`; LangGraph (+ InMemorySaver); Pydantic / pydantic-settings; LLMs via **Meterless Nightshift** (`tools/llm.py`, OpenAI-compatible `http://127.0.0.1:8088/v1`): planning is code; the model reads free-text questions the parser cannot and critiques the brief, both checked by code, through Nightshift app `turbofan-maintenance-critic`, lane `nemotron` = Nemotron 3 Ultra 550B A55B. Do not put an NVIDIA key in the app. pandas, scikit-learn, LightGBM (TreeSHAP built in); Postgres + pgvector; S3; Meterless World Model + H-MEM vendored in `context-service/` (Apache 2.0, commit 1742dec) served by `node:http` on port **8710**; `tenacity`, `sqlglot`; Streamlit + Plotly (day 4); Docker Compose; pytest.
 
 NVIDIA hosted NIM free tier ≈ 1,000 credits/month once the key exists: **cache model and tool results** in dev and eval. Hard limits: 3 critic rounds, 25 graph steps, 120 s per run (`RUN_TIMEOUT_S`).
 
@@ -172,7 +172,7 @@ NVIDIA hosted NIM free tier ≈ 1,000 credits/month once the key exists: **cache
 Node service in `context-service/` (`node:http`, `CONTEXT_SERVICE_PORT` default 8710): `GET /health`, `POST /world/load|/world/event|/world/query`, `GET /world/audit`, `POST /mem/write|/mem/search|/mem/feedback`, `GET /mem/ledger`.
 - World Model: asset_type → component → sensor / failure_mode → task → part. Edges are single-valued; one-to-many (signatures, task parts) live on entity attrs.
 - H-MEM: 200 synthetic past removals, source-keyed so reloads are idempotent. Diagnostics searches with `threshold=0` and failure-mode tags (default 0.35 dropped every case).
-- Intake is a deterministic parser, not Scout Intent.
+- Intake is a deterministic parser with a Nemotron fallback for free text, not Scout Intent.
 Python `ContextStore`: `MeterlessStore` (httpx) and `SqliteStore` (fallback). Default remains Meterless; the app falls back to SQLite when the service is down, and `SAMPLE_MODE` uses SQLite seeded from `data/snapshot/removals.parquet`. Day-2 decision: keep Meterless as default.
 
 ## 11. Infrastructure (AWS, region eu-central-1) — status as of 22 Oct, working
@@ -246,7 +246,7 @@ docker-compose.yml  README.md  AGENTS.md
 
 Plan: D1 (22 Oct) done · D2 (23 Oct) done (models, Meterless engines, Nightshift client, schemas, data tools, end-to-end RUL) · D3 done (graph with critic loop, rule checks, escalation, maintenance planner) · D4 done early (documents, H-MEM feedback, UI) · D5 done early (eval harness `uv run task eval` → `evaluation/report.md`, 4 golden cases, end-to-end fallback tests, clean-setup test from a copy of the shippable files) · D6 README polish, video, slides, submit.
 
-Eval (23 Oct, sample mode, 200 engines): 200/200 `needs_review`, median 0.3 s; RUL A RMSE 12.1, B 22.3; planning bound ≤ true RUL for 90% (1 of 45 engines within 30 cycles of failure overshoots, by 2 cycles); FD003 fault mode 97%; 100% of claims resolvable; 290/290 seeded faulty briefs caught by the deterministic gates, 0 false alarms; 116/116 corrupted-input runs (12 data faults, `evaluation/data_faults.py`, 10 engines) graded at the expected severity, 0 of 200 clean runs with a data-quality issue. Known weakness: A's interval covers 73% (nominal 80%).
+Eval (25 Oct, sample mode, 200 engines): 200/200 `needs_review`, median 0.4 s; RUL A RMSE 12.1, B 22.3; A's 10th–90th range covers 80% after calibration (73% before); planning bound ≤ true RUL for 92% (1 of 45 engines within 30 cycles of failure overshoots); 45 of 45 engines that fail within 15 days sent for removal or swap; FD003 fault mode 97%; 100% of claims resolvable and every stated number supported by its cited evidence; 311/311 seeded faulty briefs (16 types) caught by the deterministic gates, 0 false alarms; 116/116 corrupted-input runs (12 data faults, `evaluation/data_faults.py`, 10 engines) graded at the expected severity, 0 of 200 clean runs with a data-quality issue. Nemotron alone (`uv run task eval-llm`, gates bypassed): flagged 34 of 41 corrupted briefs in free text, 147 of 150 checkable challenges refuted by code, no clean brief blocked.
 
 Golden demo cases: (1) healthy engine **FD001-A001**; (2) HPC degradation, parts in stock **FD001-A031**; (3) fan degradation **FD003-A100** (critic forces a second round: SHAP drivers are common-trend sensors); (4) methods disagree **FD001-A070** (A 96 vs B 40 cycles, HPC; escalation `rul_divergence`, borescope inspection, confidence low, deadline from the cautious bound). In disagreements B is usually the pessimistic one (offline check against the answer key), so inspecting rather than averaging is the safe call.
 
