@@ -29,6 +29,7 @@ from evaluation.data_faults import DATA_FAULTS, CorruptSource
 from evaluation.faults import FAULTS
 from graph.runner import execute_run
 from settings import ROOT, Settings
+from tools.triage import decision_kind
 
 OUT_DIR = Path(__file__).resolve().parent
 GOLDEN = {"FD001-A001": "healthy", "FD001-A031": "hpc_parts_short", "FD003-A100": "fan_two_rounds",
@@ -180,11 +181,32 @@ def fleet_metrics(frame: pd.DataFrame, cap: float, limit: float) -> dict:
             "rounds": done["rounds"].value_counts().sort_index().to_dict(),
             "escalations": pd.Series([e for es in done["escalations"] for e in es]).value_counts().to_dict(),
         },
+        "decisions": decision_metrics(done),
         "data_quality": {
             "clean_runs_with_issues": sorted(done.loc[done["data_issues"].map(bool), "asset_id"]),
             "issues": pd.Series([i for issues in done["data_issues"] for i in issues]).value_counts().to_dict(),
         },
     }
+
+
+DECISIONS = ["remove, swap or repair", "inspect", "keep flying"]
+BANDS = [("fails within 15 days", 0, 30), ("15 to 40 days", 31, 80), ("more than 40 days", 81, 10_000)]
+
+
+def decision_metrics(frame: pd.DataFrame) -> dict:
+    """What the engineer was told against what the answer key says happened next (true RUL, 2 cycles a day)."""
+    decided = frame.assign(decision=frame["action"].map(decision_kind))
+    table = {}
+    for label, low, high in BANDS:
+        band = decided[decided["true_rul_at_last_cycle"].between(low, high)]
+        table[label] = {"engines": len(band), **{d: int((band["decision"] == d).sum()) for d in DECISIONS},
+                        "no recommendation": int((band["decision"] == "no recommendation").sum())}
+    near, far = table["fails within 15 days"], table["more than 40 days"]
+    return {"table": table,
+            "near_failure_acted_share": round(near["remove, swap or repair"] / max(near["engines"], 1), 3),
+            "near_failure_kept_flying": near["keep flying"],
+            "healthy_removed": far["remove, swap or repair"], "healthy_inspected": far["inspect"],
+            "healthy_kept_flying_share": round(far["keep flying"] / max(far["engines"], 1), 3)}
 
 
 def _data_outcome(case: CaseFile) -> str:
@@ -288,6 +310,18 @@ def markdown(report: dict) -> str:
         f"- {ev['numeric_claims']} claims state a quantity (identifiers such as document sections excluded); "
         f"{ev['numeric_claims_citing_computed_evidence_share']:.1%} cite model, query, rule or case-memory evidence "
         f"computed in code, and {ev['numeric_claims_quoting_documents_only']} quote a limit from a document only.", "",
+        "## Decisions against what happened", "",
+        f"What the engineer was told, by how long each engine actually had left (NASA answer key, "
+        f"{f['runs']} active engines). Of the {f['decisions']['table']['fails within 15 days']['engines']} engines "
+        f"that fail within 15 days, **{f['decisions']['near_failure_acted_share']:.0%}** were sent for removal, swap or "
+        f"repair and {f['decisions']['near_failure_kept_flying']} told to keep flying. Of the "
+        f"{f['decisions']['table']['more than 40 days']['engines']} engines with more than 40 days left, "
+        f"{f['decisions']['healthy_removed']} pulled early and {f['decisions']['healthy_inspected']} sent for an "
+        "inspection.", "",
+        "| True remaining life | Engines | Remove, swap or repair | Inspect | Keep flying |",
+        "| --- | --- | --- | --- | --- |",
+        *[f"| {band} | {row['engines']} | {row['remove, swap or repair']} | {row['inspect']} | {row['keep flying']} |"
+          for band, row in f["decisions"]["table"].items()], "",
         "## Critic and escalation", "",
         f"- Critic rounds per run: {', '.join(f'{k}: {v}' for k, v in f['critic']['rounds'].items())}.",
         f"- Escalations: {', '.join(f'{k} {v}' for k, v in f['critic']['escalations'].items())}.", "",

@@ -1,11 +1,11 @@
 # Evaluation report (sample mode, synthetic fleet)
 
-Generated 2026-10-25 19:42 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
+Generated 2026-10-25 21:05 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
 
 ## Run completion
 
 - Statuses: needs_review 200; crashes 0.
-- Time per run: median 0.36 s, 95th percentile 0.42 s, max 0.47 s (limit 120 s).
+- Time per run: median 0.36 s, 95th percentile 0.42 s, max 0.53 s (limit 120 s).
 
 ## Remaining life
 
@@ -22,6 +22,16 @@ Generated 2026-10-25 19:42 UTC by `uv run task eval`. 200 active engines through
 
 - 2907 claims; 100.0% cite evidence IDs that resolve.
 - 1898 claims state a quantity (identifiers such as document sections excluded); 100.0% cite model, query, rule or case-memory evidence computed in code, and 0 quote a limit from a document only.
+
+## Decisions against what happened
+
+What the engineer was told, by how long each engine actually had left (NASA answer key, 200 active engines). Of the 45 engines that fail within 15 days, **100%** were sent for removal, swap or repair and 0 told to keep flying. Of the 102 engines with more than 40 days left, 1 pulled early and 41 sent for an inspection.
+
+| True remaining life | Engines | Remove, swap or repair | Inspect | Keep flying |
+| --- | --- | --- | --- | --- |
+| fails within 15 days | 45 | 45 | 0 | 0 |
+| 15 to 40 days | 53 | 14 | 38 | 1 |
+| more than 40 days | 102 | 1 | 41 | 60 |
 
 ## Critic and escalation
 

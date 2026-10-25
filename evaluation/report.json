@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-25 19:42 UTC",
+ "generated_at": "2026-10-25 21:05 UTC",
  "settings": {
   "sample_mode": true,
   "engines": 200,
@@ -17,7 +17,7 @@
    "duration_s": {
     "p50": 0.36,
     "p95": 0.42,
-    "max": 0.47
+    "max": 0.53
    }
   },
   "rul": {
@@ -152,6 +152,36 @@
     "rul_below_lead_time": 27,
     "ambiguous_fault": 1
    }
+  },
+  "decisions": {
+   "table": {
+    "fails within 15 days": {
+     "engines": 45,
+     "remove, swap or repair": 45,
+     "inspect": 0,
+     "keep flying": 0,
+     "no recommendation": 0
+    },
+    "15 to 40 days": {
+     "engines": 53,
+     "remove, swap or repair": 14,
+     "inspect": 38,
+     "keep flying": 1,
+     "no recommendation": 0
+    },
+    "more than 40 days": {
+     "engines": 102,
+     "remove, swap or repair": 1,
+     "inspect": 41,
+     "keep flying": 60,
+     "no recommendation": 0
+    }
+   },
+   "near_failure_acted_share": 1.0,
+   "near_failure_kept_flying": 0,
+   "healthy_removed": 1,
+   "healthy_inspected": 41,
+   "healthy_kept_flying_share": 0.588
   },
   "data_quality": {
    "clean_runs_with_issues": [],
