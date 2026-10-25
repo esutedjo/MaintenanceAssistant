@@ -252,7 +252,7 @@ Golden demo cases: (1) healthy engine **FD001-A001**; (2) HPC degradation, parts
 
 ## 15. UI (decision brief)
 
-Verdict line first (action, deadline, confidence, escalation in red); metric row (RUL A with range, RUL B, fault mode probability, similar cases); driving-sensor chart; evidence list with EV tags that open the underlying data; plan (task, parts, slot); one primary button "Approve and draft work order", plus Reject and comment; trace strip (critic rounds, escalations) with link to full trace. Supporting views: fleet overview, full trace, asset packs.
+Verdict line first (action, deadline, confidence, escalation in red) with chips for how it was checked; metric row (RUL A with range, RUL B, fault mode probability, similar cases); plan card with the World Model's eligible tasks; "Why this plan and not another" (the planner's thresholds and where the plan would change); "Approve and draft work order", plus Reject and comment; five detail tabs with the evidence behind each number. Supporting views: fleet triage, trace timeline, stress test (seeded faults against the brief on screen), asset packs, help. Laid out for desktop and tablet; no sidebar.
 
 ## 16. Open questions
 

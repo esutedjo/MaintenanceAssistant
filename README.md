@@ -48,7 +48,14 @@ $env:SAMPLE_MODE = "true"
 uv run task ui
 ```
 
-Opens the decision brief at http://127.0.0.1:8501. Approve drafts a work order to `.state/draft_work_orders.jsonl` in sample mode; live mode with `PG_APP_USER` inserts into `cmms.work_orders`.
+Opens the decision brief at http://127.0.0.1:8501 (laid out for desktop and tablet). Approve drafts a work order to `.state/draft_work_orders.jsonl` in sample mode; live mode with `PG_APP_USER` inserts into `cmms.work_orders`.
+
+What a reviewer can check in the UI, without reading code:
+
+- **How the brief was checked**: chips under the verdict give the rule-check result, critic rounds and the model that answered. The Trace tab shows every step as a timeline.
+- **Why this plan and not another**: each rule the planner applied (severity band, swap against parts lead time plus the first free slot, method disagreement, mandates), this engine's value, and the value at which the plan would change. Computed from the planner's decision record and the asset pack thresholds.
+- **Stress test**: inject any of the 15 seeded mistakes (tampered remaining life, fabricated part, dropped mandate, and others) into the brief on screen and see which gate stops it. The same faults and gates as the evaluation.
+- **Fleet triage**: "Which engines need attention this week?" is answered from `data/snapshot/fleet_triage.parquet`, which `uv run task fleet-triage` builds by running the full agent graph on all 200 active engines (sample mode, about 75 s). The Fleet tab shows when it was computed and can recompute it.
 
 ## Documents (Knowledge agent)
 
@@ -111,6 +118,7 @@ uv run task eval       # 200 active engines in sample mode, about 1 minute
 
 Writes `evaluation/report.md` and `report.json`. Results from the committed snapshot:
 
+- **Decisions against what happened:** of the 45 engines that fail within 15 days (NASA answer key), 45 were sent for removal, swap or repair and none was told to keep flying. Of the 102 with more than 40 days left, 60 keep flying, 41 get an inspection and 1 is pulled early. Of the 53 in between, 1 is told to keep flying.
 - **Completion:** 200 of 200 runs reach `needs_review`, median 0.3 s per run.
 - **Remaining life:** RUL A RMSE 12.1 (10th–90th interval covers 73%, nominal 80%); RUL B RMSE 22.3, but 7.6 when true RUL is 25 cycles or less.
 - **Safety of the planning bound:** at or below the true RUL for 90% of engines. Of the 45 engines within 15 days of failure, 1 overshoots (by 2 cycles). The overshoots are mostly on engines with plenty of life left, where the interval is too narrow (73% coverage); calibrating it is the next model improvement.
@@ -136,7 +144,8 @@ The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up 
 | Command | What it does |
 | --- | --- |
 | `uv run task test` | Unit tests |
-| `uv run task eval` | Fleet evaluation, seeded faulty briefs and corrupted inputs (`evaluation/report.md`) |
+| `uv run task eval` | Fleet evaluation, decisions against the answer key, seeded faulty briefs and corrupted inputs (`evaluation/report.md`) |
+| `uv run task fleet-triage` | Run the agent graph on all active engines and rank them by decision and deadline (`data/snapshot/fleet_triage.parquet`) |
 | `uv run task sensor-ranges` | Plausible sensor ranges and steps from the training engines (`asset_packs/.../sensor_ranges.json`) |
 | `uv run python run.py --question "..."` | One decision brief as JSON |
 | `uv run task ui` | Streamlit decision brief (approve / reject, fleet, trace, asset pack) |

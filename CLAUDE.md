@@ -30,11 +30,22 @@ The World Model is now the runtime source of eligible work. Zetaris still prices
 
 `context-service/src/engines.ts` and the SQLite store now return `context` on each edge. Query helpers live in `casefile/world.py`. Tests are `tests/test_world.py` plus the eligibility case in `tests/test_rules.py`. After that work, `uv run pytest -q` was **181 passed**. The full suite was re-run after the rename to Cleris on 25 Oct, again 181 passed.
 
-Name surfaces updated after the tests: `README.md`, `AGENTS.md`, `pyproject.toml` description, `ui/app.py` (browser title **Cleris**, sidebar caption "the MRO clearance assistant"). The documented Docker tag is `cleris`. The package name is still `maintenance-assistant`.
+Name surfaces updated after the tests: `README.md`, `AGENTS.md`, `pyproject.toml` description, `ui/app.py` (browser title **Cleris**, header line "the MRO clearance assistant"). The documented Docker tag is `cleris`. The package name is still `maintenance-assistant`.
 
 `output_examples/`, the four golden `trace-sample-*` files and the four `trace-live-critic-*` files were regenerated on 25 Oct on the graph-backed planner (live: Zetaris, context service, Nemotron critic, 6–14 s per run). The two `trace-sample-bad-data-*` files are still from 23 Oct. `uv run task eval` was re-run on 25 Oct: same headline results, 2,907 claims.
 
 Two fixes from the 25 Oct live runs: `casefile/world.py` lists each task once (a store loaded before edges were scoped keeps an unscoped and a scoped `addresses` edge, which doubled the list in live mode only), and the live history query leaves out the app's own `draft` work orders (two test drafts on FD003-A100 from 23 Oct are still in `cmms.work_orders`; they made the plausibility gate flag "work orders dated after the reference time"). `tests/test_graph.py` checks behaviour (swap on FD001-A031, borescope on FD001-A070, "World Model:" in the evidence summaries), not the old sentence text.
+
+## UI and judge-facing features (25 Oct, evening)
+
+- **Layout**: no sidebar. The question, Run, the four example engines and the Explain switch sit at the top of the page. Under 1024 px the key numbers go 2 x 2 and the method cards stack (keyed containers `grid2-*` and `stack-*`, CSS in `ui/brief.py`). The tab bar was hidden under Streamlit's header before; the top padding fixes it. Deploy is hidden by `toolbarMode = "minimal"`.
+- **Brief**: verdict, check chips (`check_summary`), escalation cards (`escalation_view`), key numbers, plan card with the World Model eligibility (`world_eligibility`), **Why this plan and not another** (`decision_boundaries`: severity band, swap against lead time plus slot, disagreement, mandates, computed from the planner's decision record), In plain words (folded), sign-off (past-case ratings folded), five detail tabs.
+- **Trace tab** is a timeline (`trace_rows`). **Stress test tab** applies the 15 seeded faults of `evaluation/faults.py` to the brief on screen and shows which gate stops each (`ui/stress.py`). On the golden cases every applicable fault is caught and the clean brief passes.
+- **Fleet triage**: `uv run task fleet-triage` (`tools/triage.py`) runs the full graph on all 200 active engines in sample mode (about 75 s) and writes `data/snapshot/fleet_triage.parquet` plus a timestamp. The Fleet tab ranks them and can recompute. A fleet question on the brief page ("Which engines need attention this week?") shows the engines due within 7 days.
+- **Intake** accepts `FD003 A100`, `fd001_a031` and "engine 31 in the FD001 fleet"; two named engines ask which one; a fleet question gets `FLEET_QUESTION`.
+- **Eval** has a decision table against the answer key: 45 of 45 engines that fail within 15 days were sent for removal or swap; of 102 with more than 40 days left, 1 was pulled early and 41 got an inspection; of 53 in between, 1 was told to keep flying. VALUE deck slide 12 shows 45 / 45 in place of "200 of 200 runs".
+
+Proposed and not built: give Nemotron a role that changes outcomes and that code can verify (intake for free-form questions validated against the asset registry, or critic challenges that code confirms before they send a brief back). Both need a Nightshift app with a Nemotron lane, which is the user's setting.
 
 ## Claims that must stay true
 
