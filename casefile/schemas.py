@@ -70,6 +70,7 @@ class Intent(BaseModel):
     horizon_days: int | None = None
     needs_clarification: bool = False
     clarification: str | None = None
+    resolved_by: str | None = None      # set when an LLM read the engine from free text and code verified it
 
 
 class Task(BaseModel):

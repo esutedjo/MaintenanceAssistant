@@ -296,6 +296,9 @@ def check_summary(case: dict) -> list[tuple[str, str]]:
     rules = [v for v in verdicts if v.get("gate") == "rule_checks"]
     critic = [v for v in verdicts if v.get("gate") == "critic"]
     chips: list[tuple[str, str]] = []
+    reader = (case.get("intent") or {}).get("resolved_by")
+    if reader:
+        chips.append((f"engine read from free text by {reader}, checked by code", "plain"))
     if rules:
         sent_back = sum(v.get("outcome") != "accept" for v in rules)
         chips.append(("rule checks passed" if not sent_back else f"rule checks sent it back {sent_back}×",
