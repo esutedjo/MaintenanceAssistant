@@ -49,6 +49,18 @@ def test_planner_tasks_come_from_graph_attrs(tmp_path):
     store.close()
 
 
+def test_unscoped_and_scoped_edges_list_a_task_once():
+    # A store loaded before edges were scoped keeps the old unscoped edge next to the new FD001 one.
+    task = {"id": entity_id("task", PACK["asset_type"], "FM-HPC-01"), "attrs": {}}
+
+    class Store:
+        def query_entity(self, _id):
+            return {"incoming": [{"type": "addresses", "from": task},
+                                 {"type": "addresses", "from": task, "context": "FD001"}]}
+
+    assert task_ids_for(Store(), PACK, "hpc_degradation", "FD001") == ["FM-HPC-01"]
+
+
 def test_eligibility_gate_rejects_a_task_off_the_graph():
     rec = Recommendation(action="invent", task_ids=["FM-HPC-99"],
                          rationale=[Claim(text="r", evidence_ids=["EV-MNT-04"], confidence="high")], confidence="high")

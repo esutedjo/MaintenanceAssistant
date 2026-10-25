@@ -48,20 +48,21 @@ def _task_from_entity(entity: dict[str, Any]) -> dict[str, Any]:
 
 
 def tasks_addressing(store: ContextStore, pack: dict, mode: str, variant: str | None) -> list[dict[str, Any]]:
-    """Tasks the graph links to this failure mode in this fleet variant. Empty if the lookup fails."""
+    """Tasks the graph links to this failure mode in this fleet variant, once each (a store loaded before edges
+    were scoped can hold an unscoped and a scoped edge for the same task). Empty if the lookup fails."""
     graph = query_graph(store, entity_id("failure_mode", pack["asset_type"], mode))
     if graph is None:
         return []
     prefix = f"task:{pack['asset_type']}:"
-    tasks = []
+    tasks: dict[str, dict[str, Any]] = {}
     for edge in graph.get("incoming") or []:
         if edge.get("type") != "addresses" or not context_ok(edge, variant):
             continue
         entity = edge.get("from") or {}
         if str(entity.get("id") or "").startswith(prefix):
-            tasks.append(_task_from_entity(entity))
-    tasks.sort(key=lambda t: t["fmea_id"])
-    return tasks
+            task = _task_from_entity(entity)
+            tasks.setdefault(task["fmea_id"], task)
+    return sorted(tasks.values(), key=lambda t: t["fmea_id"])
 
 
 def task_ids_for(store: ContextStore, pack: dict, mode: str, variant: str | None) -> list[str]:
