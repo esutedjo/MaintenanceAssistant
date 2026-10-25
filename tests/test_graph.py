@@ -28,6 +28,16 @@ def test_parse_reads_asset_esn_and_goal():
     assert parse("Is the engine ok?").needs_clarification
 
 
+def test_intake_reads_ids_the_way_people_type_them():
+    assert parse("What's going on with FD003 A100?").asset_id == "FD003-A100"
+    assert parse("status of fd001_a031").asset_id == "FD001-A031"
+    assert parse("engine 31 from the FD001 fleet - should we pull it?").asset_id == "FD001-A031"
+    both = parse("Compare FD001-A031 and FD001-A070")
+    assert both.needs_clarification and "FD001-A031, FD001-A070" in both.clarification
+    fleet = parse("Which engines need attention this week?")
+    assert fleet.needs_clarification and "Fleet tab" in fleet.clarification
+
+
 def test_full_run_cites_resolvable_evidence(settings):
     result = run_case("How long can FD003-A100 keep flying and what is wrong with it?", settings)
     assert result["status"] == "needs_review"
