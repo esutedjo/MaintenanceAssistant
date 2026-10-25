@@ -40,5 +40,31 @@
    "p50": 1.112,
    "p90": 1.377
   }
+ },
+ "calibration": {
+  "method": "conformalised quantile regression on held-out engines, one margin per side",
+  "target_coverage": 0.8,
+  "holdout_engines": 40,
+  "cut_points": 1645,
+  "widen_lower_cycles": 1.8,
+  "widen_upper_cycles": 0.0,
+  "holdout_coverage_before": 0.731,
+  "holdout_coverage_after": 0.773,
+  "active_fleet_before": {
+   "engines": 200,
+   "rmse": 12.13,
+   "mae": 8.6,
+   "interval_coverage": 0.73,
+   "mean_interval_width": 32.7,
+   "not_fitted": 0
+  },
+  "active_fleet_after": {
+   "engines": 200,
+   "rmse": 12.13,
+   "mae": 8.6,
+   "interval_coverage": 0.795,
+   "mean_interval_width": 34.5,
+   "not_fitted": 0
+  }
  }
 }

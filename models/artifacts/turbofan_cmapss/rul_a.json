@@ -75,5 +75,7 @@
    ]
   }
  },
- "cap": 125.0
+ "cap": 125.0,
+ "widen_lower": 1.8,
+ "widen_upper": 0.0
 }

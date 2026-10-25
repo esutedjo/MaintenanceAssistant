@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-25 21:05 UTC",
+ "generated_at": "2026-10-25 21:45 UTC",
  "settings": {
   "sample_mode": true,
   "engines": 200,
@@ -15,16 +15,16 @@
    "brief_ready_share": 1.0,
    "crashes": 0,
    "duration_s": {
-    "p50": 0.36,
-    "p95": 0.42,
-    "max": 0.53
+    "p50": 0.38,
+    "p95": 0.45,
+    "max": 0.58
    }
   },
   "rul": {
    "a": {
     "rmse": 12.13,
     "mae": 8.6,
-    "interval_coverage": 0.73
+    "interval_coverage": 0.795
    },
    "b": {
     "rmse": 22.31,
@@ -33,55 +33,47 @@
    }
   },
   "safety": {
-   "planning_bound_at_or_below_true_rul_share": 0.9,
-   "bound_above_true_rul": 20,
+   "planning_bound_at_or_below_true_rul_share": 0.92,
+   "bound_above_true_rul": 16,
    "of_which_flagged_for_inspection_or_low_confidence": 1,
-   "mean_overshoot_cycles": 8.7,
+   "mean_overshoot_cycles": 8.9,
    "overshoot_with_true_rul_le_30": 1,
    "engines_with_true_rul_le_30": 45,
    "overshoot_engines": {
     "FD001-A001": {
-     "bound": 116.7,
+     "bound": 114.9,
      "true_rul": 112
     },
     "FD001-A002": {
-     "bound": 114.2,
+     "bound": 112.4,
      "true_rul": 98
     },
-    "FD001-A014": {
-     "bound": 107.2,
-     "true_rul": 107
-    },
     "FD001-A022": {
-     "bound": 122.6,
+     "bound": 120.8,
      "true_rul": 111
     },
     "FD001-A050": {
-     "bound": 81.5,
+     "bound": 79.7,
      "true_rul": 79
     },
     "FD001-A056": {
-     "bound": 17.0,
+     "bound": 15.2,
      "true_rul": 15
     },
     "FD001-A067": {
-     "bound": 94.9,
+     "bound": 93.1,
      "true_rul": 77
     },
     "FD001-A078": {
-     "bound": 120.6,
+     "bound": 119.1,
      "true_rul": 107
     },
-    "FD001-A085": {
-     "bound": 119.5,
-     "true_rul": 118
-    },
     "FD003-A005": {
-     "bound": 109.0,
+     "bound": 107.2,
      "true_rul": 101
     },
     "FD003-A006": {
-     "bound": 102.6,
+     "bound": 100.8,
      "true_rul": 99
     },
     "FD003-A016": {
@@ -89,35 +81,27 @@
      "true_rul": 56
     },
     "FD003-A019": {
-     "bound": 89.9,
+     "bound": 88.1,
      "true_rul": 85
     },
     "FD003-A034": {
-     "bound": 74.1,
+     "bound": 72.3,
      "true_rul": 65
     },
-    "FD003-A035": {
-     "bound": 87.3,
-     "true_rul": 87
-    },
     "FD003-A054": {
-     "bound": 116.4,
+     "bound": 114.6,
      "true_rul": 87
     },
     "FD003-A065": {
-     "bound": 118.6,
+     "bound": 116.8,
      "true_rul": 115
     },
-    "FD003-A068": {
-     "bound": 104.6,
-     "true_rul": 103
-    },
     "FD003-A074": {
-     "bound": 124.4,
+     "bound": 122.6,
      "true_rul": 117
     },
     "FD003-A091": {
-     "bound": 101.3,
+     "bound": 99.5,
      "true_rul": 81
     }
    }
@@ -137,7 +121,7 @@
   "evidence": {
    "claims": 2907,
    "claims_with_resolvable_evidence_share": 1.0,
-   "numeric_claims": 1898,
+   "numeric_claims": 1897,
    "numeric_claims_citing_computed_evidence_share": 1.0,
    "numeric_claims_quoting_documents_only": 0
   },
@@ -191,8 +175,8 @@
  "seeded_faults": {
   "briefs": 30,
   "clean_briefs_flagged": [],
-  "seeded": 290,
-  "caught": 290,
+  "seeded": 311,
+  "caught": 311,
   "catch_rate": 1.0,
   "by_fault": {
    "uncited_claim": {
@@ -252,6 +236,10 @@
     "caught": 5
    },
    "similar_cases_dropped": {
+    "seeded": 21,
+    "caught": 21
+   },
+   "claim_number_altered": {
     "seeded": 21,
     "caught": 21
    }

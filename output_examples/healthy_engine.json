@@ -1,5 +1,5 @@
 {
- "run_id": "20261025T194146Z-056270",
+ "run_id": "20261025T214530Z-bd6bf6",
  "status": "needs_review",
  "question": "What is the status of FD001-A001?",
  "mode": {
@@ -19,13 +19,14 @@
   "asset_id": "FD001-A001",
   "horizon_days": null,
   "needs_clarification": false,
-  "clarification": null
+  "clarification": null,
+  "resolved_by": null
  },
  "findings": {
   "rul_ml": {
    "method": "lightgbm",
    "rul": 120.9,
-   "lower": 116.7,
+   "lower": 114.9,
    "upper": 125.0,
    "at_cap": false,
    "note": null,
@@ -145,7 +146,7 @@
   ],
   "claims": [
    {
-    "text": "Remaining useful life is about 121 cycles (10th-90th percentile 117-125) by the ML model; the health-index trend gives 125.",
+    "text": "Remaining useful life is about 121 cycles (10th-90th percentile 115-125) by the ML model; the health-index trend gives 125.",
     "evidence_ids": [
      "EV-PRG-01",
      "EV-PRG-02"
@@ -191,10 +192,10 @@
   "task_ids": [],
   "parts": [],
   "slot": "2026-10-23",
-  "deadline": "2026-12-19",
+  "deadline": "2026-12-18",
   "rationale": [
    {
-    "text": "Deadline 2026-12-19 is the RUL lower bound 117 cycles at 2 cycles/day.",
+    "text": "Deadline 2026-12-18 is the RUL lower bound 115 cycles at 2 cycles/day.",
     "evidence_ids": [
      "EV-PRG-01",
      "EV-PRG-02"
@@ -202,7 +203,7 @@
     "confidence": "high"
    },
    {
-    "text": "Trigger severity minor: planning lower bound 117 cycles (min(A 10th percentile 117, B lower 125); severe < 25, moderate < 80).",
+    "text": "Trigger severity minor: planning lower bound 115 cycles (min(A 10th percentile 115, B lower 125); severe < 25, moderate < 80).",
     "evidence_ids": [
      "EV-MNT-03",
      "EV-PRG-01",
@@ -311,7 +312,7 @@
   "EV-KNW-02": {
    "kind": "document",
    "source": "snapshot:doc_chunks.parquet#AD-2026-17-04#(g)",
-   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: mandatory only when hpc_degradation with p >= 0.5 and RUL lower bound < 30 cycles; not met here (RUL lower bound 117)",
+   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: mandatory only when hpc_degradation with p >= 0.5 and RUL lower bound < 30 cycles; not met here (RUL lower bound 115)",
    "produced_by": "knowledge",
    "degraded": null
   },
@@ -353,14 +354,14 @@
   "EV-MNT-03": {
    "kind": "rule",
    "source": "asset_pack:turbofan_cmapss/thresholds",
-   "summary": "Trigger severity minor: planning lower bound 117 cycles (min(A 10th percentile 117, B lower 125); severe < 25, moderate < 80).",
+   "summary": "Trigger severity minor: planning lower bound 115 cycles (min(A 10th percentile 115, B lower 125); severe < 25, moderate < 80).",
    "produced_by": "maint_planner",
    "degraded": null
   },
   "EV-PRG-01": {
    "kind": "model",
    "source": "model:rul_a@turbofan_cmapss/0.1.0",
-   "summary": "RUL A (LightGBM): 121 cycles, 10th-90th 117-125 at cycle 31",
+   "summary": "RUL A (LightGBM): 121 cycles, 10th-90th 115-125 at cycle 31",
    "produced_by": "prognostics",
    "degraded": null
   },
@@ -386,6 +387,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261025T194146Z-056270.jsonl",
- "duration_s": 0.25
+ "trace_file": "logs\\trace-20261025T214530Z-bd6bf6.jsonl",
+ "duration_s": 0.27
 }

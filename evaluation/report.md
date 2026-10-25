@@ -1,17 +1,17 @@
 # Evaluation report (sample mode, synthetic fleet)
 
-Generated 2026-10-25 21:05 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
+Generated 2026-10-25 21:45 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
 
 ## Run completion
 
 - Statuses: needs_review 200; crashes 0.
-- Time per run: median 0.36 s, 95th percentile 0.42 s, max 0.53 s (limit 120 s).
+- Time per run: median 0.38 s, 95th percentile 0.45 s, max 0.58 s (limit 120 s).
 
 ## Remaining life
 
-- RUL A (LightGBM): RMSE 12.13, MAE 8.6; 10th-90th interval covers 73% of true values (nominal 80%).
+- RUL A (LightGBM): RMSE 12.13, MAE 8.6; 10th-90th interval covers 80% of true values (nominal 80%).
 - RUL B (health index): RMSE 22.31, MAE 15.72; RMSE 7.55 when true RUL is 25 cycles or less.
-- Planning bound (min of A 10th percentile and B lower) is at or below the true RUL for 90.0% of engines. 20 engines overshoot (mean 8.7 cycles); flagged for inspection or low confidence among them: 1. Near failure it matters most: of the 45 engines within 30 cycles (15 days) of failure, 1 overshoot.
+- Planning bound (min of A 10th percentile and B lower) is at or below the true RUL for 92.0% of engines. 16 engines overshoot (mean 8.9 cycles); flagged for inspection or low confidence among them: 1. Near failure it matters most: of the 45 engines within 30 cycles (15 days) of failure, 1 overshoot.
 - Methods disagree (> 20 cycles) on 54 engines (27%); RUL A error there is 11.61 vs 7.48 elsewhere, so the flag points at genuinely uncertain engines.
 
 ## Fault mode
@@ -21,7 +21,7 @@ Generated 2026-10-25 21:05 UTC by `uv run task eval`. 200 active engines through
 ## Evidence
 
 - 2907 claims; 100.0% cite evidence IDs that resolve.
-- 1898 claims state a quantity (identifiers such as document sections excluded); 100.0% cite model, query, rule or case-memory evidence computed in code, and 0 quote a limit from a document only.
+- 1897 claims state a quantity (identifiers such as document sections excluded); 100.0% cite model, query, rule or case-memory evidence computed in code, and 0 quote a limit from a document only.
 
 ## Decisions against what happened
 
@@ -40,7 +40,7 @@ What the engineer was told, by how long each engine actually had left (NASA answ
 
 ## Seeded faulty briefs
 
-290 faulty briefs built from 30 finished briefs (the 4 golden cases plus a random sample). The deterministic gates (rule checks, then the critic's deterministic checks; no LLM) caught **290 of 290 (100%)**. Clean briefs flagged: 0.
+311 faulty briefs built from 30 finished briefs (the 4 golden cases plus a random sample). The deterministic gates (rule checks, then the critic's deterministic checks; no LLM) caught **311 of 311 (100%)**. Clean briefs flagged: 0.
 
 | Fault | Seeded | Caught |
 | --- | --- | --- |
@@ -59,6 +59,7 @@ What the engineer was told, by how long each engine actually had left (NASA answ
 | mandate_uncited | 8 | 8 |
 | drivers_as_signature | 5 | 5 |
 | similar_cases_dropped | 21 | 21 |
+| claim_number_altered | 21 | 21 |
 
 ## Implausible input data
 

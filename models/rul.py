@@ -47,6 +47,8 @@ class LightGbmRul:
     sensors: list[str]
     stats: dict
     cap: float
+    widen_lower: float = 0.0    # conformal margins (cycles) per side; models/calibrate_rul.py
+    widen_upper: float = 0.0
 
     @property
     def features(self) -> list[str]:
@@ -63,7 +65,8 @@ class LightGbmRul:
         estimates = []
         for i, (asset, cycle) in enumerate(zip(last["asset_id"], last["cycle"])):
             point = _clip(raw["p50"][i], self.cap)
-            lower, upper = sorted((_clip(raw["p10"][i], self.cap), _clip(raw["p90"][i], self.cap)))
+            lower, upper = sorted((_clip(raw["p10"][i] - self.widen_lower, self.cap),
+                                   _clip(raw["p90"][i] + self.widen_upper, self.cap)))
             estimates.append(RulEstimate(
                 method="lightgbm", asset_id=asset, last_cycle=int(cycle), rul=point,
                 lower=min(lower, point), upper=max(upper, point), at_cap=point >= self.cap,
@@ -74,7 +77,8 @@ class LightGbmRul:
         directory.mkdir(parents=True, exist_ok=True)
         for name, booster in self.boosters.items():
             booster.save_model(str(directory / f"rul_a_{name}.txt"))
-        meta = {"sensors": self.sensors, "stats": self.stats, "cap": self.cap}
+        meta = {"sensors": self.sensors, "stats": self.stats, "cap": self.cap,
+                "widen_lower": self.widen_lower, "widen_upper": self.widen_upper}
         (directory / "rul_a.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
 
     @classmethod

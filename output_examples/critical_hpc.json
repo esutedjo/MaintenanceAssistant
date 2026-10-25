@@ -1,5 +1,5 @@
 {
- "run_id": "20261025T194140Z-86b4a0",
+ "run_id": "20261025T214524Z-84703d",
  "status": "needs_review",
  "question": "What should I do about FD001-A031?",
  "mode": {
@@ -19,13 +19,14 @@
   "asset_id": "FD001-A031",
   "horizon_days": null,
   "needs_clarification": false,
-  "clarification": null
+  "clarification": null,
+  "resolved_by": null
  },
  "findings": {
   "rul_ml": {
    "method": "lightgbm",
    "rul": 9.8,
-   "lower": 7.2,
+   "lower": 5.4,
    "upper": 11.2,
    "at_cap": false,
    "note": null,
@@ -173,7 +174,7 @@
   ],
   "claims": [
    {
-    "text": "Remaining useful life is about 10 cycles (10th-90th percentile 7-11) by the ML model; the health-index trend gives 7.",
+    "text": "Remaining useful life is about 10 cycles (10th-90th percentile 5-11) by the ML model; the health-index trend gives 7.",
     "evidence_ids": [
      "EV-PRG-01",
      "EV-PRG-02"
@@ -306,7 +307,7 @@
     "confidence": "high"
    },
    {
-    "text": "Trigger severity severe: planning lower bound 0 cycles (min(A 10th percentile 7, B lower 0); severe < 25, moderate < 80).",
+    "text": "Trigger severity severe: planning lower bound 0 cycles (min(A 10th percentile 5, B lower 0); severe < 25, moderate < 80).",
     "evidence_ids": [
      "EV-MNT-04",
      "EV-PRG-01",
@@ -393,7 +394,8 @@
    {
     "text": "Similar past removals in case memory gave a median of 27 cycles of warning (127 cases). This engine is 16 cycles past its first moderate finding.",
     "evidence_ids": [
-     "EV-DIA-05"
+     "EV-DIA-05",
+     "EV-MNT-05"
     ],
     "confidence": "medium"
    }
@@ -587,14 +589,21 @@
   "EV-MNT-04": {
    "kind": "rule",
    "source": "asset_pack:turbofan_cmapss/thresholds",
-   "summary": "Trigger severity severe: planning lower bound 0 cycles (min(A 10th percentile 7, B lower 0); severe < 25, moderate < 80).",
+   "summary": "Trigger severity severe: planning lower bound 0 cycles (min(A 10th percentile 5, B lower 0); severe < 25, moderate < 80).",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-05": {
+   "kind": "rule",
+   "source": "case_file:history",
+   "summary": "First moderate or severe finding at cycle 180; last observed cycle 196; 16 cycles since.",
    "produced_by": "maint_planner",
    "degraded": null
   },
   "EV-PRG-01": {
    "kind": "model",
    "source": "model:rul_a@turbofan_cmapss/0.1.0",
-   "summary": "RUL A (LightGBM): 10 cycles, 10th-90th 7-11 at cycle 196",
+   "summary": "RUL A (LightGBM): 10 cycles, 10th-90th 5-11 at cycle 196",
    "produced_by": "prognostics",
    "degraded": null
   },
@@ -620,6 +629,6 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261025T194140Z-86b4a0.jsonl",
+ "trace_file": "logs\\trace-20261025T214524Z-84703d.jsonl",
  "duration_s": 0.27
 }
