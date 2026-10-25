@@ -1,0 +1,16 @@
+.venv
+.scratch
+.state
+.pytest_cache
+.git
+.cursor
+logs
+data/raw
+data/export
+__pycache__
+*.pyc
+.env
+.env.local
+node_modules
+context-service/node_modules
+context-service/.state
