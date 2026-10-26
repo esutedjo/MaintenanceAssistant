@@ -1,0 +1,917 @@
+{
+ "run_id": "20261026T071525Z-124e1f",
+ "trace_id": "trace-20261026T071525Z-124e1f",
+ "status": "needs_review",
+ "question": "The two remaining-life estimates for FD001-A070 look different. What should I do?",
+ "mode": {
+  "sample_mode": true,
+  "data": "snapshot",
+  "context_store": "sqlite"
+ },
+ "degraded": [],
+ "asset": {
+  "asset_id": "FD001-A070",
+  "asset_type": "turbofan_cmapss",
+  "pack_version": "0.1.0",
+  "variant": "FD001"
+ },
+ "intent": {
+  "goal": "full_assessment",
+  "asset_id": "FD001-A070",
+  "horizon_days": null,
+  "needs_clarification": false,
+  "clarification": null,
+  "resolved_by": null,
+  "recorded": null
+ },
+ "findings": {
+  "rul_ml": {
+   "method": "lightgbm",
+   "rul": 95.5,
+   "lower": 72.6,
+   "upper": 107.9,
+   "at_cap": false,
+   "note": null,
+   "evidence_id": "EV-PRG-01"
+  },
+  "rul_trend": {
+   "method": "health_index",
+   "rul": 40.4,
+   "lower": 33.2,
+   "upper": 46.1,
+   "at_cap": false,
+   "note": null,
+   "evidence_id": "EV-PRG-02"
+  },
+  "fault_modes": [
+   {
+    "failure_mode": "hpc_degradation",
+    "probability": 1.0,
+    "evidence_id": "EV-DIA-01"
+   }
+  ],
+  "drivers": [
+   {
+    "sensor": "s_2",
+    "component": "lpc",
+    "contribution": -4.13,
+    "evidence_id": "EV-PRG-03"
+   },
+   {
+    "sensor": "s_11",
+    "component": "hpc",
+    "contribution": -2.62,
+    "evidence_id": "EV-PRG-03"
+   },
+   {
+    "sensor": "s_20",
+    "component": "hpt",
+    "contribution": -1.98,
+    "evidence_id": "EV-PRG-03"
+   },
+   {
+    "sensor": "s_21",
+    "component": "lpt",
+    "contribution": -1.08,
+    "evidence_id": "EV-PRG-03"
+   }
+  ],
+  "anomaly": {
+   "cycle": 152,
+   "health_index": 0.229,
+   "fleet_median": 0.231,
+   "residual_sigma": -0.01,
+   "flagged": false,
+   "evidence_id": "EV-PRG-04"
+  },
+  "similar_cases": [
+   "EV-DIA-02",
+   "EV-DIA-03",
+   "EV-DIA-04"
+  ],
+  "documents": [
+   {
+    "doc_id": "AD-2026-17-04",
+    "doc_type": "airworthiness_directive",
+    "section": "(g)",
+    "heading": "Required actions",
+    "revision": "0",
+    "effective_date": "2026-09-01",
+    "precedence": 0,
+    "relevance": 0.189,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-02"
+   },
+   {
+    "doc_id": "SB-TF-72-0142",
+    "doc_type": "service_bulletin",
+    "section": "3.B",
+    "heading": "Recommended action",
+    "revision": "1",
+    "effective_date": "2026-06-15",
+    "precedence": 1,
+    "relevance": 0.175,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-03"
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "05-20-00",
+    "heading": "Gas-path trend monitoring",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 0.241,
+    "failure_modes": [
+     "hpc_degradation",
+     "fan_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-04"
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "72-31-00",
+    "heading": "HPC borescope inspection",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 0.208,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": "SB-TF-72-0142 3.B",
+    "evidence_id": "EV-KNW-05"
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "72-31-00-601",
+    "heading": "HPC blade borescope limits (table 601)",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 1.0,
+    "failure_modes": [],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-06"
+   }
+  ],
+  "inspections": [
+   {
+    "finding_id": "INS-c534c827",
+    "evidence_id": "EV-INS-01",
+    "kind": "borescope",
+    "module": "hpc",
+    "location": "HPC stage 3",
+    "cycle": 152,
+    "result": "beyond",
+    "classified_by": "limit",
+    "limit_evidence_id": "EV-KNW-06",
+    "reference": "AMM-TF-R3 72-31-00-601",
+    "limit": {
+     "id": "HPC-TIP",
+     "name": "blade tip erosion",
+     "unit": "mm",
+     "serviceable": 0.5,
+     "reject": 0.75
+    },
+    "action": "remove",
+    "interval_cycles": null,
+    "fresh": true,
+    "current": true,
+    "superseded_by": null,
+    "note": null
+   }
+  ],
+  "claims": [
+   {
+    "text": "Remaining useful life is about 96 cycles (10th-90th percentile 73-108) by the ML model; the health-index trend gives 40.",
+    "evidence_ids": [
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "low"
+   },
+   {
+    "text": "The two RUL methods differ by 55 cycles (limit 20); treat the estimate as uncertain.",
+    "evidence_ids": [
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "low"
+   },
+   {
+    "text": "Most likely fault mode: HPC degradation (probability 1.00).",
+    "evidence_ids": [
+     "EV-DIA-01"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Sensors pulling the RUL estimate down most: T24 (lpc), Ps30 (hpc), W31 (hpt).",
+    "evidence_ids": [
+     "EV-PRG-03"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "3 similar past removals found in case memory.",
+    "evidence_ids": [
+     "EV-DIA-02",
+     "EV-DIA-03",
+     "EV-DIA-04"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "SB-TF-72-0142 3.B (service bulletin) takes precedence over AMM-TF-R3 72-31-00 (manual) on the same topic; SB recommended; adopting it needs engineering approval.",
+    "evidence_ids": [
+     "EV-KNW-03",
+     "EV-KNW-05"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Applicable documents, highest precedence first: AD-2026-17-04 (g), SB-TF-72-0142 3.B, AMM-TF-R3 05-20-00, AMM-TF-R3 72-31-00.",
+    "evidence_ids": [
+     "EV-KNW-02",
+     "EV-KNW-03",
+     "EV-KNW-04",
+     "EV-KNW-05"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "Inspection finding EV-INS-01 (borescope, HPC stage 3, cycle 152): blade tip erosion 0.82 mm is above the reject limit 0.75 mm of AMM-TF-R3 72-31-00-601: beyond limits.",
+    "evidence_ids": [
+     "EV-INS-01",
+     "EV-KNW-06"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Inspection finding EV-INS-01 on the HPC is beyond limits, physical wear on the module HPC degradation wears: it corroborates the primary fault mode.",
+    "evidence_ids": [
+     "EV-DIA-06",
+     "EV-INS-01",
+     "EV-DIA-01"
+    ],
+    "confidence": "high"
+   }
+  ]
+ },
+ "recommendation": {
+  "action": "Remove the engine before further flight (borescope, HPC stage 3 beyond limits); swap in lease engine; module shop visit on the removed engine",
+  "task_ids": [
+   "FM-HPC-06",
+   "FM-HPC-04"
+  ],
+  "parts": [
+   {
+    "part_number": "TF-HPC-1101",
+    "qty": 1,
+    "available": 2,
+    "lead_time_days": 35,
+    "evidence_ids": [
+     "EV-MNT-03"
+    ]
+   },
+   {
+    "part_number": "TF-HPC-1104",
+    "qty": 1,
+    "available": 3,
+    "lead_time_days": 21,
+    "evidence_ids": [
+     "EV-MNT-03"
+    ]
+   },
+   {
+    "part_number": "TF-GEN-8102",
+    "qty": 1,
+    "available": 30,
+    "lead_time_days": 5,
+    "evidence_ids": [
+     "EV-MNT-03"
+    ]
+   },
+   {
+    "part_number": "TF-ENG-9001",
+    "qty": 1,
+    "available": 1,
+    "lead_time_days": 21,
+    "evidence_ids": [
+     "EV-MNT-03"
+    ]
+   }
+  ],
+  "slot": "2026-10-23",
+  "deadline": "2026-10-22",
+  "rationale": [
+   {
+    "text": "Deadline 2026-10-22 (the reference date): inspection finding EV-INS-01 is beyond limits and AMM-TF-R3 72-31-00-601 requires removal before further flight, before the remaining-life deadline 2026-11-07; the engine does not fly again until it is removed.",
+    "evidence_ids": [
+     "EV-INS-01",
+     "EV-KNW-06",
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Trigger severity severe: planning lower bound 33 cycles (min(A 10th percentile 73, B lower 33); severe < 25, moderate < 80). Raised to severe by inspection finding EV-INS-01 (beyond limits).",
+    "evidence_ids": [
+     "EV-MNT-04",
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-INS-01"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Inspection finding EV-INS-01 is beyond limits per AMM-TF-R3 72-31-00-601: the plan removes the engine before further flight; nothing less meets the manual.",
+    "evidence_ids": [
+     "EV-INS-01",
+     "EV-KNW-06"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Selected tasks need TF-HPC-1101 (need 1, 2 on hand, 35 d lead), TF-HPC-1104 (need 1, 3 on hand, 21 d lead), TF-GEN-8102 (need 1, 30 on hand, 5 d lead), TF-ENG-9001 (need 1, 1 on hand, 21 d lead). In-stock substitutes do not replace a short required part.",
+    "evidence_ids": [
+     "EV-MNT-03",
+     "EV-MNT-04"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Inspection finding EV-INS-01 grounds the engine now and a repair on wing waits: all parts are on hand but the next free slot is 1 d away; swap a lease engine and do the shop visit on the removed engine.",
+    "evidence_ids": [
+     "EV-INS-01",
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-MNT-04",
+     "EV-DAT-05",
+     "EV-MNT-03"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "World Model task FM-HPC-06: Swap in lease engine; module shop visit on the removed engine.",
+    "evidence_ids": [
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "World Model task FM-HPC-04: Remove engine; replace HPC stage 1-3 blades and case abradable seals.",
+    "evidence_ids": [
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Primary fault mode HPC degradation (p=1.00).",
+    "evidence_ids": [
+     "EV-DIA-01"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "World Model lists tasks for this fault (FM-HPC-01, FM-HPC-02, FM-HPC-03, FM-HPC-04, FM-HPC-05, FM-HPC-06); the plan uses FM-HPC-06, FM-HPC-04.",
+    "evidence_ids": [
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "World Model links these document sections to tasks for this fault: AD-2026-17-04 (g)\u2192FM-HPC-01, AMM-TF-R2 72-31-00\u2192FM-HPC-01, AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-31-00\u2192FM-HPC-01, AMM-TF-R3 72-31-10\u2192FM-HPC-02, SB-TF-72-0142 3.B\u2192FM-HPC-01; which apply now and which are mandatory is decided by the knowledge agent.",
+    "evidence_ids": [
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Similar past removals in case memory gave a median of 27 cycles of warning (127 cases).",
+    "evidence_ids": [
+     "EV-DIA-05"
+    ],
+    "confidence": "medium"
+   }
+  ],
+  "confidence": "high"
+ },
+ "escalations": [
+  {
+   "rule": "inspection_beyond_limits",
+   "severity": "urgent",
+   "message": "Inspection finding EV-INS-01 (borescope, HPC stage 3, cycle 152): HPC-TIP 0.82 mm is beyond the limits of AMM-TF-R3 72-31-00-601.",
+   "actions": [
+    "Remove the engine before further flight",
+    "Mandatory: the plan cannot propose less than the manual requires"
+   ],
+   "evidence_ids": [
+    "EV-INS-01",
+    "EV-KNW-06"
+   ]
+  },
+  {
+   "rule": "rul_divergence",
+   "severity": "info",
+   "message": "RUL A (95.5) and RUL B (40.4) differ by 55.1 cycles (limit 20); the fresh inspection finding EV-INS-01 (beyond limits) answers it.",
+   "actions": [
+    "Inspection done: the plan follows the finding",
+    "Do not average the two remaining-life estimates"
+   ],
+   "evidence_ids": [
+    "EV-PRG-01",
+    "EV-PRG-02",
+    "EV-INS-01"
+   ]
+  },
+  {
+   "rule": "potentially_reportable",
+   "severity": "info",
+   "message": "Potentially reportable: check your occurrence reporting scheme (EU 376/2014 and 2015/1018 Annex II; 14 CFR 121.703 / 145.221). The decision to report stays with people. Why: inspection finding EV-INS-01 is beyond limits.",
+   "actions": [
+    "Check the occurrence reporting scheme",
+    "Cleris files nothing; the decision to report stays with people"
+   ],
+   "evidence_ids": [
+    "EV-INS-01"
+   ]
+  }
+ ],
+ "verdicts": [
+  {
+   "round": 1,
+   "gate": "rule_checks",
+   "outcome": "accept",
+   "gaps": [],
+   "model": null,
+   "routes": [],
+   "recorded": null,
+   "dropped_notes": []
+  },
+  {
+   "round": 1,
+   "gate": "critic",
+   "outcome": "accept",
+   "gaps": [],
+   "model": null,
+   "routes": [],
+   "recorded": null,
+   "dropped_notes": []
+  }
+ ],
+ "evidence": {
+  "EV-DAT-01": {
+   "kind": "query",
+   "source": "snapshot:cycles.parquet",
+   "summary": "FD001-A070: 152 cycles (1-152); largest moves vs first 20 cycles: Nc +2.2 sd, Ps30 +1.7 sd, T50 +1.4 sd",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-02": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/data_quality",
+   "summary": "FD001-A070: input data plausible (152 cycles, 21 sensors, 4 work orders within asset-pack limits)",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-03": {
+   "kind": "query",
+   "source": "snapshot:history.parquet",
+   "summary": "FD001-A070: 4 work orders; last inspection WO-000632 at cycle 120 severity none; 0 inspection(s) with findings",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-04": {
+   "kind": "query",
+   "source": "snapshot:flight_schedule.parquet",
+   "summary": "FD001-A070: 12 cycles planned in 7 days, 58 in 30 days",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-05": {
+   "kind": "query",
+   "source": "snapshot:hangar_slots.parquet",
+   "summary": "75 free hangar slots; first on 2026-10-23 (1 days from 2026-10-22)",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DIA-01": {
+   "kind": "model",
+   "source": "model:fault_mode@turbofan_cmapss/0.1.0",
+   "summary": "Fault-mode match: hpc_degradation 1.00 (variant FD001 has one failure mode in the asset pack)",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-02": {
+   "kind": "case",
+   "source": "sqlite:cmms:work_orders/WO-000055",
+   "summary": "Past case FD001-H011 (FD001, synthetic): HPC degradation. Engine removed unscheduled at cycle 240; first moderate finding at cycle 240, warning_to_removal_cycles=0. Shop finding: ENGINE REMOVED UNSCHEDULED AT 240 CYC FOR PERFORMANCE DETERIO",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-03": {
+   "kind": "case",
+   "source": "sqlite:cmms:work_orders/WO-000781",
+   "summary": "Past case FD003-H012 (FD003, synthetic): HPC degradation. Engine removed unscheduled at cycle 170; first moderate finding at cycle 170, warning_to_removal_cycles=0. Shop finding: ENGINE REMOVED UNSCHEDULED AT 170 CYC FOR PERFORMANCE DETERIO",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-04": {
+   "kind": "case",
+   "source": "sqlite:cmms:work_orders/WO-000874",
+   "summary": "Past case FD003-H026 (FD003, synthetic): HPC degradation. Engine removed unscheduled at cycle 243; first moderate finding at cycle 240, warning_to_removal_cycles=3. Shop finding: ENGINE REMOVED UNSCHEDULED AT 243 CYC FOR PERFORMANCE DETERIO",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-05": {
+   "kind": "case",
+   "source": "sqlite:hmem/hpc_degradation/warning",
+   "summary": "H-MEM: 127 past HPC degradation removals, median 27 cycles from the first moderate finding to removal",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-DIA-06": {
+   "kind": "rule",
+   "source": "inspection:EV-INS-01",
+   "summary": "Inspection finding EV-INS-01 on the HPC is beyond limits, physical wear on the module HPC degradation wears: it corroborates the primary fault mode.",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-INS-01": {
+   "kind": "inspection",
+   "source": "entered by Example inspector",
+   "summary": "Inspection finding INS-c534c827 entered by Example inspector: borescope, HPC stage 3 at cycle 152 (2026-10-22): HPC-TIP 0.82 mm; Tip erosion on several stage 3 blades with curl on the worst blade; leading-edge material loss.",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-INT-01": {
+   "kind": "query",
+   "source": "snapshot:assets.parquet",
+   "summary": "FD001-A070 (ESN-700170, FD001) is active; last observed cycle 152 at 2026-10-22T00:00:00+00:00",
+   "produced_by": "intake",
+   "degraded": null
+  },
+  "EV-KNW-01": {
+   "kind": "query",
+   "source": "snapshot:doc_chunks.parquet",
+   "summary": "13 document sections for turbofan_cmapss; 4 apply; excluded: AMM-TF-R2 72-31-00 (superseded by AMM-TF-R3)",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-02": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AD-2026-17-04#(g)",
+   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: mandatory only when hpc_degradation with p >= 0.5 and RUL lower bound < 30 cycles; not met here (RUL lower bound 33)",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-03": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#SB-TF-72-0142#3.B",
+   "summary": "SB-TF-72-0142 3.B Recommended action [service bulletin, rev 1, effective 2026-06-15]: relevance 0.17",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-04": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AMM-TF-R3#05-20-00",
+   "summary": "AMM-TF-R3 05-20-00 Gas-path trend monitoring [manual, rev 3, effective 2026-03-01]: relevance 0.24",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-05": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AMM-TF-R3#72-31-00",
+   "summary": "AMM-TF-R3 72-31-00 HPC borescope inspection [manual, rev 3, effective 2026-03-01]: overridden by SB-TF-72-0142 3.B on hpc_borescope_interval",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-06": {
+   "kind": "document",
+   "source": "snapshot:doc_chunks.parquet#AMM-TF-R3#72-31-00-601",
+   "summary": "AMM-TF-R3 72-31-00-601 HPC blade borescope limits (table 601) [manual, rev 3, effective 2026-03-01]: HPC-TIP blade tip erosion serviceable up to 0.5, reject above 0.75 mm; HPC-NICK leading-edge nick depth serviceable up to 0.25, reject above 0.5 mm; HPC-COAT coating loss (share of airfoil area) serviceable up to 10, reject above 25 %; next inspection 60 cycles within limits, re-inspect within 30 cycles at the limit",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-MNT-01": {
+   "kind": "query",
+   "source": "snapshot:fmea_tasks.parquet",
+   "summary": "hpc_degradation: 6 FMEA tasks; FM-HPC-01 inspect (minor); FM-HPC-02 restore (minor); FM-HPC-03 inspect (moderate); FM-HPC-04 replace (severe); FM-HPC-05 replace (severe); FM-HPC-06 engine_change (severe)",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-02": {
+   "kind": "rule",
+   "source": "sqlite:world/hpc_degradation",
+   "summary": "World Model: 6 tasks address hpc_degradation",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-03": {
+   "kind": "query",
+   "source": "snapshot:parts.parquet",
+   "summary": "TF-ENG-9001 (Spare engine lease (per month)): 1 available, lead time 21 d; TF-GEN-8102 (Engine gasket and O-ring kit): 30 available, lead time 5 d; TF-HPC-1101 (HPC stage 1-3 blade set): 2 available, lead time 35 d; TF-HPC-1104 (HPC case abradable seal set): 3 available, lead time 21 d",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-04": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/thresholds",
+   "summary": "Trigger severity severe: planning lower bound 33 cycles (min(A 10th percentile 73, B lower 33); severe < 25, moderate < 80). Raised to severe by inspection finding EV-INS-01 (beyond limits).",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-PRG-01": {
+   "kind": "model",
+   "source": "model:rul_a@turbofan_cmapss/0.1.0",
+   "summary": "RUL A (LightGBM): 96 cycles, 10th-90th 73-108 at cycle 152",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-02": {
+   "kind": "model",
+   "source": "model:rul_b@turbofan_cmapss/0.1.0",
+   "summary": "RUL B (health-index trend): 40 cycles (lower 33, upper 46), health index 0.23 (healthy band up to 0.18)",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-03": {
+   "kind": "model",
+   "source": "model:shap_rul_a@turbofan_cmapss/0.1.0",
+   "summary": "Sensors pulling RUL A down, in cycles: T24 (lpc) -4.1, Ps30 (hpc) -2.6, W31 (hpt) -2.0, W32 (lpt) -1.1",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-04": {
+   "kind": "model",
+   "source": "model:anomaly@turbofan_cmapss/0.1.0",
+   "summary": "Health index 0.23 is -0.0 sd from the fleet median 0.23 at cycle 152 (flag at +2 sd)",
+   "produced_by": "prognostics",
+   "degraded": null
+  }
+ },
+ "decision_log": [
+  {
+   "timestamp": "2026-10-26T07:15:25.920450Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "human",
+   "actor": "Example inspector",
+   "decision": "entered inspection finding",
+   "rationale": "Borescope, HPC stage 3 at cycle 152 (2026-10-22): HPC-TIP 0.82 mm; Tip erosion on several stage 3 blades with curl on the worst blade; leading-edge material loss.",
+   "evidence_ids": [
+    "EV-INS-01"
+   ],
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.061861Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "agent",
+   "actor": "intake",
+   "decision": "resolved engine",
+   "rationale": "The question resolves to FD001-A070, found in the asset registry.",
+   "evidence_ids": [
+    "EV-INT-01"
+   ],
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.289706Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "agent",
+   "actor": "planner",
+   "decision": "delegated follow-up",
+   "rationale": "To diagnostics: inspection_check: RUL A 96 and RUL B 40 differ by 55 cycles (limit 20); the fresh finding EV-INS-01 on the suspected module answers that in place of a back-test; 1 inspection finding(s) entered (EV-INS-01); once Knowledge has compared each with the manual's limit, say whether it corroborates or weakens the fault mode.",
+   "evidence_ids": [
+    "EV-INS-01"
+   ],
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.308340Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "agent",
+   "actor": "knowledge",
+   "decision": "compared finding with limits",
+   "rationale": "EV-INS-01 is beyond limits against AMM-TF-R3 72-31-00-601.",
+   "evidence_ids": [
+    "EV-INS-01",
+    "EV-KNW-06"
+   ],
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.309340Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "agent",
+   "actor": "diagnostics",
+   "decision": "ran follow-up",
+   "rationale": "EV-DIA-06: EV-INS-01 corroborates.",
+   "evidence_ids": [
+    "EV-DIA-06"
+   ],
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.327864Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "agent",
+   "actor": "maint_planner",
+   "decision": "proposed plan",
+   "rationale": "Remove the engine before further flight (borescope, HPC stage 3 beyond limits); swap in lease engine; module shop visit on the removed engine; deadline 2026-10-22; 4 parts, confidence high.",
+   "evidence_ids": [
+    "EV-MNT-01",
+    "EV-MNT-02",
+    "EV-MNT-03",
+    "EV-MNT-04"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.334365Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "gate",
+   "actor": "rule_checks",
+   "decision": "accepted",
+   "rationale": "All deterministic rule checks passed.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.337080Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "accepted",
+   "rationale": "No gap found by the deterministic checks.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.338263Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "escalated",
+   "rationale": "Inspection finding EV-INS-01 (borescope, HPC stage 3, cycle 152): HPC-TIP 0.82 mm is beyond the limits of AMM-TF-R3 72-31-00-601 (urgent, rule inspection_beyond_limits).",
+   "evidence_ids": [
+    "EV-INS-01",
+    "EV-KNW-06"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.338263Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "escalated",
+   "rationale": "RUL A (95.5) and RUL B (40.4) differ by 55.1 cycles (limit 20); the fresh inspection finding EV-INS-01 (beyond limits) answers it (info, rule rul_divergence).",
+   "evidence_ids": [
+    "EV-PRG-01",
+    "EV-PRG-02",
+    "EV-INS-01"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:26.338263Z",
+   "run_id": "20261026T071525Z-124e1f",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "escalated",
+   "rationale": "Potentially reportable: check your occurrence reporting scheme (EU 376/2014 and 2015/1018 Annex II; 14 CFR 121.703 / 145.221). The decision to report stays with people. Why: inspection finding EV-INS-01 is beyond limits (info, rule potentially_reportable).",
+   "evidence_ids": [
+    "EV-INS-01"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  }
+ ],
+ "agents": [
+  {
+   "name": "intake",
+   "role": "Reads the question and resolves the engine, or asks back",
+   "uses_model": true,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "planner",
+   "role": "Assigns round 1, delegates follow-ups the findings call for, routes each gap to the agent that can fix it",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "data",
+   "role": "Telemetry, input plausibility, history, schedule, slots, entered inspection findings; inspection history and targeted re-queries",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "prognostics",
+   "role": "RUL methods A and B, SHAP drivers, anomaly flag; back-test at the last inspection",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "diagnostics",
+   "role": "Fault-mode match and similar past cases; checks both candidates when unclear; checks an inspection finding against the fault mode",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "knowledge",
+   "role": "Applicable documents in precedence order, mandates decided in code; the limit section for each inspection finding, compared in code; binds a missing mandate",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "maint_planner",
+   "role": "Task, parts, slot and deadline from the RUL lower bound; applies the routed fixes",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "rule_checks",
+   "role": "Deterministic gate: citations, numbers, parts, slots, deadlines, mandates",
+   "uses_model": false,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "critic",
+   "role": "Deterministic checks, then Nemotron challenges that code confirms or refutes",
+   "uses_model": true,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "escalation",
+   "role": "Deterministic escalation rules from the asset pack",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  }
+ ],
+ "model_calls": [],
+ "trace_file": "logs\\trace-20261026T071525Z-124e1f.jsonl",
+ "duration_s": 0.3,
+ "execution_time_seconds": 0.297
+}

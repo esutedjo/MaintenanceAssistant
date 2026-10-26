@@ -24,8 +24,6 @@ def main() -> int:
             return 1
         print(f"provider={result.provider} requested={result.requested_model} model={result.model} "
               f"duration={result.duration_s}s reply={result.text.strip()[:60]!r}")
-        if result.fallback_reason:
-            print(f"fallback: {result.fallback_reason}")
         return 0
     finally:
         client.close()

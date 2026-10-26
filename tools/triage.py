@@ -25,6 +25,8 @@ def decision_kind(action: str | None) -> str:
         return "no recommendation"
     if text.startswith(("no action proposed", "continue")):     # "continue in service" is the pre-27 Oct wording
         return "keep flying"
+    if "remove the engine before further flight" in text:       # an inspection finding beyond limits
+        return "remove, swap or repair"
     if "inspect" in text or "borescope" in text:
         return "inspect"
     return "remove, swap or repair"

@@ -1,19 +1,29 @@
 """Maintenance planner: task, parts, slot and deadline from the RUL lower bound.
-Eligible work comes from the World Model; DataTools only prices parts and slots. On a revise round it rebuilds the
-plan on what the other agents added (a mandate Knowledge bound, stock or slots the data agent re-queried, follow-up
-evidence) and applies the targeted fix for each gap kind the planner routed to it."""
+Eligible work comes from the World Model; DataTools only prices parts and slots. An inspection finding is acted on:
+beyond limits removes the engine before further flight, at the limit re-inspects within the manual's interval, within
+limits answers the inspection the plan would have asked for. On a revise round it rebuilds the plan on what the other
+agents added (a mandate Knowledge bound, stock or slots the data agent re-queried, follow-up evidence) and applies the
+targeted fix for each gap kind the planner routed to it."""
 
 from datetime import date as date_cls, timedelta
 
 from agents.runtime import NodeResult, RunContext, node
 from assurance.escalation import needs_approval, parts_wait_days, pending_adoptions, remaining_shorter_than_wait
-from casefile.schemas import CaseFile, Claim, Confidence, EvidenceLedger, Findings, PartNeed, Recommendation
+from casefile.schemas import (
+    RESULT_RANK, CaseFile, Claim, Confidence, EvidenceLedger, Findings, PartNeed, Recommendation,
+)
+from casefile.wear import no_wear_label, no_wear_text
 from casefile.world import asset_state, fmea_extra, mandated_for_mode, tasks_addressing
 from tools.data_tools import DataTools
+from tools.inspections import RESULT_TEXT, mode_for_module, where
 
 SEVERITY_RANK = {"none": 0, "minor": 1, "moderate": 2, "severe": 3}
 # Advice, not an airworthiness determination: the engineer's release process decides.
 HEALTHY_ACTION = "No action proposed before the next scheduled inspection"
+# The start of the action when an inspection finding is beyond limits; the rule checks look for it.
+REMOVE_ACTION = "Remove the engine before further flight"
+# The start of the action when the planning bound is at or below 0 cycles or runs out before the first free slot.
+NO_DISPATCH = "Do not dispatch"
 
 
 def _severity(lower_cycles: float, pack: dict, inspection: str | None) -> str:
@@ -70,16 +80,35 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     healthy = (a.at_cap or (b is not None and b.at_cap)) and not diverge
     prefer_inspect = diverge or ambiguous or healthy
     fixes = {k for t in state.pending("maint_planner") for k in (t.kind or "").split(",")}
+    variant = state.asset.variant if state.asset else None
+
+    # Inspection findings (Knowledge compared each with its limit). The worst current one governs; it can only make
+    # the plan more cautious, except that fresh findings within limits on every suspected module answer the
+    # inspection a disagreement or an unclear fault would otherwise ask for.
+    current = [i for i in findings.inspections if i.current]
+    worst = max(current, key=lambda i: RESULT_RANK[i.result]) if current else None
+    gate = worst.result if worst else None
+    inspected_mode = mode_for_module(pack, worst.module, variant) if worst else None
+    suspected = {pack["failure_modes"][m]["component"] for m in top_modes}
+    answered = (gate == "within" and (diverge or ambiguous) and bool(suspected)
+                and suspected <= {i.module for i in current if i.result == "within" and i.fresh})
+    if gate == "beyond":
+        severity, healthy, prefer_inspect = "severe", False, False
+        top_modes = [inspected_mode] if inspected_mode else top_modes[:1]
+    elif gate == "at_limit" and inspected_mode:
+        severity = max(severity, "moderate", key=SEVERITY_RANK.__getitem__)
+        healthy, prefer_inspect, top_modes = False, False, [inspected_mode]
+    # A beyond-limits finding on a module no fault mode wears (oil system, HPT) calls for removal, not module work.
+    module_work = not (gate == "beyond" and inspected_mode is None)
 
     ledger = EvidenceLedger("maint_planner", state.evidence)
     tools = DataTools(ctx.data, ledger, pack, ctx.settings.reference_time)
-    variant = state.asset.variant if state.asset else None
     chosen, part_rows, world_ids, catalogue = [], [], [], []
     for mode in top_modes or (["hpc_degradation"] if not healthy else []):
         world = _world_tasks(ctx, ledger, mode, variant, tools)
         world_ids.append(world.id)
         catalogue.extend(world.content["tasks"])
-        if not healthy:
+        if not healthy and module_work:
             picked = _pick_tasks(world.content["tasks"], severity, prefer_inspect)
             chosen.extend(picked)
             for task in picked:
@@ -161,7 +190,8 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
 
     rul_days = lower / cycles_per_day
     lead_wait = parts_wait_days(needs(part_rows))
-    if swap_task and remaining_shorter_than_wait(rul_days, lead_wait, slot_days):
+    # Beyond limits grounds the engine now: no remaining life to wait out parts and a slot on wing.
+    if swap_task and remaining_shorter_than_wait(0.0 if gate == "beyond" else rul_days, lead_wait, slot_days):
         chosen.insert(0, swap_task)
         part_rows.extend(swap_task["parts"])
     parts = needs(part_rows)
@@ -172,6 +202,18 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     early = None
     if backtest is not None and backtest.content["optimistic_missed_wear"] and slot_date and slot_date < deadline:
         deadline, early = slot_date, backtest
+    # The manual's interval for the finding: now for beyond limits, the re-inspection interval at the limit, the
+    # routine interval within limits; whichever is earlier, it or the deadline so far, stands.
+    reference = ctx.settings.reference_time.date()
+    timed = worst if gate in ("beyond", "at_limit") else min(
+        (i for i in current if i.result == "within" and i.interval_cycles and i.module in suspected),
+        key=lambda i: i.interval_cycles, default=None)
+    by_inspection = None
+    if timed is not None and (timed.result == "beyond" or timed.interval_cycles):
+        due = reference if timed.result == "beyond" else \
+            reference + timedelta(days=int(timed.interval_cycles / cycles_per_day))
+        if due <= deadline:
+            deadline, by_inspection, early = due, timed, None
     if "deadline_after_bound" in fixes:
         deadline = min(deadline, rul_deadline)
 
@@ -195,6 +237,34 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     else:
         action = chosen[0]["task"] if chosen else "Review on wing"
         confidence = "medium" if severity != "severe" else "high"
+    if worst is not None:
+        what = f"{where(state.evidence[worst.evidence_id].content['finding'], pack)} {RESULT_TEXT[worst.result]}"
+        then = swap or next((t for t in chosen if t["task_type"] != "engine_change"), None)
+        if gate == "beyond":
+            action = f"{REMOVE_ACTION} ({what})" + (f"; {_lower_first(then['task'])}" if then else "")
+            confidence = "high"
+        elif gate == "at_limit" and not swap and SEVERITY_RANK[severity] <= SEVERITY_RANK["moderate"]:
+            # The module's own work when a fault mode wears it; otherwise the plan the rest of the evidence gives.
+            rest = (then["task"] if then and inspected_mode else action if action != HEALTHY_ACTION else "")
+            action = f"Re-inspect within {worst.interval_cycles} cycles ({what})" + (f"; {_lower_first(rest)}"
+                                                                                     if rest else "")
+            confidence = "medium" if inspected_mode else confidence     # on the suspected module it answers
+        elif answered:
+            kind = (pack.get("inspections") or {}).get("kinds", {}).get(worst.kind, worst.kind).split(" (")[0].lower()
+            action = f"No removal ({what}); next {kind} by the deadline"
+            confidence = "medium"
+    # No flying left before the work can start: a planning bound at or below 0 cycles, or a deadline before the first
+    # free slot. Say so first and name the slot (a finding beyond limits already removes the engine before flight).
+    grounded = not healthy and gate != "beyond" and (lower <= 0 or (slot_date is not None and deadline < slot_date))
+    if grounded:
+        at_slot = f" at the first free slot ({slot_date})" if slot_date else ""
+        if swap and action == swap["task"]:
+            head, _, rest = swap["task"].partition(";")
+            action = f"{NO_DISPATCH}; {_lower_first(head.strip())}{at_slot}" + (f"; {rest.strip()}" if rest.strip()
+                                                                                 else "")
+        else:
+            until = f" until the first free slot ({slot_date})" if slot_date else ""
+            action = f"{NO_DISPATCH}{until}; {_lower_first(action)}"
     bad_data = [(e.id, i["detail"]) for e in [*state.evidence.values(), *ledger.records.values()]
                 for i in e.content.get("issues") or [] if isinstance(i, dict) and i.get("severity") == "serious"]
     reread = _latest(state, "reproduced")
@@ -205,20 +275,28 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         confidence = "low"
 
     short = [p for p in parts if p.available < p.qty]
+    raised = (f" Raised to {severity} by inspection finding {worst.evidence_id} ({RESULT_TEXT[gate]})."
+              if gate in ("beyond", "at_limit") and severity != _severity(lower, pack, _inspection_severity(state))
+              else "")
     planning = ledger.add(
         "rule", f"asset_pack:{pack['asset_type']}/thresholds",
         (f"Trigger severity {severity}: planning lower bound {lower:.0f} cycles "
          f"({bound_note}; severe < {pack['thresholds']['severe_rul_cycles']}, "
-         f"moderate < {pack['thresholds']['moderate_rul_cycles']})."),
+         f"moderate < {pack['thresholds']['moderate_rul_cycles']}).{raised}"),
         {"severity": severity, "rul_lower_cycles": lower, "bound": bound_note,
          "rul_a_lower": a.lower, "rul_b_lower": None if b is None else b.lower,
          "rul_days": round(rul_days, 2),
          "lead_days": lead_wait, "slot_days": slot_days,
          "short_parts": [{"part_number": p.part_number, "available": p.available, "qty": p.qty,
-                          "lead_time_days": p.lead_time_days} for p in short]},
+                          "lead_time_days": p.lead_time_days} for p in short],
+         **({"inspection": worst.evidence_id, "inspection_result": gate} if worst else {})},
     )
     rul_ids = [a.evidence_id, *([b.evidence_id] if b else [])]
-    if early is not None:
+    if by_inspection is not None:
+        rationale = [Claim(text=_inspection_deadline_text(by_inspection, deadline, rul_deadline, cycles_per_day),
+                           evidence_ids=[by_inspection.evidence_id, by_inspection.limit_evidence_id, *rul_ids],
+                           confidence=confidence)]
+    elif early is not None:
         rationale = [Claim(text=(f"Deadline {deadline} is the first free slot: the back-test shows the "
                                  f"{early.content['optimistic_method']} estimate missed wear the last inspection "
                                  f"found, so the inspection does not wait for the RUL lower bound deadline "
@@ -245,7 +323,19 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
                   "A re-read of the inputs past the run's cache did not reproduce the plausibility issue: the first "
                   "read was faulty and this brief is built on it, so re-run the brief before acting on its numbers."),
             evidence_ids=[reread.id], confidence="low" if bad_data else "medium"))
-    rationale.append(Claim(text=planning.summary, evidence_ids=[planning.id, *rul_ids], confidence=confidence))
+    rationale.append(Claim(text=planning.summary, evidence_ids=[planning.id, *rul_ids, *([worst.evidence_id]
+                                                                                       if raised else [])],
+                           confidence=confidence))
+    if grounded:
+        why = ("leaves no flight before the work" if lower <= 0 else
+               f"runs out on {deadline}, before the first free slot {slot_date}")
+        rationale.append(Claim(
+            text=(f"Planning lower bound {lower:.0f} cycles {why}: do not dispatch; the engine stays on the ground "
+                  + (f"until the work at the first free slot {slot_date}." if slot_date else "until the work.")),
+            evidence_ids=[planning.id, *rul_ids, *([slots_ev.id] if slots_ev else [])], confidence="high"))
+    for item in current:
+        rationale.append(Claim(text=_inspection_text(item, deadline, answered),
+                               evidence_ids=[item.evidence_id, item.limit_evidence_id], confidence="high"))
     if backtest is not None:
         rationale.append(Claim(text=f"{backtest.summary}.", evidence_ids=[backtest.id, backtest.content["from"]],
                                confidence="medium"))
@@ -267,10 +357,16 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         waiting = [p.part_number for p in short if p.part_number not in swap_parts]
         reason = (f"short parts {', '.join(waiting)} need {lead_wait} d lead time plus next free slot {slot_days} d"
                   if waiting else f"all parts are on hand but the next free slot is {slot_days} d away")
-        rationale.append(Claim(
-            text=(f"RUL lower bound {rul_days:.1f} days is shorter than the time to repair on wing: {reason}; "
-                  f"swap a lease engine and do the shop visit on the removed engine."),
-            evidence_ids=wait_ids, confidence="high"))
+        if gate == "beyond":
+            rationale.append(Claim(
+                text=(f"Inspection finding {worst.evidence_id} grounds the engine now and a repair on wing waits: "
+                      f"{reason}; swap a lease engine and do the shop visit on the removed engine."),
+                evidence_ids=[worst.evidence_id, *wait_ids], confidence="high"))
+        else:
+            rationale.append(Claim(
+                text=(f"RUL lower bound {rul_days:.1f} days is shorter than the time to repair on wing: {reason}; "
+                      f"swap a lease engine and do the shop visit on the removed engine."),
+                evidence_ids=wait_ids, confidence="high"))
     for task in chosen:
         rationale.append(Claim(text=f"World Model task {task['fmea_id']}: {task['task']}.",
                                evidence_ids=world_ids or rul_ids, confidence=confidence))
@@ -296,9 +392,15 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
             evidence_ids=[doc.evidence_id, *(world_ids or [])], confidence="high"))
     if findings.fault_modes:
         top = findings.fault_modes[0]
-        rationale.append(Claim(text=f"Primary fault mode {pack['failure_modes'][top.failure_mode]['label']} "
-                                    f"(p={top.probability:.2f}).",
-                               evidence_ids=[top.evidence_id], confidence="high" if top.probability >= 0.85 else "medium"))
+        quiet = no_wear_label(findings.model_dump(), pack, variant)
+        if quiet:       # one-mode fleet, healthy engine: p=1.00 is by construction, not a finding
+            rationale.append(Claim(text=f"{no_wear_text(quiet)}.", evidence_ids=[top.evidence_id, *rul_ids],
+                                   confidence="high"))
+        else:
+            rationale.append(Claim(text=f"Primary fault mode {pack['failure_modes'][top.failure_mode]['label']} "
+                                        f"(p={top.probability:.2f}).",
+                                   evidence_ids=[top.evidence_id],
+                                   confidence="high" if top.probability >= 0.85 else "medium"))
         if not world_ids:
             world = _world_tasks(ctx, ledger, top.failure_mode, variant, tools)
             world_ids.append(world.id)
@@ -367,6 +469,37 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     elif fixes:
         summary += "; rebuilt on the repaired evidence"
     return NodeResult(update, summary, confidence={"low": 0.3, "medium": 0.6, "high": 0.9}[confidence])
+
+
+def _lower_first(text: str) -> str:
+    return text[:1].lower() + text[1:]
+
+
+def _inspection_deadline_text(item, deadline, rul_deadline, cycles_per_day: float) -> str:
+    """Why the deadline is the inspection's: now (beyond limits) or the manual's interval, before the RUL bound."""
+    if item.result == "beyond":
+        return (f"Deadline {deadline} (the reference date): inspection finding {item.evidence_id} is beyond limits and "
+                f"{item.reference or 'the inspector'} requires removal before further flight, before the remaining-life "
+                f"deadline {rul_deadline}; the engine does not fly again until it is removed.")
+    what = "re-inspection at the limit" if item.result == "at_limit" else "next routine inspection"
+    return (f"Deadline {deadline} is the {what} that {item.reference or 'the asset pack'} sets for inspection finding "
+            f"{item.evidence_id}: {item.interval_cycles} cycles at {cycles_per_day} cycles/day, earlier than the "
+            f"remaining-life deadline {rul_deadline}.")
+
+
+def _inspection_text(item, deadline, answered: bool) -> str:
+    """What the plan does with one current finding, as the manual requires."""
+    head = f"Inspection finding {item.evidence_id} is {RESULT_TEXT[item.result]}"
+    by = f" per {item.reference}" if item.reference else " (inspector-classified)"
+    if item.result == "beyond":
+        return f"{head}{by}: the plan removes the engine before further flight; nothing less meets the manual."
+    if item.result == "at_limit":
+        return (f"{head}{by}: re-inspect within {item.interval_cycles} cycles; the deadline {deadline} is not later "
+                "than that interval.")
+    if answered:
+        return (f"{head}{by}: it answers the inspection the brief would otherwise ask for, so no removal; the next "
+                f"inspection is due by {deadline}.")
+    return f"{head}{by}: no removal on this finding; the plan follows the remaining-life bound and any mandate."
 
 
 def _latest(state: CaseFile, key: str):

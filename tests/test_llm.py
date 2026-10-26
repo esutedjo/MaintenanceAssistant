@@ -1,5 +1,3 @@
-import json
-
 import httpx
 import pytest
 
@@ -10,20 +8,14 @@ from tools.mock_nightshift import mock_nightshift
 TOKEN = "test-runtime-token"
 
 
-def settings(token: str = TOKEN, nvidia_key: str = "") -> Settings:
-    return Settings(_env_file=None, meterless_runtime_token=token, nvidia_api_key=nvidia_key)
+def settings(token: str = TOKEN) -> Settings:
+    return Settings(_env_file=None, meterless_runtime_token=token)
 
 
-def nvidia_mock(calls: list) -> httpx.MockTransport:
+def unreachable(calls: list | None = None) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request)
-        model = json.loads(request.content)["model"]
-        return httpx.Response(200, json={"model": model, "choices": [{"message": {"content": "fallback"}}]})
-    return httpx.MockTransport(handler)
-
-
-def unreachable() -> httpx.MockTransport:
-    def handler(request: httpx.Request) -> httpx.Response:
+        if calls is not None:
+            calls.append(request)
         raise httpx.ConnectError("connection refused", request=request)
     return httpx.MockTransport(handler)
 
@@ -63,24 +55,22 @@ def test_chat_can_route_as_a_separate_app():
     assert seen[-1].headers["meterless-app"] == "turbofan-maintenance-critic"
 
 
-def test_refusal_never_falls_back():
-    calls = []
-    client = LlmClient(settings(nvidia_key="k"), meterless_transport=mock_nightshift(TOKEN), nvidia_transport=nvidia_mock(calls))
+def test_refusal_goes_back_to_the_caller():
+    client = LlmClient(settings(), meterless_transport=mock_nightshift(TOKEN))
     with pytest.raises(LlmRefusal, match="Pick a mode"):
         client.chat([{"role": "user", "content": "x"}], model="meterless/unknown")
     with pytest.raises(LlmRefusal, match="access token"):
-        LlmClient(settings("wrong", nvidia_key="k"), meterless_transport=mock_nightshift(TOKEN),
-                  nvidia_transport=nvidia_mock(calls)).chat([{"role": "user", "content": "x"}])
-    assert calls == []
+        LlmClient(settings("wrong"), meterless_transport=mock_nightshift(TOKEN)).chat([{"role": "user", "content": "x"}])
 
 
-def test_transport_failure_falls_back_to_nvidia_with_reason():
+def test_nightshift_is_the_only_provider_and_an_outage_is_unavailable():
+    """No direct NVIDIA API fallback: an unreachable Nightshift raises LlmUnavailable after one request."""
     calls = []
-    client = LlmClient(settings(nvidia_key="k"), meterless_transport=unreachable(), nvidia_transport=nvidia_mock(calls))
-    result = client.chat([{"role": "user", "content": "x"}])
-    assert result.provider == "nvidia" and result.model == "nvidia/nemotron-3-super-120b-a12b"
-    assert "unreachable" in result.fallback_reason
-    assert len(calls) == 1
+    client = LlmClient(settings(), meterless_transport=unreachable(calls))
+    with pytest.raises(LlmUnavailable, match="Nightshift unreachable"):
+        client.chat([{"role": "user", "content": "x"}])
+    assert len(calls) == 1 and all(c.url.host == "127.0.0.1" for c in calls)
+    assert not any(name.startswith("nvidia") for name in Settings.model_fields)
 
 
 def test_placeholder_token_is_not_sent_and_without_fallback_is_unavailable():

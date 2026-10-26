@@ -11,7 +11,7 @@
     "test": "tsx --test src/*.test.ts",
     "conformance": "node scripts/conformance.mjs"
   },
-  "devDependencies": {
+  "dependencies": {
     "tsx": "^4.20.0"
   }
 }

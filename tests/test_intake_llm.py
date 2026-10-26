@@ -73,8 +73,11 @@ def test_free_text_question_runs_after_nemotron_reads_the_serial(tmp_path, monke
     assert result["status"] == "needs_review" and result["asset"]["asset_id"] == "FD001-A031"
     assert result["intent"]["resolved_by"] == MODEL
     lines = [json.loads(x) for x in (ROOT / result["trace_file"]).read_text(encoding="utf-8").splitlines()]
-    intake = next(e for e in lines if e["agent_name"] == "intake")
+    intake = next(e for e in lines if e["agent_name"] == "intake" and e["action"] == "parse_and_resolve")
     assert intake["model"] == MODEL and "checked against the question and registry" in intake["output_summary"]
+    assert intake["recorded"] is False, "a live call says recorded: false"
+    assert result["model_calls"][0] == {"agent": "intake", "model": MODEL, "recorded": False,
+                                        "source": "live Nightshift call"}
 
 
 def test_an_ungrounded_answer_asks_back(tmp_path, monkeypatch):

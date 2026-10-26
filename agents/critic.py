@@ -10,7 +10,9 @@ import time
 
 from agents.runtime import NodeResult, RunContext, node
 from assurance.challenges import KINDS, prompt_section, verify
+from assurance.notes import fold as fold_notes, screen as screen_notes
 from assurance.routing import routes_for
+from casefile.decision_log import REFUTED, SCREEN_NOTES
 from casefile.schemas import CaseFile, MAX_ROUNDS, Verdict
 from models.fault_mode import discriminating
 from tools import llm_recordings as recordings
@@ -81,14 +83,19 @@ def _parse(text: str) -> dict:
     if not match:
         raise ValueError("critic returned no JSON object")
     data = json.loads(match.group())
+    if not isinstance(data, dict):
+        raise ValueError("critic reply is not a JSON object")
     outcome = str(data.get("outcome") or "").strip().lower()
     if outcome not in {"accept", "revise", "reject"}:
         raise ValueError(f"invalid critic outcome {outcome!r}")
-    raw_gaps = data.get("gaps") or []
-    if isinstance(raw_gaps, str):
-        raw_gaps = [raw_gaps]
-    challenges = [c for c in data.get("challenges") or [] if isinstance(c, dict) and c.get("kind") in KINDS]
-    return {"outcome": outcome, "gaps": [str(g) for g in raw_gaps], "challenges": challenges}
+    # Valid JSON is not a valid reply: coerce every field's type, so model text can never fail the run.
+    raw_gaps = data.get("gaps")
+    raw_gaps = [raw_gaps] if isinstance(raw_gaps, str) else raw_gaps if isinstance(raw_gaps, list) else []
+    raw = data.get("challenges")
+    challenges = [c for c in (raw if isinstance(raw, list) else [])
+                  if isinstance(c, dict) and isinstance(c.get("kind"), str) and c["kind"] in KINDS]
+    return {"outcome": outcome, "gaps": [str(g)[:1000] for g in raw_gaps if isinstance(g, (str, int, float))],
+            "challenges": challenges}
 
 
 def _remaining_s(ctx: RunContext) -> float:
@@ -131,57 +138,93 @@ def _reply_gaps(text: str, model: str) -> tuple[list[str], list[dict], str | Non
     return gaps, parsed["challenges"], note
 
 
-def _recorded_gaps(prompt: str) -> tuple[list[str], str | None, str | None, list[dict]]:
-    """Sample mode: the recorded Nemotron reply to exactly this prompt, else nothing (deterministic checks only)."""
+LlmGaps = tuple[list[str], str | None, str | None, list[dict], str | None]
+
+
+def _recorded_gaps(prompt: str) -> LlmGaps:
+    """Sample mode: the recorded Nemotron reply to exactly this prompt, else nothing (deterministic checks only).
+    The last item is the recording's label, set whenever a recorded reply was read."""
     recording = recordings.lookup(prompt, "critic")
     if recording is None:
-        return [], None, None, []
+        return [], None, None, [], None
     try:
         gaps, challenges, note = _reply_gaps(recording.text, recording.model)
-    except (ValueError, json.JSONDecodeError) as error:
-        return [], recording.model, f"llm_critic_skipped: recorded reply unreadable ({type(error).__name__})", []
-    return gaps, recording.model, note or recording.label, challenges
+    except (ValueError, TypeError, KeyError) as error:      # json.JSONDecodeError is a ValueError
+        return ([], recording.model, f"llm_critic_skipped: recorded reply unreadable ({type(error).__name__})", [],
+                recording.label)
+    return gaps, recording.model, note, challenges, recording.label
 
 
-def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, str | None, list[dict]]:
-    """Returns (gaps, model_name, note, challenges). Empty model_name means the LLM was not called. In sample mode
-    the note is the recording's label ("recorded Nemotron response (captured <date>)")."""
+def _llm_gaps(case: CaseFile, ctx: RunContext) -> LlmGaps:
+    """Returns (gaps, model_name, note, challenges, recorded). Empty model_name means no model reply was read;
+    `recorded` is the recording's label ("recorded Nemotron response (captured <date>)") for a sample-mode replay."""
     prompt = critic_prompt(case, ctx.pack)
     if ctx.settings.sample_mode:
         return _recorded_gaps(prompt)
     remaining = _remaining_s(ctx)
     if remaining < ctx.settings.critic_timeout_s + 1:
         return [], None, (f"llm_critic_skipped: remaining run time {remaining:.0f}s "
-                          f"< critic timeout {ctx.settings.critic_timeout_s:.0f}s"), []
+                          f"< critic timeout {ctx.settings.critic_timeout_s:.0f}s"), [], None
     client = LlmClient(ctx.settings)
     reply = None
     try:
         reply = client.chat([{"role": "user", "content": prompt}], model=ctx.settings.meterless_critic_model,
                             temperature=0, max_tokens=1024, app=ctx.settings.meterless_critic_app,
                             response_format={"type": "json_object"}, timeout_s=ctx.settings.critic_timeout_s)
+        from tools.status import note_model_reply
+        note_model_reply(ctx.settings.meterless_critic_app, reply.model)
         gaps, challenges, note = _reply_gaps(reply.text, reply.model)
-        return gaps, reply.model, note, challenges
-    except (LlmUnavailable, LlmRefusal, ValueError, json.JSONDecodeError) as error:
+        return gaps, reply.model, note, challenges, None
+    except (LlmUnavailable, LlmRefusal, ValueError, TypeError, KeyError) as error:
         snippet = (reply.text[:240] if reply and reply.text else "")
         log.warning("llm critic skipped (%s: %s): %s", type(error).__name__, str(error)[:300], snippet)
-        return [], (reply.model if reply else None), f"llm_critic_skipped: {type(error).__name__}", []
+        return [], (reply.model if reply else None), f"llm_critic_skipped: {type(error).__name__}", [], None
     finally:
         client.close()
+
+
+def verify_challenges(case: CaseFile, ctx: RunContext, challenges: list[dict], model: str | None
+                      ) -> tuple[list[str], list[tuple[dict, str]]]:
+    """Code verifies each challenge the model raised: (confirmed gaps that send the brief back, the refuted
+    challenges each with its note)."""
+    confirmed, refuted = [], []
+    reference = ctx.settings.reference_time.date()
+    for challenge in challenges:
+        try:
+            ok, reason = verify(case, ctx.pack, reference, challenge)
+        except Exception as error:      # a malformed challenge is refuted, never a failed run
+            ok, reason = False, f"the challenge could not be checked ({type(error).__name__})"
+        kind = str(challenge.get("kind")).replace("_", " ")
+        if ok:
+            confirmed.append(f"{kind}: {reason} (raised by {model}, confirmed by code)")
+        else:
+            refuted.append((challenge, f"{kind} {REFUTED}: {reason}"))
+    return confirmed, refuted
 
 
 def checked_challenges(case: CaseFile, ctx: RunContext, challenges: list[dict], model: str | None
                        ) -> tuple[list[str], list[str]]:
     """Code verifies each challenge the model raised: (confirmed gaps that send the brief back, refuted notes)."""
-    confirmed, refuted = [], []
-    reference = ctx.settings.reference_time.date()
-    for challenge in challenges:
-        ok, reason = verify(case, ctx.pack, reference, challenge)
-        kind = str(challenge.get("kind")).replace("_", " ")
-        if ok:
-            confirmed.append(f"{kind}: {reason} (raised by {model}, confirmed by code)")
-        else:
-            refuted.append(f"{kind} challenge refuted by code: {reason}")
-    return confirmed, refuted
+    confirmed, refuted = verify_challenges(case, ctx, challenges, model)
+    return confirmed, [line for _, line in refuted]
+
+
+def screened_notes(case: CaseFile, notes: list[str], refuted: list[tuple[dict, str]]
+                   ) -> tuple[list[str], list[str], str | None]:
+    """The model's notes as the engineer sees them: notes code shows false or repeating a refuted challenge dropped,
+    near-duplicates folded (assurance/notes.py). Returns (shown, dropped as "<why>: <note>", audit line or None)."""
+    kept, dropped = screen_notes(case, notes, [c for c, _ in refuted])
+    kept, folded_notes = fold_notes(kept)
+    shown_refuted, folded_challenges = fold_notes([line for _, line in refuted], marker=REFUTED)
+    folded = folded_notes + folded_challenges
+    if not notes and not folded:
+        return shown_refuted, dropped, None
+    raw = " ".join(f"({n}) {note}" for n, note in enumerate(notes, 1))
+    why = "; ".join(f"[{n}] {d.split(': ', 1)[0]}" for n, d in enumerate(dropped, 1))
+    audit = (f"{len(notes)} model note(s): {len(kept)} shown, {len(dropped)} dropped"
+             + (f" ({why})" if why else "") + f"; {folded} near-duplicate line(s) folded"
+             + (f". Raw notes: {raw}" if raw else ""))
+    return [*kept, *shown_refuted], dropped, audit
 
 
 @node("critic", "disprove", lambda s: f"round={s.round} claims={len(s.findings.claims)}")
@@ -190,12 +233,12 @@ def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
     # Cheap checks first: skip the LLM when we already know we will revise. On a fully cited brief the LLM's
     # free-text gaps are notes; its checkable challenges send the brief back only when code confirms them.
     if gaps:
-        llm_gaps, model, note, challenges = [], None, None, []
+        llm_gaps, model, note, challenges, recorded = [], None, None, [], None
     else:
-        llm_gaps, model, note, challenges = _llm_gaps(state, ctx)
-    confirmed, refuted = checked_challenges(state, ctx, challenges, model)
+        llm_gaps, model, note, challenges, recorded = _llm_gaps(state, ctx)
+    confirmed, refuted = verify_challenges(state, ctx, challenges, model)
     gaps = [*gaps, *confirmed]
-    llm_gaps = [*llm_gaps, *refuted]
+    llm_gaps, dropped, audit = screened_notes(state, llm_gaps, refuted)
     outcome = "accept" if not gaps else "revise"
     if state.round >= MAX_ROUNDS and outcome == "revise":
         outcome = "reject"
@@ -214,15 +257,21 @@ def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
         summary += f"; {len(challenges)} challenge(s): {len(confirmed)} confirmed by code, {len(refuted)} refuted"
     if llm_gaps and outcome == "accept":
         summary += f"; {len(llm_gaps)} LLM note(s) for the engineer"
+    if dropped:
+        summary += f"; {len(dropped)} note(s) dropped by code"
     if note == "critic_lane_not_nemotron":
         summary += "; critic lane not pinned to Nemotron"
     elif note:
         summary += f"; {note}"
-    replayed = note if note and note.startswith("recorded ") else None
+    if recorded:
+        summary += f"; {recorded}"        # a replay, never a live call: the trace line also says recorded=true
     verdict = Verdict(round=state.round, gate="critic", outcome=outcome, gaps=listed, model=model, routes=routes,
-                      recorded=replayed)
+                      recorded=recorded if model else None, dropped_notes=dropped)
     update["verdicts"] = [verdict]
     retry = max(state.round - 1, 0)
     target = {"revise": "planner", "reject": "close"}.get(outcome)
+    # The raw notes and why any were dropped, for audit (the decision log skips this line).
+    handoffs = [(SCREEN_NOTES, None, audit + (f" ({recorded})" if recorded else ""))] if audit else []
     return NodeResult(update, summary, status="success" if outcome == "accept" else "needs_revision",
-                      model=model, retry_count=retry, target_agent=target)
+                      model=model, recorded=recorded if model else None, retry_count=retry, target_agent=target,
+                      handoffs=handoffs)

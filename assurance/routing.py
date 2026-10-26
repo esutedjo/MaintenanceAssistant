@@ -21,6 +21,10 @@ ROUTES: dict[str, tuple[str | None, str]] = {
     "driver_signature": ("maint_planner", "name the sensors that distinguish the fault mode"),
     "uncited_claim": ("maint_planner", "rebuild the plan's claims from evidence that resolves"),
     "task_not_eligible": ("maint_planner", "keep only tasks the World Model lists for the fault"),
+    "inspection_not_cited": ("maint_planner", "rebuild the plan citing each current inspection finding"),
+    "inspection_not_acted_on": ("maint_planner", "rebuild the plan on the inspection result the manual's limit gives"),
+    "inspection_result_mismatch": (None, "no agent may reclassify an inspection finding mid-loop; the engineer checks "
+                                         "the finding against its limit"),
     "fault_mode_mismatch": (None, "no agent may rewrite a fault-mode finding mid-loop"),
     "wrong_engine": (None, "the brief is about another engine than the question names; ask again"),
     "other": ("maint_planner", "rebuild the plan"),
@@ -45,6 +49,9 @@ PATTERNS: list[tuple[re.Pattern, str]] = [(re.compile(p), k) for p, k in [
     (r"^task .* is not on the World Model", "task_not_eligible"),
     (r"^claim states .* which its cited evidence|^unsupported number: ", "unsupported_number"),
     (r"^RUL drivers listed are", "driver_signature"),
+    (r"^inspection finding \S+ \(.*?\) is not cited by the plan", "inspection_not_cited"),
+    (r"^inspection finding \S+ \(.*?\) is (beyond limits|at the limit) but", "inspection_not_acted_on"),
+    (r"^inspection finding \S+ \(.*?\) (is reported|has no evidence record)", "inspection_result_mismatch"),
     (r"^Degradation is detected but no similar past cases", "similar_cases_missing"),
 ]]
 

@@ -1,11 +1,11 @@
 # Evaluation report (sample mode, synthetic fleet)
 
-Generated 2026-10-26 00:38 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
+Generated 2026-10-26 07:17 UTC by `uv run task eval`. 200 active engines through the full agent graph on the committed snapshot; scored against the NASA C-MAPSS answer key, which the agents never read.
 
 ## Run completion
 
 - Statuses: needs_review 200; crashes 0.
-- Time per run: median 0.38 s, 95th percentile 0.44 s, max 0.5 s (limit 120 s).
+- Time per run: median 0.3 s, 95th percentile 0.39 s, max 0.49 s (limit 120 s).
 
 ## Remaining life
 
@@ -20,8 +20,8 @@ Generated 2026-10-26 00:38 UTC by `uv run task eval`. 200 active engines through
 
 ## Evidence
 
-- 2961 claims; 100.0% cite evidence IDs that resolve.
-- 1951 claims state a quantity (identifiers such as document sections excluded); 100.0% cite model, query, rule or case-memory evidence computed in code, and 0 quote a limit from a document only.
+- 2984 claims; 100.0% cite evidence IDs that resolve.
+- 1914 claims state a quantity (identifiers such as document sections excluded); 100.0% cite model, query, rule or case-memory evidence computed in code, and 0 quote a limit from a document only.
 
 ## Decisions against what happened
 
@@ -42,7 +42,7 @@ What the engineer was told, by how long each engine actually had left (NASA answ
 
 ## Seeded faulty briefs
 
-311 faulty briefs built from 30 finished briefs (the 4 golden cases plus a random sample). The deterministic gates (rule checks, then the critic's deterministic checks; no LLM) caught **311 of 311 (100%)**. Clean briefs flagged: 0.
+341 faulty briefs built from 30 finished briefs (the 4 golden cases plus a random sample). The deterministic gates (rule checks, then the critic's deterministic checks; no LLM) caught **341 of 341 (100%)**. Clean briefs flagged: 0.
 
 | Fault | Seeded | Caught |
 | --- | --- | --- |
@@ -62,6 +62,7 @@ What the engineer was told, by how long each engine actually had left (NASA answ
 | drivers_as_signature | 5 | 5 |
 | similar_cases_dropped | 21 | 21 |
 | claim_number_altered | 21 | 21 |
+| inspection_ignored | 30 | 30 |
 
 ## Implausible input data
 

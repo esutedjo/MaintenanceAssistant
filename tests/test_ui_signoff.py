@@ -87,9 +87,11 @@ def test_sign_off_needs_a_name_and_approve_needs_each_escalation_ticked(app, dra
     assert not _button(app, "Approve and draft work order").disabled
     _button(app, "Reject").click().run()
     assert not app.exception
-    assert any("signed by A. Engineer" in str(i.value) for i in app.info)
+    # The signer's name is Markdown-escaped data ("A\. Engineer" renders as "A. Engineer").
+    assert any("signed by A. Engineer" in str(i.value).replace("\\", "") for i in app.info)
     logs = list((drafts / "decision_logs").glob("*.jsonl"))
-    assert len(logs) == 1 and verify_log(logs[0])[0]
+    head = app.session_state["decision"]["record"]["decision_log"]["head_hash"]
+    assert len(logs) == 1 and verify_log(logs[0], head)[0]
     last = json.loads(logs[0].read_text(encoding="utf-8").splitlines()[-1])
     assert (last["decision"], last["signer"]["licence_ref"]) == ("rejected", "TEST-0001")
     assert [a["rule"] for a in last["acknowledged"]] == ["rul_below_lead_time"]
@@ -131,3 +133,23 @@ def test_section_link_opens_help_at_that_section(app):
     rendered = _markdown(app)
     assert "**Your decision.** You stay in charge." in rendered
     assert "Certificate of release to service" in rendered and "Hash chain" in rendered
+
+
+def test_info_escalations_are_shown_as_notes_and_recorded_as_seen(app, drafts):
+    app.run()
+    next(b for b in app.button if b.label == "HPC swap · FD001-A031").click().run()
+    acks = _acks(app)
+    assert len(acks) == 2 and all("urgent escalation" in a.label for a in acks), "the info SB note needs no tick"
+    assert any("Notes, no tick needed: Service bulletin needs engineering approval" in str(c.value)
+               for c in app.caption)
+    assert "esc info" in _markdown(app) and '<span class="esc-sev">note</span>' in _markdown(app)
+    app.text_input(key="signoff_name").input("A. Engineer").run()
+    for ack in _acks(app):
+        ack.check().run()
+    _reason(app).input("AD borescope and lease engine booked tonight").run()
+    _button(app, "Approve and draft work order").click().run()
+    assert not app.exception
+    signed = json.loads(next((drafts / "decision_logs").glob("*.jsonl")).read_text(encoding="utf-8").splitlines()[-1])
+    assert [n["rule"] for n in signed["noted"]] == ["sb_adoption"] and len(signed["acknowledged"]) == 2
+    assert signed["brief_snapshot"]["sha256"] and signed["versions"]["asset_pack"].startswith("turbofan_cmapss@")
+    assert "Notes shown and recorded as seen: sb adoption" in _markdown(app)

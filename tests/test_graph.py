@@ -3,6 +3,7 @@ import json
 import pytest
 
 from agents.intake import parse
+from casefile.calls import CALL_ACTIONS
 from graph.runner import run_case
 from run import handle, health_payload
 from settings import ROOT, Settings
@@ -58,20 +59,28 @@ def test_critical_engine_recommends_lease_swap(settings):
     result = run_case("What should I do about FD001-A031?", settings)
     rec = result["recommendation"]
     assert "FM-HPC-06" in rec["task_ids"]
-    assert rec["action"].lower().startswith("swap")
+    # Planning bound 0 cycles: say "do not dispatch" first and name the first free slot.
+    assert rec["action"] == ("Do not dispatch; swap in lease engine at the first free slot (2026-10-23); module shop "
+                             "visit on the removed engine")
     summaries = " ".join(e["summary"] for e in result["evidence"].values())
     assert "World Model:" in summaries
     assert "H-MEM:" in summaries and "median" in summaries
     assert any(p["part_number"] == "TF-ENG-9001" for p in rec["parts"])
-    assert any(e["rule"] == "rul_below_lead_time" for e in result["escalations"])
+    late = next(e for e in result["escalations"] if e["rule"] == "rul_below_lead_time")
+    assert late["message"] == "RUL lower bound is 0.0 days (do not dispatch); all parts on hand; next free slot 1 d."
+    assert late["actions"] == ["Propose engine swap"], "no derate at a bound of 0, no expedite with nothing short"
+    assert any(c["text"].startswith("Planning lower bound 0 cycles leaves no flight before the work: do not dispatch")
+               for c in rec["rationale"])
 
 
 def test_fan_case_swaps_when_lead_time_exceeds_rul(settings):
     result = run_case("How long can FD003-A100 keep flying and what is wrong with it?", settings)
     rec = result["recommendation"]
     assert "FM-FAN-04" in rec["task_ids"]
-    assert rec["action"].lower().startswith("swap")
-    assert any(e["rule"] == "rul_below_lead_time" for e in result["escalations"])
+    assert rec["action"].lower().startswith("swap")         # bound 2.8 cycles lasts to the first free slot
+    late = next(e for e in result["escalations"] if e["rule"] == "rul_below_lead_time")
+    assert "lead time of short parts 75 d" in late["message"]
+    assert late["actions"] == ["Propose expedite", "Propose engine swap", "Propose derate"]
 
 
 def test_disagreeing_methods_get_inspection_not_average(settings):
@@ -88,6 +97,17 @@ def test_healthy_engine_skips_similar_cases(settings):
     assert result["status"] == "needs_review"
     assert result["findings"]["similar_cases"] == []
     assert result["findings"]["rul_trend"]["at_cap"]
+    # One-mode fleet, no wear: no "HPC degradation (probability 1.00)" claim, in the findings or the plan.
+    texts = [c["text"] for c in [*result["findings"]["claims"], *result["recommendation"]["rationale"]]]
+    no_wear = "No wear detected; this fleet's only known wear mode is HPC degradation."
+    assert texts.count(no_wear) == 2 and not any("probability 1.00" in t or "p=1.00" in t for t in texts)
+
+
+def test_degraded_engine_keeps_its_fault_mode_wording(settings):
+    result = run_case("What should I do about FD001-A031?", settings)
+    texts = [c["text"] for c in [*result["findings"]["claims"], *result["recommendation"]["rationale"]]]
+    assert "Most likely fault mode: HPC degradation (probability 1.00)." in texts
+    assert "Primary fault mode HPC degradation (p=1.00)." in texts and not any("No wear" in t for t in texts)
 
 
 @pytest.mark.parametrize("question", ["Is the engine ok?", "How long can FD003-A999 keep flying?"])
@@ -95,7 +115,8 @@ def test_missing_or_unknown_asset_asks_back(settings, question):
     result = run_case(question, settings)
     assert result["status"] == "needs_clarification"
     assert result["intent"]["clarification"]
-    assert [e["agent_name"] for e in _trace(result)] == ["intake"]
+    steps = [e for e in _trace(result) if e["action"] not in CALL_ACTIONS]
+    assert [e["agent_name"] for e in steps] == ["intake"]
 
 
 def test_failing_specialist_ends_in_error_with_trace(settings, monkeypatch):
@@ -118,9 +139,11 @@ def test_run_rejects_bad_input_with_structured_error(payload):
     assert body["status"] == "error" and body["error"]["code"] == "invalid_input"
 
 
-def test_health_reports_snapshot_without_credentials():
+def test_health_reports_snapshot_without_credentials(monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")          # never the live checks of whatever .env.local says
     payload = health_payload()
     assert payload["status"] == "ok" and payload["snapshot"] is True
+    assert payload["overall"] == "sample" and payload["summary"].startswith("Sample mode: snapshot · SQLite")
 
 
 def test_result_lists_agents_timing_and_trace_id_and_the_log_has_no_nulls(settings):

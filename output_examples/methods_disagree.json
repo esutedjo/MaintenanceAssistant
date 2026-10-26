@@ -1,6 +1,6 @@
 {
- "run_id": "20261026T003720Z-8a6900",
- "trace_id": "trace-20261026T003720Z-8a6900",
+ "run_id": "20261026T071520Z-b61cb2",
+ "trace_id": "trace-20261026T071520Z-b61cb2",
  "status": "needs_review",
  "question": "The two remaining-life estimates for FD001-A070 look different. What should I do?",
  "mode": {
@@ -168,6 +168,7 @@
     "evidence_id": "EV-KNW-05"
    }
   ],
+  "inspections": [],
   "claims": [
    {
     "text": "Remaining useful life is about 96 cycles (10th-90th percentile 73-108) by the ML model; the health-index trend gives 40.",
@@ -362,23 +363,25 @@
    "gaps": [],
    "model": null,
    "routes": [],
-   "recorded": null
+   "recorded": null,
+   "dropped_notes": []
   },
   {
    "round": 1,
    "gate": "critic",
    "outcome": "accept",
    "gaps": [
-    "Claim 1 states the two RUL methods differ by 55 cycles, but EV-PRG-01 (RUL A = 96) and EV-PRG-02 (RUL B = 40) give a difference of 56 cycles, not 55.",
-    "Claim 7 cites EV-PRG-01 and EV-PRG-02 for deadline 2026-11-07 using RUL lower bound 33 cycles, but EV-PRG-01 does not contain a lower bound of 33 cycles; the 33-cycle lower bound comes only from EV-PRG-02.",
-    "Claim 8 cites EV-PRG-01 and EV-PRG-02 for planning lower bound 33 cycles (min(A 10th percentile 73, B lower 33)), but EV-PRG-01 does not contain the value 33; the 33-cycle lower bound comes only from EV-PRG-02.",
-    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 55",
-    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33",
+    "unsupported number challenge refuted by code (2 challenges): EV-PRG-01, EV-PRG-02 supports 55 or 33",
     "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
    ],
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
    "routes": [],
-   "recorded": "recorded Nemotron response (captured 2026-10-26)"
+   "recorded": "recorded Nemotron response (captured 2026-10-26)",
+   "dropped_notes": [
+    "repeats the unsupported number challenge code refuted: Claim 1 states the two RUL methods differ by 55 cycles, but EV-PRG-01 (RUL A = 96) and EV-PRG-02 (RUL B = 40) give a difference of 56 cycles, not 55.",
+    "repeats the unsupported number challenge code refuted: Claim 7 cites EV-PRG-01 and EV-PRG-02 for deadline 2026-11-07 using RUL lower bound 33 cycles, but EV-PRG-01 does not contain a lower bound of 33 cycles; the 33-cycle lower bound comes only from EV-PRG-02.",
+    "repeats the unsupported number challenge code refuted: Claim 8 cites EV-PRG-01 and EV-PRG-02 for planning lower bound 33 cycles (min(A 10th percentile 73, B lower 33)), but EV-PRG-01 does not contain the value 33; the 33-cycle lower bound comes only from EV-PRG-02."
+   ]
   }
  ],
  "evidence": {
@@ -567,8 +570,8 @@
  },
  "decision_log": [
   {
-   "timestamp": "2026-10-26T00:37:20.539929Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.638775Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "agent",
    "actor": "intake",
    "decision": "resolved engine",
@@ -577,33 +580,36 @@
     "EV-INT-01"
    ],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.767246Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.867155Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "delegated follow-up",
    "rationale": "To data: inspection_history: RUL A 96 and RUL B 40 differ by 55 cycles (limit 20); pull the inspection history and the telemetry up to the last inspection.",
    "evidence_ids": [],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.767246Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.867155Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "delegated follow-up",
    "rationale": "To prognostics: backtest: RUL A 96 and RUL B 40 differ by 55 cycles (limit 20); recompute both methods on the telemetry up to the last inspection and check each against what that inspection found and the cycles flown since.",
    "evidence_ids": [],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.770246Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.870156Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "agent",
    "actor": "data",
    "decision": "ran follow-up",
@@ -612,11 +618,12 @@
     "EV-DAT-06"
    ],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.821750Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.920511Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "agent",
    "actor": "prognostics",
    "decision": "ran follow-up",
@@ -625,11 +632,12 @@
     "EV-PRG-05"
    ],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.868730Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.952358Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "proposed plan",
@@ -642,11 +650,12 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.872265Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.956880Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -654,72 +663,61 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.875265Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.960880Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "model",
    "actor": "nvidia/nemotron-3-ultra-550b-a55b",
    "decision": "reviewed the brief",
-   "rationale": "Raised 3 checkable challenges and 3 notes for the engineer; notes cannot block a cited brief (recorded Nemotron response (captured 2026-10-26)).",
+   "rationale": "Raised 3 checkable challenges and 0 notes for the engineer; notes cannot block a cited brief; code dropped 3 notes it showed false or repeating a refuted challenge (kept in the trace) (recorded Nemotron response (captured 2026-10-26)).",
+   "evidence_ids": [],
+   "round": 1,
+   "recorded": true,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:20.960880Z",
+   "run_id": "20261026T071520Z-b61cb2",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code (2 challenges): EV-PRG-01, EV-PRG-02 supports 55 or 33 (from the recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [
     "EV-PRG-01",
     "EV-PRG-02"
    ],
    "round": 1,
+   "recorded": true,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.875265Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.960880Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 55.",
-   "evidence_ids": [
-    "EV-PRG-01",
-    "EV-PRG-02"
-   ],
-   "round": 1,
-   "case_feedback": {},
-   "acknowledged": []
-  },
-  {
-   "timestamp": "2026-10-26T00:37:20.875265Z",
-   "run_id": "20261026T003720Z-8a6900",
-   "actor_type": "gate",
-   "actor": "critic",
-   "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 33.",
-   "evidence_ids": [
-    "EV-PRG-01",
-    "EV-PRG-02"
-   ],
-   "round": 1,
-   "case_feedback": {},
-   "acknowledged": []
-  },
-  {
-   "timestamp": "2026-10-26T00:37:20.875265Z",
-   "run_id": "20261026T003720Z-8a6900",
-   "actor_type": "gate",
-   "actor": "critic",
-   "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33.",
+   "rationale": "Unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33 (from the recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [
     "EV-MNT-04",
     "EV-PRG-01",
     "EV-PRG-02"
    ],
    "round": 1,
+   "recorded": true,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.875265Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.960880Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "accepted",
@@ -727,11 +725,12 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.875265Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.961880Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -742,11 +741,12 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:20.875265Z",
-   "run_id": "20261026T003720Z-8a6900",
+   "timestamp": "2026-10-26T07:15:20.961880Z",
+   "run_id": "20261026T071520Z-b61cb2",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -757,7 +757,8 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   }
  ],
  "agents": [
@@ -775,7 +776,7 @@
   },
   {
    "name": "data",
-   "role": "Telemetry, input plausibility, history, schedule, slots; inspection history and targeted re-queries",
+   "role": "Telemetry, input plausibility, history, schedule, slots, entered inspection findings; inspection history and targeted re-queries",
    "uses_model": false,
    "can_block_or_send_back": false
   },
@@ -787,13 +788,13 @@
   },
   {
    "name": "diagnostics",
-   "role": "Fault-mode match and similar past cases; checks both candidates when unclear",
+   "role": "Fault-mode match and similar past cases; checks both candidates when unclear; checks an inspection finding against the fault mode",
    "uses_model": false,
    "can_block_or_send_back": false
   },
   {
    "name": "knowledge",
-   "role": "Applicable documents in precedence order, mandates decided in code; binds a missing mandate",
+   "role": "Applicable documents in precedence order, mandates decided in code; the limit section for each inspection finding, compared in code; binds a missing mandate",
    "uses_model": false,
    "can_block_or_send_back": false
   },
@@ -827,10 +828,11 @@
    "agent": "critic",
    "round": 1,
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "recorded": true,
    "source": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
- "trace_file": "logs\\trace-20261026T003720Z-8a6900.jsonl",
- "duration_s": 0.36,
- "execution_time_seconds": 0.359
+ "trace_file": "logs\\trace-20261026T071520Z-b61cb2.jsonl",
+ "duration_s": 0.34,
+ "execution_time_seconds": 0.344
 }

@@ -42,13 +42,12 @@ def main() -> int:
     except Exception as error:
         report("FAIL", "zetaris", f"{type(error).__name__}: {str(error)[:160]}")
 
+    from tools.status import context_health_summary
     try:
         health = httpx.get(settings.context_service_url.rstrip("/") + "/health", timeout=3).json()
-        documents = health.get("world", {}).get("entities", {}).get("document", 0)
+        summary, _, documents, _ = context_health_summary(health)      # the status strip words it the same way
         report("PASS" if documents else "WARN", "context service",
-               f"{health.get('world', {}).get('relations')} relations, {documents} document nodes, "
-               f"{health.get('hmem', {}).get('memories')} memories"
-               + ("" if documents else "; run uv run task load-context"))
+               summary + ("" if documents else "; run uv run task load-context"))
     except Exception as error:
         report("FAIL", "context service", f"{type(error).__name__}; start it with uv run task context-service")
 

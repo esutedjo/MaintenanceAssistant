@@ -149,6 +149,60 @@ def deadline_within_rul(case: CaseFile, pack: dict, reference: date | None = Non
     return []
 
 
+REMOVAL_TYPES = {"replace", "engine_change"}
+
+
+def _removes(case: CaseFile) -> bool:
+    """The plan takes the engine off: a replace or engine-change task the World Model lists, or the removal action."""
+    rec = case.recommendation
+    types = {t.get("fmea_id"): t.get("task_type") for e in case.evidence.values()
+             if ":world/" in (e.source or "") for t in e.content.get("tasks") or []}
+    return (any(types.get(t) in REMOVAL_TYPES for t in rec.task_ids)
+            or "remove the engine before further flight" in rec.action.lower())
+
+
+def inspections_acted_on(case: CaseFile, pack: dict, reference: date | None = None) -> list[str]:
+    """After an inspection the plan must cite each current finding, the result must be what the measurement and the
+    cited limit say (code reclassifies it), and the plan may never do less than the manual requires: beyond limits,
+    removal before further flight; at the limit, a deadline within the re-inspection interval."""
+    from tools.inspections import classify, find_row
+
+    rec = case.recommendation
+    current = [i for i in case.findings.inspections if i.current]
+    if rec is None or not current:
+        return []
+    cited = {i for c in rec.rationale for i in c.evidence_ids}
+    gaps = []
+    for item in current:
+        label = f"inspection finding {item.evidence_id} ({item.result.replace('_', ' ')})"
+        record, limit = case.evidence.get(item.evidence_id), case.evidence.get(item.limit_evidence_id or "")
+        if record is None or limit is None:
+            gaps.append(f"{label} has no evidence record for the finding or its limit")
+            continue
+        measured = record.content.get("finding", {}).get("measurement")
+        row = find_row(limit.content.get("limits") or [], (item.limit or {}).get("id") or "") if item.limit else None
+        if item.classified_by == "limit" and (row is None or measured is None):
+            gaps.append(f"{label} is reported as compared with a limit that {item.limit_evidence_id} does not list")
+        elif item.classified_by == "limit" and classify(float(measured["value"]), row) != item.result:
+            gaps.append(f"{label} is reported {item.result.replace('_', ' ')} but its measurement "
+                        f"{measured['value']:g} {measured['unit']} against {item.limit_evidence_id} is "
+                        f"{classify(float(measured['value']), row).replace('_', ' ')}")
+        if item.evidence_id not in cited:
+            gaps.append(f"{label} is not cited by the plan")
+        if item.result == "beyond":
+            if reference and rec.deadline and rec.deadline > reference:
+                gaps.append(f"{label} is beyond limits but the deadline {rec.deadline} is after {reference}: the "
+                            "manual requires removal before further flight")
+            if not _removes(case):
+                gaps.append(f"{label} is beyond limits but the plan does not remove the engine")
+        elif item.result == "at_limit" and reference and rec.deadline and item.interval_cycles:
+            due = reference + timedelta(days=int(item.interval_cycles / pack["thresholds"]["cycles_per_day"]))
+            if rec.deadline > due:
+                gaps.append(f"{label} is at the limit but the deadline {rec.deadline} is later than its re-inspection "
+                            f"interval allows ({due}, {item.interval_cycles} cycles)")
+    return gaps
+
+
 def numbers_supported(case: CaseFile, pack: dict) -> list[str]:
     """Every number a claim states must be in its cited evidence, a pack threshold, a sum or difference of two
     cited values, or a cycles-to-days conversion. 0 of 2,907 clean claims fail this on the fleet (25 Oct)."""
@@ -168,6 +222,6 @@ def run_rule_checks(case: CaseFile, pack: dict, reference: date | None = None) -
     gaps = [*claims_have_evidence(case), *rul_in_range(case, cap), *findings_match_evidence(case), *asset_matches(case),
             *parts_exist(case), *slot_exists(case), *mandates_honoured(case, pack, reference),
             *deadline_within_rul(case, pack, reference), *world_tasks_eligible(case),
-            *numbers_supported(case, pack)]
+            *inspections_acted_on(case, pack, reference), *numbers_supported(case, pack)]
     return Verdict(round=case.round, gate="rule_checks", outcome="accept" if not gaps else "revise", gaps=gaps,
                    routes=routes_for(gaps))

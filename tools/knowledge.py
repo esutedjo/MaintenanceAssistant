@@ -166,7 +166,8 @@ def retrieve(chunks: list[dict], pack: dict, *, variant: str | None, fault_modes
     candidates, excluded = [], []
     for chunk in chunks:
         r = Retrieved(chunk, 0.0, order.get(chunk["doc_type"], len(order)))
-        if chunk["asset_type"] != pack["asset_type"]:
+        # Limit tables are looked up by inspection kind and module when a finding needs one (tools/inspections.py).
+        if chunk["asset_type"] != pack["asset_type"] or str(chunk.get("topic") or "").startswith("limits:"):
             continue
         reason = in_effect(chunk, on)
         if not reason and variant and variant not in _split(chunk["applies_to"]):

@@ -47,7 +47,8 @@ def _grounding(case=CASE) -> str:
 def test_brief_facts_are_the_fields_on_screen():
     facts = "\n".join(brief_facts(CASE, PACK))
     assert "Engine FD001-A031 (FD001 fleet)" in facts
-    assert "Swap in lease engine" in facts and "deadline 2026-10-22" in facts and "Colour red" in facts
+    assert "Do not dispatch; swap in lease engine at the first free slot (2026-10-23)" in facts
+    assert "deadline 2026-10-22" in facts and "Colour red" in facts
     assert "Method A (machine learning) flights left: 10  (5–11)" in facts and "Method B (wear trend) flights left: 7" in facts
     assert "Escalation (urgent): Mandatory document action." in facts
     assert "Fault mode HPC degradation: p = 1.00. Evidence EV-DIA-01." in facts
@@ -73,6 +74,16 @@ def test_advice_is_flagged():
         "I recommend swapping the engine now."]
     assert advice_in("You should approve it.") == ["You should approve it."]
     assert advice_in("When you approve, a draft work order is written.") == []
+
+
+def test_orders_modals_and_number_words_are_flagged_too():
+    for text in ("Approve it.", "You must remove the engine today.", "The engineer should reject this brief.",
+                 "Best to ground it now."):
+        assert advice_in(text) == [text], text
+    assert advice_in("Keep in mind the methods differ. You must tick each urgent escalation.") == []
+    assert unsupported_tokens("It has about forty flights left, or a dozen days.", _grounding()) == ["forty",
+                                                                                                    "dozen"]
+    assert unsupported_tokens("Method A estimates about ten flights.", _grounding()) == []
 
 
 def test_model_answer_goes_through_the_critic_lane_and_is_labelled(caplog):

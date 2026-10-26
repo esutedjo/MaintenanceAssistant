@@ -180,9 +180,12 @@ def test_hash_chain_catches_an_edited_deleted_or_cut_entry(tmp_path, fan):
     assert verify_log(path, head) == (False, "entry 5 has sequence 6: an entry was deleted or reordered")
 
     _rewrite(path, lines[:-1])
-    assert verify_log(path)[0]
+    ok, note = verify_log(path)
+    assert not ok and note.startswith("unverifiable: the chain of"), "never 'intact' without a head hash"
     assert verify_log(path, head) == (False, "the last entry is not the one the work order references: "
                                              "entries were removed")
+    path.unlink()
+    assert verify_log(path, head)[1] == "unverifiable: the log has no entries (missing or empty file)"
 
 
 def test_log_is_append_only_and_a_correction_is_a_new_entry(tmp_path, fan):

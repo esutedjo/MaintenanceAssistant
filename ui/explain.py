@@ -16,8 +16,9 @@ import httpx
 from assurance.challenges import IDENTIFIER, claim_numbers
 from settings import Settings
 from tools.llm import LlmClient, LlmRefusal, LlmUnavailable
-from ui.brief import (check_summary, decision_boundaries, escalation_view, fault_label, fmt_rul, rul_context,
-                      verdict_headline, verdict_meta, verdict_tone, world_eligibility)
+from casefile.wear import NOT_DETECTED
+from ui.brief import (check_summary, decision_boundaries, escalation_view, fault_display, fault_label, fmt_rul,
+                      rul_context, verdict_headline, verdict_meta, verdict_tone, world_eligibility)
 from ui.help import entry_line, glossary, plain_summary, search_glossary
 
 log = logging.getLogger("explain")
@@ -32,8 +33,8 @@ PROMPT = (
     "- Do not state a number, date or ID that is not written below, and do not calculate new numbers.\n"
     "- Plain words, at most 150 words, no tables.\n"
 )
-TONE_COLOUR = {"urgent": "red (act now)", "warning": "amber (plan soon or inspect first)", "ok": "green (keep flying)",
-               "hold": "grey (no recommendation)"}
+TONE_COLOUR = {"urgent": "red (act now)", "warning": "amber (plan soon or inspect first)",
+               "ok": "green (no action proposed before the next scheduled inspection)", "hold": "grey (no recommendation)"}
 DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 # IDENTIFIER without its numeric-range branch, so "5-11" still yields 5 and 11 while SB-TF-72-0142 yields nothing.
 CODE = re.compile(r"\b[A-Z]{2,}[A-Z0-9]*-[\w.-]*|\b\d+\.[A-Z]\b|\(\w\)")
@@ -41,9 +42,24 @@ NUMERIC_RANGE = re.compile(r"\b(\d+(?:\.\d+)?)-(?=\d)")
 NAMED = re.compile(r"\b[A-Za-z_]+\d\w*")             # sensor and fleet names carry digits that are not quantities
 WORD_HYPHEN = re.compile(r"(?<=[A-Za-z])-(?=\d)")     # Part-145 is not minus 145
 LIST_MARK = re.compile(r"^\s*\d+[.)]\s", re.M)
+DECISION_VERBS = r"(?:approve|reject|ignore|override|delay|defer|keep|fly|remove|swap|replace|wait|ground|dispatch)"
 ADVICE = re.compile(r"[^.!?\n]*(?:\b(?:I|we)\s+(?:would\s+)?(?:recommend|suggest|advise)\b"
-                    r"|\byou should\s+(?:approve|reject|not|ignore|override|delay|keep|fly|remove|swap|replace|wait)\b"
+                    rf"|\byou should\s+(?:not\s+)?{DECISION_VERBS}\b"
+                    rf"|\b(?:must|should|need to|needs to|has to|have to|ought to|best to|better to)\s+(?:not\s+)?"
+                    rf"{DECISION_VERBS}\b"
                     r"|\b(?:instead of|rather than)\s+(?:the|this)\s+(?:plan|recommendation)\b)[^.!?\n]*[.!?]?", re.I)
+# An order at the start of a sentence: "Approve it." "Ground the engine now."
+IMPERATIVE = re.compile(r"(?:^|(?<=[.!?]))\s*((?:approve|reject|ignore|override|defer|remove|swap|ground|dispatch)\b"
+                        r"[^.!?\n]*[.!?]?)", re.I | re.M)
+# Numbers written as words ("about forty flights", "a dozen"); ordinals are left out ("the first free slot").
+NUMBER_WORD = re.compile(r"\b(?:(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[- ](one|two|three|four|"
+                         r"five|six|seven|eight|nine))?|(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|"
+                         r"twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|dozen|hundred|"
+                         r"thousand))\b", re.I)
+UNITS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen "
+                                    "fourteen fifteen sixteen seventeen eighteen nineteen".split())}
+UNITS.update({"dozen": 12, "hundred": 100, "thousand": 1000})
+TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
 MAX_MATCHES = 6
 
 
@@ -63,8 +79,7 @@ class Explanation:
     def label(self) -> str:
         if self.source != "model":
             return self.note
-        via = "via Nightshift" if self.provider == "meterless" else f"via the {self.provider} fallback API"
-        label = f"AI explanation by {self.model} {via}; it explains, it does not change the decision."
+        label = f"AI explanation by {self.model} via Nightshift; it explains, it does not change the decision."
         if "nemotron" not in (self.model or "").lower():
             label += " This model is not Nemotron: the Nightshift lane is not pinned."
         return label
@@ -98,9 +113,14 @@ def brief_facts(case: dict | None, pack: dict) -> list[str]:
     if "gap" in rc:
         facts.append(f"A and B are {rc['gap']:.0f} flights apart (limit {rc['divergence_limit']}): "
                      + ("they disagree." if rc["diverged"] else "they agree."))
-    for mode in sorted(findings.get("fault_modes") or [], key=lambda m: -m["probability"]):
-        facts.append(f"Fault mode {fault_label(mode['failure_mode'], pack)}: p = {mode['probability']:.2f}. "
-                     f"Evidence {mode.get('evidence_id')}.")
+    fault, note = fault_display(case, pack)
+    if fault == NOT_DETECTED:       # one-mode fleet, healthy engine: the 1.00 is by construction
+        modes = findings.get("fault_modes") or []
+        facts.append(f"Fault mode: {fault} ({note}). Evidence {modes[0].get('evidence_id')}.")
+    else:
+        for mode in sorted(findings.get("fault_modes") or [], key=lambda m: -m["probability"]):
+            facts.append(f"Fault mode {fault_label(mode['failure_mode'], pack)}: p = {mode['probability']:.2f}. "
+                         f"Evidence {mode.get('evidence_id')}.")
     if findings.get("similar_cases") is not None:
         facts.append(f"Similar past cases: {len(findings.get('similar_cases') or [])}.")
     if rec:
@@ -155,16 +175,32 @@ def unsupported_tokens(answer: str, grounding: str) -> list[str]:
     for token in (t.rstrip(".-") for t in IDENTIFIER.findall(answer)):    # an ID can end a sentence
         if not token.startswith("(") and not re.fullmatch(r"[\d-]+", token) and token.lower() not in known:
             flagged.append(token)
-    allowed = {value for value, _ in _numbers(grounding)}
+    allowed = {value for value, _ in _numbers(grounding)} | {value for _, value in _word_numbers(grounding)}
     for value, tolerance in _numbers(answer):
         if not any(abs(value - c) <= max(tolerance, 0.005 * abs(c)) for c in allowed):
             flagged.append(f"{value:g}")
+    for word, value in _word_numbers(answer):
+        if not any(abs(value - c) <= 0.5 for c in allowed):
+            flagged.append(word)
     return list(dict.fromkeys(flagged))
 
 
+def _word_numbers(text: str) -> list[tuple[str, float]]:
+    """(words, value) of each number written in words: "forty", "thirty-one", "a dozen"."""
+    out = []
+    for match in NUMBER_WORD.finditer(text):
+        tens, unit, alone = (g.lower() if g else None for g in match.groups())
+        value = TENS[tens] + (UNITS[unit] if unit else 0) if tens else UNITS[alone]
+        out.append((match.group(0), float(value)))
+    return out
+
+
 def advice_in(answer: str) -> list[str]:
-    """Sentences that read as advice rather than explanation."""
-    return [" ".join(m.group(0).split()) for m in ADVICE.finditer(answer)]
+    """Sentences that read as advice rather than explanation: a recommendation, a "must/should" with a decision verb,
+    or an order at the start of a sentence ("Approve it.")."""
+    found = [" ".join(m.group(0).split()) for m in ADVICE.finditer(answer)]
+    found += [" ".join(m.group(1).split()) for m in IMPERATIVE.finditer(answer)]
+    return list(dict.fromkeys(f for f in found if f))
 
 
 def _fallback(entries: list[dict], note: str) -> Explanation:
@@ -197,6 +233,8 @@ def explain(question: str, case: dict | None, pack: dict, settings: Settings,
     finally:
         if own:
             client.close()
+    from tools.status import note_model_reply
+    note_model_reply(settings.meterless_critic_app, reply.model)      # the status strip names the lane's model
     text = reply.text.strip()
     if not text:
         log.warning("explain fell back to the glossary (empty answer from %s)", reply.model)

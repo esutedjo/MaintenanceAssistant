@@ -41,14 +41,31 @@ def _data_quality(state: CaseFile):
     return next((e for e in state.evidence.values() if e.produced_by == "data" and "data_quality" in e.content), None)
 
 
+def _inspections(state: CaseFile) -> list:
+    return [e for e in state.evidence.values() if e.kind == "inspection"]
+
+
+def _answering(state: CaseFile, pack: dict, modes: list[str]) -> list:
+    """Fresh inspection findings on a module one of these fault modes wears: the inspection the brief would ask for."""
+    modules = {pack["failure_modes"][m]["component"] for m in modes if m in pack.get("failure_modes", {})}
+    return [e for e in _inspections(state) if e.content.get("fresh") and e.content["finding"]["module"] in modules]
+
+
 def follow_ups(state: CaseFile, pack: dict) -> tuple[list[Task], list[str]]:
-    """Follow-up tasks the round-1 findings call for, and why the others were not needed."""
+    """Follow-up tasks the round-1 findings call for, and why the others were not needed. A fresh inspection finding
+    on the suspected module answers "the methods disagree" and "the fault is unclear": the inspection those
+    follow-ups stand in for has been done, so diagnostics checks the finding against the fault mode instead."""
     th = pack["thresholds"]
     a, b, modes = state.findings.rul_ml, state.findings.rul_trend, state.findings.fault_modes
-    tasks, clear = [], []
+    tasks, clear, answered = [], [], []
     if a is not None and b is not None:
         gap, limit = abs(a.rul - b.rul), th["rul_divergence_cycles"]
-        if gap > limit:
+        answer = _answering(state, pack, [m.failure_mode for m in modes[:1]])
+        if gap > limit and answer:
+            answered.append(f"RUL A {a.rul:.0f} and RUL B {b.rul:.0f} differ by {gap:.0f} cycles (limit "
+                            f"{limit:.0f}); the fresh finding {answer[-1].id} on the suspected module answers that "
+                            "in place of a back-test")
+        elif gap > limit:
             why = f"RUL A {a.rul:.0f} and RUL B {b.rul:.0f} differ by {gap:.0f} cycles (limit {limit:.0f})"
             tasks += [
                 Task(id="T-follow-data-history", agent="data", kind="inspection_history",
@@ -65,7 +82,12 @@ def follow_ups(state: CaseFile, pack: dict) -> tuple[list[Task], list[str]]:
         top = modes[0]
         second = modes[1] if len(modes) > 1 else None
         close = second is not None and top.probability - second.probability < th["ambiguous_fault_probability"]
-        if second is not None and (top.probability < CLEAR_FAULT or close) and _degradation_detected(state):
+        answer = _answering(state, pack, [m.failure_mode for m in modes[:2]])
+        if second is not None and (top.probability < CLEAR_FAULT or close) and answer:
+            answered.append(f"fault mode unclear ({top.failure_mode} {top.probability:.2f} vs {second.failure_mode} "
+                            f"{second.probability:.2f}); the fresh finding {answer[-1].id} answers that in place of a "
+                            "longer sensor window")
+        elif second is not None and (top.probability < CLEAR_FAULT or close) and _degradation_detected(state):
             tasks.append(Task(
                 id="T-follow-diagnostics-candidates", agent="diagnostics", kind="check_candidates",
                 description="Discriminating sensors over a longer window and past removals for both candidates",
@@ -87,6 +109,14 @@ def follow_ups(state: CaseFile, pack: dict) -> tuple[list[Task], list[str]]:
                     "to tell a transient read error from bad source data")))
     elif quality is not None:
         clear.append("input data plausible")
+    entered = _inspections(state)
+    if entered:
+        tasks.insert(0, Task(
+            id="T-follow-diagnostics-inspection", agent="diagnostics", kind="inspection_check",
+            description="Check each inspection finding against the fault mode once Knowledge has its limit section",
+            reason=("; ".join(answered) + "; " if answered else "")
+            + (f"{len(entered)} inspection finding(s) entered ({', '.join(e.id for e in entered)}); once Knowledge "
+               "has compared each with the manual's limit, say whether it corroborates or weakens the fault mode")))
     return tasks, clear
 
 

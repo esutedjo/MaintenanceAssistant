@@ -51,7 +51,7 @@ def settings(tmp_path):
 def test_approve_writes_jsonl_in_sample_mode(settings, tmp_path):
     path = tmp_path / "draft_work_orders.jsonl"
     record = approve_case(_case(), settings, comment="go", path=path, signer=SIGNER)
-    assert record["wo_id"] == "WO-DRAFT-abc123"
+    assert record["wo_id"] == "WO-DRAFT-20261023T000000Z-abc123"
     assert record["backend"] == "file"
     assert record["status"] == "draft"
     assert record["wo_type"] == "engine_swap"
@@ -181,6 +181,40 @@ def test_sign_off_without_a_signer_is_refused(settings, tmp_path, sign):
     with pytest.raises(ValueError, match="signer"):
         sign(_case(), settings, path=tmp_path / "wo.jsonl", signer="   ")
     assert not (tmp_path / "wo.jsonl").exists() and not (tmp_path / "decision_logs").exists()
+
+
+def test_one_sign_off_per_case_even_from_parallel_threads(settings, tmp_path):
+    """Eight approvals at once: one succeeds, seven are refused, one draft, and the chain still verifies. A later
+    reject is refused too unless it is an explicit correction."""
+    import threading
+
+    case, path = _case(), tmp_path / "wo.jsonl"
+    results, start = [], threading.Barrier(8)
+
+    def sign():
+        start.wait()
+        try:
+            results.append(approve_case(case, settings, path=path, signer=SIGNER))
+        except ValueError as error:
+            results.append(error)
+
+    threads = [threading.Thread(target=sign) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    records = [r for r in results if isinstance(r, dict)]
+    assert len(records) == 1 and all("already signed" in str(r) for r in results if not isinstance(r, dict))
+    assert path.read_text(encoding="utf-8").count("\n") == 1
+    log = tmp_path / "decision_logs" / f"{case.case_id}.jsonl"
+    assert verify_log(log, records[0]["decision_log"]["head_hash"])[0]
+    with pytest.raises(ValueError, match="already signed .approved by A. Engineer."):
+        reject_case(case, settings, path=path, signer="M. Allory")
+    fixed = reject_case(case, settings, path=path, signer="B. Engineer", correction=True)
+    human = fixed["decision_log"]["entries"][-1]
+    assert human["rationale"].startswith("Correction of the earlier sign-off.")
+    assert verify_log(log, fixed["decision_log"]["head_hash"])[0]
+    assert not (tmp_path / "decision_logs" / f"{case.case_id}.lock").exists(), "the lock is released"
 
 
 class _Connection:

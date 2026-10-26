@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import re
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
+
+from assurance.escalation import needs_acknowledgement
+from casefile.calls import CALL_ACTIONS
+from casefile.wear import NOT_DETECTED, no_wear_label
 
 CSS = """
 <style>
@@ -21,10 +27,12 @@ CSS = """
 .esc { border: 1px solid; border-radius: 8px; padding: .55rem .9rem; margin: 0 0 .6rem 0; }
 .esc.urgent { background: #2a1015; border-color: #e11d48; }
 .esc.warning { background: #2a2210; border-color: #f59e0b; }
+.esc.info { background: #16202e; border-color: #475569; }
 .esc-title { font-weight: 700; font-size: .95rem; }
 .esc-sev { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; margin-right: .5rem; }
 .esc.urgent .esc-sev { color: #fda4af; }
 .esc.warning .esc-sev { color: #fcd34d; }
+.esc.info .esc-sev { color: #93c5fd; }
 .esc-msg { color: #e2e8f0; font-size: .92rem; margin-top: .15rem; }
 .esc-act { color: #cbd5e1; font-size: .85rem; margin-top: .3rem; }
 .plan-card { background: #16202e; border: 1px solid #2b3a4f; border-radius: 8px; padding: .8rem 1rem;
@@ -34,6 +42,16 @@ CSS = """
 .plan-facts { display: flex; flex-wrap: wrap; gap: .3rem 1.6rem; font-size: .9rem; color: #cbd5e1; }
 .plan-facts b { color: #e8eef5; }
 .plan-graph { margin-top: .55rem; font-size: .88rem; color: #cbd5e1; }
+.ins-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .6rem; padding: .45rem 0;
+           border-top: 1px solid #1f2b3b; font-size: .92rem; }
+.ins-row:first-of-type { border-top: none; }
+.ins-row.old { opacity: .6; }
+.ins-chip { font-size: .74rem; letter-spacing: .05em; text-transform: uppercase; border-radius: 999px;
+            padding: .05rem .6rem; border: 1px solid #334155; color: #cbd5e1; }
+.ins-chip.ok { border-color: #15803d; color: #86efac; }
+.ins-chip.flag { border-color: #b45309; color: #fcd34d; }
+.ins-chip.bad { border-color: #e11d48; color: #fda4af; }
+.ins-what { flex: 1 1 100%; color: #cbd5e1; font-size: .88rem; }
 .tl-row { display: grid; grid-template-columns: 2rem 1fr; gap: 0 .6rem; padding: .45rem .2rem;
           border-bottom: 1px solid #1f2b3b; }
 .tl-n { color: #64748b; font-size: .85rem; text-align: right; padding-top: .1rem; }
@@ -63,6 +81,16 @@ CSS = """
 .dl-meta { color: #64748b; font-size: .82rem; }
 .dl-ev { display: flex; flex-wrap: wrap; gap: .1rem .7rem; font-size: .84rem; margin-top: .15rem; }
 .dl-more { color: #94a3b8; font-size: .84rem; margin-top: .15rem; overflow-wrap: anywhere; }
+/* Live status strip under the ask bar: one chip per service, wraps on a tablet. */
+.status-strip { display: flex; flex-wrap: wrap; gap: .3rem .45rem; margin: .1rem 0 .2rem 0; }
+.status-strip span { display: inline-flex; align-items: center; gap: .35rem; background: #111a27;
+                     border: 1px solid #2b3a4f; border-radius: 999px; padding: .1rem .6rem; font-size: .78rem;
+                     color: #cbd5e1; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.status-strip span b { color: #e8eef5; font-weight: 600; }
+.status-strip i { width: .55rem; height: .55rem; border-radius: 999px; flex: none; background: #64748b; }
+.status-strip .ok i { background: #22c55e; }
+.status-strip .warn i { background: #f59e0b; }
+.status-strip .warn { border-color: #b45309; }
 .brand { display: flex; align-items: baseline; gap: .6rem; margin: 0 0 .2rem 0; }
 .brand b { font-size: 1.2rem; }
 .brand span { color: #94a3b8; font-size: .9rem; }
@@ -122,6 +150,42 @@ abbr[title] { text-decoration: underline dotted #64748b; text-underline-offset: 
 """
 
 
+# Markdown sinks (st.markdown, st.write, st.caption, st.error/warning/info/success, expander and radio labels) render
+# images and links: a stored inspector name "![x](http://host/p.png)" made the viewer's browser fetch it. Data and model
+# text goes through md_text (one line) or md_lines (keeps line breaks); model answers lose images and links first.
+_MD_SPECIAL = re.compile(r"([\\`*_{}\[\]()#+\-.!|>~<$])")       # "[" also breaks Streamlit's :color[...] directives
+_MD_LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+_AUTOLINK = re.compile(r"<(?:https?|ftp|mailto|javascript):[^>]*>", re.IGNORECASE)
+
+
+def md_text(value: Any) -> str:
+    """Data or model text shown as literal text in Markdown: every Markdown character escaped, on one line."""
+    return _MD_SPECIAL.sub(r"\\\1", " ".join(str(value if value is not None else "").split()))
+
+
+def md_lines(value: Any) -> str:
+    """Like md_text, keeping the text's line breaks (document sections)."""
+    return "  \n".join(md_text(line) for line in str(value if value is not None else "").splitlines())
+
+
+def strip_links(text: str) -> str:
+    """Model text keeps its own formatting but never an image or a link: [label](url) and ![alt](url) become their
+    label, <http://…> autolinks go."""
+    return _AUTOLINK.sub("", _MD_LINK.sub(r"\1", text or ""))
+
+
+STATUS_SHORT = {"mode": "Mode", "zetaris": "Zetaris", "context_service": "Context service",
+                "nightshift": "Nightshift", "cmms": "CMMS"}
+
+
+def status_chips(board: dict) -> list[tuple[str, str, str]]:
+    """(state, label, text) per chip of the status strip (tools/status.py). Sample mode is one grey chip."""
+    if board.get("overall") == "sample":
+        return [("off", "", board.get("summary") or "Sample mode")]
+    return [(c["state"], STATUS_SHORT.get(c["key"], c["label"]), c.get("chip") or c["summary"])
+            for c in board.get("components") or []]
+
+
 def sensor_label(sensor: str, pack: dict) -> str:
     meta = pack.get("sensors", {}).get(sensor, {})
     name = meta.get("name", sensor)
@@ -140,6 +204,17 @@ def primary_fault(findings: dict, pack: dict) -> tuple[str, float | None]:
         return "—", None
     top = max(modes, key=lambda m: m.get("probability") or 0)
     return fault_label(top["failure_mode"], pack), top.get("probability")
+
+
+def fault_display(case: dict, pack: dict) -> tuple[str, str | None]:
+    """The fault chip: (value, note under it). A healthy engine on a one-mode fleet shows "none detected" and names the
+    fleet's only known wear mode instead of its by-construction probability 1.00 (casefile/wear.py)."""
+    findings = case.get("findings") or {}
+    quiet = no_wear_label(findings, pack, (case.get("asset") or {}).get("variant"))
+    if quiet and findings.get("fault_modes"):
+        return NOT_DETECTED, f"only known mode: {quiet}"
+    fault, prob = primary_fault(findings, pack)
+    return fault, None if prob is None else f"p = {prob:.2f}"
 
 
 def fmt_rul(finding: dict | None, with_range: bool = False) -> str:
@@ -293,11 +368,15 @@ def signature_sensors(pack: dict, variant: str | None) -> list[str]:
 
 ESCALATION_TITLES = {
     "document_mandate": "Mandatory document action",
+    "inspection_beyond_limits": "Inspection finding beyond limits",
+    "inspection_at_limit": "Inspection finding at the limit",
     "rul_below_lead_time": "The engine wears out before a normal repair can happen",
     "rul_divergence": "The two remaining-life methods disagree",
     "ambiguous_fault": "Two fault modes are too close to call",
     "data_quality": "Input data failed a plausibility check",
     "knowledge_drift": "The failure-mode table lists work the World Model does not",
+    "sb_adoption": "Service bulletin needs engineering approval",
+    "potentially_reportable": "Potentially reportable occurrence",
 }
 
 
@@ -311,8 +390,16 @@ def escalation_view(esc: dict) -> dict[str, Any]:
         elif action not in message:
             proposed.append(action.removeprefix("Propose ").strip())
     rule = esc.get("rule") or ""
-    return {"severity": esc.get("severity") or "warning", "title": ESCALATION_TITLES.get(rule, rule.replace("_", " ")),
-            "message": message, "proposed": proposed, "notes": notes}
+    severity = esc.get("severity") or "warning"
+    return {"severity": severity, "label": "note" if severity == "info" else severity,
+            "title": ESCALATION_TITLES.get(rule, rule.replace("_", " ")), "message": message, "proposed": proposed,
+            "notes": notes, "tick": needs_tick(esc)}
+
+
+def needs_tick(esc: dict) -> bool:
+    """Urgent, warning and mandatory-document escalations are ticked before approval; info ones are notes the
+    sign-off records as seen (assurance.escalation.needs_acknowledgement)."""
+    return needs_acknowledgement(esc.get("severity"), esc.get("rule"))
 
 
 def escalation_ack_label(esc: dict) -> str:
@@ -359,9 +446,11 @@ def check_summary(case: dict) -> list[tuple[str, str]]:
     rules = [v for v in verdicts if v.get("gate") == "rule_checks"]
     critic = [v for v in verdicts if v.get("gate") == "critic"]
     chips: list[tuple[str, str]] = []
-    reader = (case.get("intent") or {}).get("resolved_by")
+    intent = case.get("intent") or {}
+    reader = intent.get("resolved_by")
     if reader:
-        chips.append((f"engine read from free text by {reader}, checked by code", "plain"))
+        by = intent["recorded"] if intent.get("recorded") else reader      # a replay names itself, with its date
+        chips.append((f"engine read from free text by {by}, checked by code", "plain"))
     if rules:
         sent_back = sum(v.get("outcome") != "accept" for v in rules)
         chips.append(("rule checks passed" if not sent_back else f"rule checks sent it back {sent_back}×",
@@ -374,7 +463,12 @@ def check_summary(case: dict) -> list[tuple[str, str]]:
             text += f" after {revisions} revision{'s' if revisions > 1 else ''}"
         chips.append((text, "ok" if last == "accept" else "flag"))
         models = list(dict.fromkeys(v["model"] for v in critic if v.get("model")))
-        chips.append((f"LLM critic: {', '.join(models)}" if models else "critic: deterministic checks only", "plain"))
+        recorded = [v["recorded"] for v in critic if v.get("model") and v.get("recorded")]
+        if recorded:                 # sample mode replays a captured reply; say so, with its date, so it never reads live
+            chips.append((f"critic: {recorded[-1]}", "plain"))
+        else:
+            chips.append((f"LLM critic: {', '.join(models)}" if models else "critic: deterministic checks only",
+                          "plain"))
     escalations = case.get("escalations") or []
     if escalations:
         chips.append((f"{len(escalations)} escalation{'s' if len(escalations) > 1 else ''}", "flag"))
@@ -384,6 +478,69 @@ def check_summary(case: dict) -> list[tuple[str, str]]:
 
 def _days(n: float) -> str:
     return f"{n:g} day" if n == 1 else f"{n:g} days"
+
+
+RESULT_TONE = {"within": "ok", "at_limit": "flag", "beyond": "bad"}
+RESULT_WORDS = {"within": "within limits", "at_limit": "at the limit", "beyond": "beyond limits"}
+
+
+def inspection_rows(case: dict, pack: dict) -> list[dict[str, Any]]:
+    """The inspection findings in the brief, newest first: what was found, the result chip, how it was classified
+    (against which limit, or by the inspector), and the evidence tags behind it."""
+    evidence = case.get("evidence") or {}
+    spec = pack.get("inspections") or {}
+    rows = []
+    for item in (case.get("findings") or {}).get("inspections") or []:
+        finding = ((evidence.get(item["evidence_id"]) or {}).get("content") or {}).get("finding") or {}
+        measured = finding.get("measurement")
+        limit = item.get("limit") or {}
+        if item.get("classified_by") == "limit" and measured and limit:
+            basis = (f"{limit.get('name')} {measured['value']:g} {measured['unit']} against {item.get('reference')} "
+                     f"(serviceable up to {limit['serviceable']:g}, reject above {limit['reject']:g} {limit['unit']})")
+        else:
+            basis = f"inspector-classified: {item.get('note') or 'no limit applies'}"
+        rows.append({
+            "evidence_id": item["evidence_id"], "limit_evidence_id": item.get("limit_evidence_id"),
+            "kind": (spec.get("kinds") or {}).get(item["kind"], item["kind"]),
+            "module": (spec.get("modules") or {}).get(item["module"], item["module"]),
+            "location": item.get("location") or "", "cycle": item.get("cycle"),
+            "date": finding.get("inspected_on"), "inspector": finding.get("inspector"),
+            "observation": finding.get("observation") or "", "result": RESULT_WORDS[item["result"]],
+            "tone": RESULT_TONE[item["result"]], "inspector_classified": item.get("classified_by") == "inspector",
+            "basis": basis, "current": item.get("current", True), "superseded_by": item.get("superseded_by"),
+            "example": bool(finding.get("example")), "photo": finding.get("photo"),
+            "interval": item.get("interval_cycles"), "action": item.get("action"),
+        })
+    return sorted(rows, key=lambda r: (r["current"], r["cycle"] or 0, r["evidence_id"]), reverse=True)
+
+
+def asks_for_inspection(case: dict) -> bool:
+    """The verdict is an inspection: the place an inspector's result comes back in."""
+    from tools.triage import decision_kind
+    return decision_kind((case.get("recommendation") or {}).get("action")) == "inspect"
+
+
+def _inspection_boundary(item: dict, case: dict) -> str:
+    """The limit the finding was compared with and the values at which the plan would change."""
+    finding = (((case.get("evidence") or {}).get(item["evidence_id"]) or {}).get("content") or {}).get("finding") or {}
+    measured, row, ev, ref = finding.get("measurement"), item.get("limit") or {}, item["evidence_id"], item.get("reference")
+    if item.get("classified_by") != "limit" or not measured or not row:
+        return (f"**{RESULT_WORDS[item['result']].capitalize()} on the inspection** because the inspector "
+                f"{md_text(finding.get('inspector') or '')} classified finding {ev} so; no limit section covers it, so the "
+                "plan follows the inspector's result.")
+    value = f"{row['id']} {measured['value']:g} {row['unit']}"
+    ok, reject = f"{row['serviceable']:g} {row['unit']}", f"{row['reject']:g} {row['unit']}"
+    if item["result"] == "beyond":
+        return (f"**Remove before further flight** because inspection finding {ev} measured {value}, above the reject "
+                f"limit {reject} of {ref}. Up to {reject} the plan would re-inspect at the manual's interval; up to "
+                f"{ok}, no removal on this finding.")
+    if item["result"] == "at_limit":
+        return (f"**Re-inspect within {item.get('interval_cycles')} cycles** because inspection finding {ev} measured "
+                f"{value}, above the serviceable limit {ok} but not above the reject limit {reject} of {ref}. Above "
+                f"{reject} the plan would remove the engine before further flight; up to {ok}, no removal.")
+    return (f"**No removal on the inspection** because finding {ev} measured {value}, within the serviceable limit "
+            f"{ok} of {ref}. Above {ok} the plan would re-inspect at the manual's interval; above {reject} it would "
+            "remove the engine before further flight.")
 
 
 def decision_boundaries(case: dict, pack: dict) -> list[str]:
@@ -403,12 +560,29 @@ def decision_boundaries(case: dict, pack: dict) -> list[str]:
     gap = abs(a["rul"] - b["rul"]) if b else None
     diverge = gap is not None and gap > limit
     at_cap = [name for name, f in (("method A", a), ("method B", b)) if f and f.get("at_cap")]
+    current = [i for i in findings.get("inspections") or [] if i.get("current", True)]
+    worst = max(current, key=lambda i: list(RESULT_TONE).index(i["result"])) if current else None
+    gate = worst["result"] if worst else None
+    answered = gate in ("beyond", "at_limit") or (gate == "within" and "no removal" in action.lower())
     lines = []
     if action.startswith("Confirm the input data first"):
         lines.append("**Confirm the data first** because a serious plausibility issue was found in the inputs. "
                      "Clean data would remove this step.")
-    if at_cap and not diverge:
-        lines.append(f"**Kept in service** because {' and '.join(at_cap)} has not left the "
+    if "do not dispatch" in action.lower():
+        slot = rec.get("slot")
+        lines.append(f"**Do not dispatch** because the planning bound is {lower:.0f} cycles"
+                     + (" (none left)" if lower <= 0 else f", which runs out on {rec.get('deadline')}")
+                     + (f" and the first free slot is {slot}" if slot else "")
+                     + ". A bound that lasts to the first free slot would let the engine fly until the work.")
+    if worst:
+        lines.append(_inspection_boundary(worst, case))
+    if diverge and answered:
+        lines.append(f"**No back-test or extra borescope** because the two methods are {gap:.0f} cycles apart (limit "
+                     f"{limit}) and the fresh finding {worst['evidence_id']} is the inspection that disagreement asks "
+                     "for.")
+    elif at_cap and not diverge:
+        lines.append(f"**No action proposed before the next scheduled inspection** because {' and '.join(at_cap)} "
+                     "has not left the "
                      f"{th['rul_cap_cycles']:.0f}-cycle cap, so there is no measurable wear yet, and the methods agree "
                      f"within {limit} cycles. Wear below the cap on both methods, or a gap above {limit} cycles, would "
                      "change the plan.")
@@ -427,7 +601,10 @@ def decision_boundaries(case: dict, pack: dict) -> list[str]:
                   and ":world/" in (e.get("source") or "") and "tasks" in (e.get("content") or {})), {})
     swap_ids = {t.get("fmea_id") for t in world.get("tasks") or [] if t.get("task_type") == "engine_change"}
     wait = plan["lead_days"] + plan["slot_days"]
-    if not diverge and not (at_cap and not diverge) and not action.startswith("Inspection targeting"):
+    if gate == "beyond" and swap_ids & set(rec.get("task_ids") or []):
+        lines.append(f"**Lease-engine swap** because the finding grounds the engine now and a repair on wing needs "
+                     f"{plan['lead_days']} d for parts plus {plan['slot_days']} d to the first free slot ({wait} d).")
+    elif not diverge and not (at_cap and not diverge) and "inspection targeting" not in action.lower():
         if swap_ids & set(rec.get("task_ids") or []):
             text = (f"**Lease-engine swap** because the bound covers {plan['rul_days']:.1f} days, but a repair on "
                     f"wing needs {plan['lead_days']} d for parts plus {plan['slot_days']} d to the first free slot "
@@ -457,7 +634,8 @@ STATUS_TONE = {"success": "ok", "needs_revision": "flag", "fallback": "flag", "s
 
 
 def trace_rows(events: list[dict]) -> list[dict[str, Any]]:
-    """Trace events as a readable timeline: who acted, who it went to, outcome, model and summary."""
+    """Trace events as a readable timeline: who acted, who it went to, outcome, model and summary. Zetaris queries and
+    context-store calls are marked `call` rows; a model reply replayed from a recording says "recorded"."""
     rows = []
     for n, event in enumerate(events, 1):
         agent = event.get("agent_name") or "?"
@@ -465,6 +643,9 @@ def trace_rows(events: list[dict]) -> list[dict[str, Any]]:
         targets = [t for t in (event.get("target_agent") or "").split(",") if t]
         if status == "needs_revision" and not targets:
             targets = ["maint_planner"]
+        model = event.get("model") or ""
+        if model and event.get("recorded"):
+            model += " (recorded reply)"
         rows.append({
             "step": n,
             "agent": AGENT_LABELS.get(agent, agent),
@@ -472,9 +653,10 @@ def trace_rows(events: list[dict]) -> list[dict[str, Any]]:
             "action": (event.get("action") or "").replace("_", " "),
             "status": status.replace("_", " "),
             "tone": STATUS_TONE.get(status, "plain"),
-            "model": event.get("model") or "",
+            "model": model,
             "summary": event.get("output_summary") or "",
             "seconds": event.get("duration_s"),
+            "call": event.get("action") in CALL_ACTIONS,
         })
     return rows
 
@@ -482,35 +664,53 @@ def trace_rows(events: list[dict]) -> list[dict[str, Any]]:
 ACTOR_CHIPS = {"agent": "agent", "gate": "gate", "model": "model", "human": "engineer"}
 LOG_ACTORS = {**AGENT_LABELS, "close": "round limit"}
 DECISION_TONE = {"accepted": "ok", "approved": "ok", "challenge refuted": "ok", "no escalation": "ok",
+                 "no follow-up needed": "ok", "delegated follow-up": "plain", "ran follow-up": "plain",
+                 "routed gap": "flag", "ran repair": "plain", "no agent can fix": "bad",
+                 "entered inspection finding": "plain", "compared finding with limits": "plain",
                  "sent back for revision": "flag", "challenge confirmed": "flag", "escalated": "flag",
                  "asked back": "flag", "rejected": "bad", "failed": "bad", "not accepted at the round limit": "bad",
                  "closed: insufficient evidence": "bad"}
 
 
 def _utc_time(stamp: str | None, with_date: bool = False) -> str:
+    """An ISO time shown in UTC: an offset is converted, a naive legacy value is read as UTC."""
     text = str(stamp or "")
     if "T" not in text:
         return text
-    day, clock = text.split("T", 1)
-    return f"{day + ' ' if with_date else ''}{clock[:8]} UTC"
+    try:
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text
+    moment = moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment.astimezone(timezone.utc)
+    return moment.strftime("%Y-%m-%d %H:%M:%S UTC" if with_date else "%H:%M:%S UTC")
 
 
 def _signoff_details(entry: dict) -> list[str]:
-    """The sign-off's binding: who, when, which brief, the comment and the past-case ratings."""
+    """The sign-off's binding: who, when, which brief (and its stored snapshot), the comment, the past-case ratings
+    and the versions it ran on. An inspector's entry says when the finding was entered."""
     if entry.get("actor_type") != "human":
         return []
+    if not entry.get("signer"):
+        return [f"Entered {_utc_time(entry.get('timestamp'), with_date=True)}"]
     signer, brief = entry.get("signer") or {}, entry.get("brief") or {}
     who = [signer.get("role"), f"licence {signer['licence_ref']}" if signer.get("licence_ref") else None]
     lines = [f"Signed {_utc_time(entry.get('timestamp'), with_date=True)}" + "".join(f" · {x}" for x in who if x)]
     if brief:
         sha = (brief.get("recommendation_sha256") or "")[:12]
         lines.append(f"Brief {brief.get('case_id')}" + (f" · recommendation fingerprint {sha}" if sha else ""))
+    snapshot = entry.get("brief_snapshot") or {}
+    if snapshot:
+        lines.append(f"Brief as shown stored at {snapshot.get('path')} · SHA-256 {(snapshot.get('sha256') or '')[:12]}")
     if entry.get("wo_id"):
         lines.append(f"Work order {entry['wo_id']}")
     acknowledged = entry.get("acknowledged") or []
     if acknowledged:
         lines.append("Escalations acknowledged: " + "; ".join(
             f"{a.get('severity')} {(a.get('rule') or '').replace('_', ' ')}" for a in acknowledged))
+    noted = entry.get("noted") or []
+    if noted:
+        lines.append("Notes shown and recorded as seen: " + "; ".join(
+            (a.get("rule") or "").replace("_", " ") for a in noted))
     reason = next((a["reason"] for a in acknowledged if a.get("reason")), None)
     if reason:
         lines.append(f"Approved despite the urgent escalation because: {reason}")
@@ -519,6 +719,12 @@ def _signoff_details(entry: dict) -> list[str]:
     ratings = entry.get("case_feedback") or {}
     if ratings:
         lines.append("Past-case ratings: " + ", ".join(f"{k} {v.replace('_', ' ')}" for k, v in ratings.items()))
+    stamp = entry.get("versions") or {}
+    if stamp:
+        code = str(stamp.get("code") or "unknown")
+        lines.append(f"Ran on code {code[:12]}{' (uncommitted changes)' if code.endswith('+dirty') else ''} · asset "
+                     f"pack {stamp.get('asset_pack')} · {len(stamp.get('models') or {})} model files hashed · LLM "
+                     f"{stamp.get('llm')}")
     return lines
 
 
@@ -528,8 +734,9 @@ def decision_log_rows(entries: list[dict]) -> list[dict[str, Any]]:
     for n, entry in enumerate(entries, 1):
         kind, actor = entry.get("actor_type") or "agent", entry.get("actor") or "?"
         decision = entry.get("decision") or ""
+        inspector = kind == "human" and not entry.get("signer")      # an inspector entered a finding
         rows.append({
-            "step": n, "kind": kind, "chip": ACTOR_CHIPS.get(kind, kind),
+            "step": n, "kind": kind, "chip": "inspector" if inspector else ACTOR_CHIPS.get(kind, kind),
             "actor": LOG_ACTORS.get(actor, actor) if kind in {"agent", "gate"} else actor,
             "decision": decision, "tone": DECISION_TONE.get(decision, "plain"),
             "round": entry.get("round"), "time": _utc_time(entry.get("timestamp")),
@@ -542,8 +749,11 @@ def decision_log_rows(entries: list[dict]) -> list[dict[str, Any]]:
 def decision_rows(case: dict) -> list[dict]:
     rows = []
     for v in case.get("verdicts") or []:
+        model = v.get("model") or "deterministic"
+        if v.get("model") and v.get("recorded"):
+            model = f"{model} ({v['recorded']})"
         rows.append({"round": v.get("round"), "gate": v.get("gate", "").replace("_", " "),
-                     "outcome": v.get("outcome"), "model": v.get("model") or "deterministic",
+                     "outcome": v.get("outcome"), "model": model,
                      "gaps": "; ".join(v.get("gaps") or []) or "—"})
     return rows
 
@@ -551,6 +761,8 @@ def decision_rows(case: dict) -> list[dict]:
 def trace_chips(trace: list[dict]) -> list[str]:
     chips = []
     for event in trace:
+        if event.get("action") in CALL_ACTIONS:         # Zetaris and context-store calls: the Trace tab lists them
+            continue
         agent = event.get("agent_name", "?")
         status = event.get("status", "")
         extra = ""

@@ -51,3 +51,61 @@ parts. Ship the removed engine with its trend data and last borescope record. Re
 <!-- {components: [hpt], failure_modes: []} -->
 Inspect high-pressure turbine stage 1 blades for coating loss, cracks and blocked cooling holes at each shop
 visit. Rising HPT coolant bleed (W31) alone is not a removal criterion.
+
+## 72-31-00-601 HPC blade borescope limits (table 601)
+<!-- {components: [hpc], topic: "limits:borescope:hpc_blades"} -->
+SYNTHETIC LIMITS written for the hackathon demo; not OEM data, do not use for real maintenance. Measure the worst
+HPC stage 1 to 9 blade through the borescope ports and compare it with the table. Within the serviceable limit the
+blade stays in service and the next borescope follows the routine interval. Above the serviceable limit but not above
+the reject limit (at the limit) the blade stays in service at a reduced interval: re-inspect and plan a module shop
+visit (FM-HPC-03). Above the reject limit (beyond limits) remove the engine before further flight (FM-HPC-04).
+Limit HPC-TIP: blade tip erosion, mm; serviceable up to 0.50; reject above 0.75.
+Limit HPC-NICK: leading-edge nick depth, mm; serviceable up to 0.25; reject above 0.50.
+Limit HPC-COAT: coating loss (share of airfoil area), %; serviceable up to 10; reject above 25.
+Interval: within limits next inspection 60 cycles; at limit re-inspect within 30 cycles; beyond limits remove before
+further flight.
+
+## 72-21-00-601 Fan blade leading-edge damage limits (table 601)
+<!-- {components: [fan], topic: "limits:visual:fan_blades"} -->
+SYNTHETIC LIMITS written for the hackathon demo; not OEM data. Inspect the fan blade leading edges visually, turning
+the fan by hand, and measure the deepest nick or dent and the erosion of the leading edge. Within the serviceable
+limit, blend on wing if needed and keep the routine interval. At the limit, blend, re-inspect at the reduced interval
+and plan the blade pair replacement (FM-FAN-02). Beyond limits, remove the engine before further flight (FM-FAN-03).
+Limit FAN-NICK: leading-edge nick or dent depth, mm; serviceable up to 1.0; reject above 2.0.
+Limit FAN-EROSION: leading-edge erosion (chord loss), mm; serviceable up to 1.5; reject above 3.0.
+Interval: within limits next inspection 100 cycles; at limit re-inspect within 25 cycles; beyond limits remove before
+further flight.
+
+## 79-00-00-601 Spectrometric oil analysis wear-metal limits (table 601)
+<!-- {components: [oil_system], topic: "limits:oil_analysis:wear_metals"} -->
+SYNTHETIC LIMITS written for the hackathon demo; not OEM data. Take the oil sample within 30 minutes of shutdown and
+compare each wear metal with the table. Rising iron (Fe) points at bearings and gears, chromium (Cr) at bearing races
+and silver (Ag) at bearing cages. Within the serviceable limit, sample at the routine interval. At the limit,
+resample at the reduced interval and check the magnetic chip detector. Beyond limits, remove the engine before
+further flight for bearing and gearbox inspection.
+Limit OIL-FE: iron (Fe), ppm; serviceable up to 4.0; reject above 8.0.
+Limit OIL-CR: chromium (Cr), ppm; serviceable up to 1.0; reject above 2.0.
+Limit OIL-AG: silver (Ag), ppm; serviceable up to 0.5; reject above 1.0.
+Interval: within limits next inspection 25 cycles; at limit re-inspect within 5 cycles; beyond limits remove before
+further flight.
+
+## 79-30-00-601 Magnetic chip detector limits (table 601)
+<!-- {components: [oil_system], topic: "limits:chip_detector:particles"} -->
+SYNTHETIC LIMITS written for the hackathon demo; not OEM data. Remove the magnetic chip detector, measure the largest
+particle and count the particles larger than a quarter of a millimetre. Fuzz and fine paste are normal wear. Within
+the serviceable limit, clean and refit. At the limit, refit a clean detector, check again at the reduced interval
+and send the debris for analysis. Beyond limits, remove the engine before further flight.
+Limit CHIP-SIZE: largest particle, mm; serviceable up to 0.5; reject above 1.0.
+Limit CHIP-COUNT: particles larger than 0.25 mm, count; serviceable up to 3; reject above 6.
+Interval: within limits next inspection 50 cycles; at limit re-inspect within 10 cycles; beyond limits remove before
+further flight.
+
+## 72-00-00-601 Eddy-current crack indication limits (table 601)
+<!-- {components: [fan, lpc, hpc, hpt, lpt], topic: "limits:material_test:crack_indication"} -->
+SYNTHETIC LIMITS written for the hackathon demo; not OEM data. Applies to eddy-current and other NDT inspections of
+blade roots, disk slots and cases. No reportable indication is serviceable. An indication up to the reject length is
+below the method's confirmed-crack threshold: confirm it with a second method and re-inspect at the reduced interval.
+A longer indication is a crack: remove the engine before further flight.
+Limit NDT-CRACK: crack indication length, mm; serviceable up to 0.0; reject above 0.25.
+Interval: within limits next inspection 100 cycles; at limit re-inspect within 10 cycles; beyond limits remove before
+further flight.

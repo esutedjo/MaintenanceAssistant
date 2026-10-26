@@ -69,6 +69,26 @@ def test_healthy_engine_says_no_wear():
     assert "wearing out" not in text
 
 
+def test_glossary_and_help_state_the_acknowledgement_rule_one_way():
+    """Urgent, warning and mandatory-document escalations need a tick, urgent ones a reason; info notes are noted."""
+    entries = {e["term"]: e["meaning"] for e in glossary(PACK)}
+    for term in ("Escalation", "Sign-off"):
+        text = entries[term]
+        assert "urgent, warning and mandatory-document" in text.lower() and "noted" in text, term
+        assert "Tick each one as read" not in text and "tick each escalation" not in text, term
+    assert "needs no tick" in entries["Note (escalation)"]
+    for text in (SECTION_HELP["signoff"], HOW_TO_READ[-1], *dict(screen_guide(_golden("critical_hpc"), PACK)).values()):
+        assert "tick each escalation" not in text.lower()
+        if "tick each" in text.lower():
+            assert "mandatory-document" in text and "noted" in text, text
+
+
+def test_healthy_one_mode_engine_shows_no_fault_in_the_guide():
+    rows = dict(screen_guide(_golden("healthy_engine"), PACK))
+    assert rows["Fault mode"].startswith("**No wear detected**; this fleet's only known wear mode is HPC degradation")
+    assert "probability 1.00" not in rows["Fault mode"]
+
+
 def test_closed_case_explains_why():
     assert "stopped rather than guess" in plain_summary(_case(status="insufficient_evidence"), load_pack())[0]
 

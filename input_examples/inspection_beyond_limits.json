@@ -1,0 +1,20 @@
+{
+ "question": "The two remaining-life estimates for FD001-A070 look different. What should I do?",
+ "inspections": [
+  {
+   "asset_id": "FD001-A070",
+   "kind": "borescope",
+   "module": "hpc",
+   "location": "HPC stage 3",
+   "observation": "Tip erosion on several stage 3 blades with curl on the worst blade; leading-edge material loss.",
+   "measurement": {
+    "parameter": "HPC-TIP",
+    "value": 0.82,
+    "unit": "mm"
+   },
+   "inspector": "Example inspector",
+   "inspected_on": "2026-10-22",
+   "cycle": 152
+  }
+ ]
+}

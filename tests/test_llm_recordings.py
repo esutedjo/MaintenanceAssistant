@@ -45,11 +45,19 @@ def test_a_recorded_reply_is_used_labelled_and_checked_by_code(settings, tmp_pat
     label = "recorded Nemotron response (captured 2026-10-26)"
     assert (verdict.model, verdict.recorded, verdict.outcome) == (MODEL, label, "accept")
     assert any(g.startswith("missing mandate challenge refuted by code") for g in verdict.gaps)
-    critic = next(e for e in case.trace if e.agent_name == "critic")
-    assert critic.model == MODEL and label in critic.output_summary
+    critic = next(e for e in case.trace if e.agent_name == "critic" and e.action == "disprove")
+    assert critic.model == MODEL and label in critic.output_summary and critic.recorded is True
+    line = next(json.loads(row) for row in (ROOT / result["trace_file"]).read_text(encoding="utf-8").splitlines()
+                if json.loads(row)["action"] == "disprove")
+    assert line["model"] == MODEL and line["recorded"] is True, "the JSONL line says it was a replay"
+    assert not any("recorded" in json.loads(row) for row in (ROOT / result["trace_file"]).read_text(
+        encoding="utf-8").splitlines() if not json.loads(row).get("model")), "code steps carry no recorded field"
     review = next(e for e in derive_log(case) if e.actor == MODEL)
-    assert review.decision == "reviewed the brief" and label in review.rationale
-    assert result["model_calls"] == [{"agent": "critic", "round": 1, "model": MODEL, "source": label}]
+    assert review.decision == "reviewed the brief" and label in review.rationale and review.recorded is True
+    refuted = next(e for e in derive_log(case) if e.decision == "challenge refuted")
+    assert refuted.recorded is True and label in refuted.rationale
+    assert result["model_calls"] == [{"agent": "critic", "round": 1, "model": MODEL, "recorded": True,
+                                      "source": label}]
 
 
 def test_a_changed_prompt_gets_no_recorded_reply(settings, tmp_path, monkeypatch):
@@ -67,8 +75,14 @@ def test_a_recorded_intake_reply_is_grounded_by_code(settings, tmp_path, monkeyp
     case = execute_run(FREE_TEXT, settings).case
     assert case.status == "needs_review" and case.asset.asset_id == "FD001-A031"
     assert case.intent.resolved_by == MODEL and case.intent.recorded.startswith("recorded Nemotron response")
+    read = next(e for e in case.trace if e.action == "parse_and_resolve")
+    assert read.model == MODEL and read.recorded is True and "(captured 2026-10-26)" in read.output_summary
     _write(path, intake_prompt(FREE_TEXT), '{"engine": "ESN-700131", "quote": "the bad one"}', purpose="intake")
-    assert execute_run(FREE_TEXT, settings).case.status == "needs_clarification"     # quote not in the question
+    asked = execute_run(FREE_TEXT, settings).case
+    assert asked.status == "needs_clarification"                                      # quote not in the question
+    back = next(e for e in asked.trace if e.action == "parse_and_resolve")
+    assert back.model == MODEL and back.recorded is True, "an ask-back from a replay never reads as a live call"
+    assert next(e for e in derive_log(asked) if e.actor == MODEL).recorded is True
 
 
 @pytest.mark.skipif(not COMMITTED.exists(), reason="no recordings captured (uv run task record-llm)")

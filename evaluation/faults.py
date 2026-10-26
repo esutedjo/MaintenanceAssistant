@@ -4,10 +4,11 @@ A fault returns None when it does not apply to the case (no mandate to drop, no 
 
 import re
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import date, timedelta
 
-from casefile.schemas import CaseFile, Claim, PartNeed
+from casefile.schemas import CaseFile, Claim, Evidence, InspectionFinding, Measurement, PartNeed
 from models.fault_mode import discriminating
+from tools.inspections import assess, limit_section, pack_limit_chunks, parse_limits
 
 Fault = Callable[[CaseFile, dict], CaseFile | None]
 
@@ -157,8 +158,54 @@ def claim_number_altered(case, pack):
     return None
 
 
+def _next_id(case: CaseFile, code: str) -> str:
+    taken = [int(k.rsplit("-", 1)[1]) for k in case.evidence if k.startswith(f"EV-{code}-")]
+    return f"EV-{code}-{max(taken, default=0) + 1:02d}"
+
+
+def inspection_ignored(case, pack):
+    """A borescope (or fan visual) finding beyond the manual's limit came in and the plan stayed what it was: the
+    finding is not cited and, unless the plan already removed the engine, nothing is removed before further flight.
+    A brief with findings loses its citations of them; one without gets the finding injected, as the data agent and
+    Knowledge would have recorded it, and keeps its old plan."""
+    c = _copy(case)
+    if c.recommendation is None or c.asset is None:
+        return None
+    current = {i.evidence_id for i in c.findings.inspections if i.current}
+    if current:
+        c.recommendation.rationale = [r for r in c.recommendation.rationale if current.isdisjoint(r.evidence_ids)]
+        return c if c.recommendation.rationale else None
+    modes = c.findings.fault_modes
+    module = pack["failure_modes"][modes[0].failure_mode]["component"] if modes else "hpc"
+    kind = "visual" if module == "fan" else "borescope"
+    reference = date(2026, 10, 22)
+    chunk, _ = limit_section(pack_limit_chunks(pack), pack, kind, module, reference, c.asset.variant)
+    if chunk is None:
+        return None
+    table = parse_limits(chunk["text"])
+    row = table["rows"][0]
+    cycle = c.findings.anomaly.cycle if c.findings.anomaly else 0
+    finding = InspectionFinding(
+        asset_id=c.asset.asset_id, kind=kind, module=module, location=f"{module.upper()} stage 3",
+        observation="Wear past the reject limit on the worst blade.", inspector="Seeded fault", inspected_on=reference,
+        cycle=cycle, measurement=Measurement(parameter=row["id"], value=round(row["reject"] * 1.2 + 0.1, 2),
+                                             unit=row["unit"]))
+    ins, knw = _next_id(c, "INS"), _next_id(c, "KNW")
+    c.evidence[ins] = Evidence(id=ins, kind="inspection", source="entered by Seeded fault",
+                               summary=f"Inspection finding {finding.finding_id}: beyond the reject limit",
+                               content={"finding": finding.model_dump(mode="json"), "fresh": True},
+                               produced_by="data")
+    c.evidence[knw] = Evidence(id=knw, kind="document", source=f"snapshot:doc_chunks.parquet#{chunk['chunk_id']}",
+                               summary=f"{chunk['doc_id']} {chunk['section']} {chunk['heading']}",
+                               content={"limits": table["rows"], "routine_cycles": table["routine_cycles"],
+                                        "reinspect_cycles": table["reinspect_cycles"]}, produced_by="knowledge")
+    c.findings.inspections.append(assess(finding, ins, limit_evidence_id=knw, section=chunk, limits=table, pack=pack,
+                                         fresh=True))
+    return c
+
+
 FAULTS: dict[str, Fault] = {f.__name__: f for f in (
     uncited_claim, evidence_deleted, rul_above_cap, rul_outside_interval, rul_inflated, disagreement_averaged,
     wrong_asset, fabricated_part, stock_inflated, slot_not_free, deadline_past_rul, mandate_dropped,
-    mandate_uncited, drivers_as_signature, similar_cases_dropped, claim_number_altered,
+    mandate_uncited, drivers_as_signature, similar_cases_dropped, claim_number_altered, inspection_ignored,
 )}

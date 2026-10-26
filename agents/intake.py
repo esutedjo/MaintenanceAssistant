@@ -7,6 +7,7 @@ the quoted words must be in the question and contain the engine's number, and th
 import json
 import logging
 import re
+import unicodedata
 
 from agents.runtime import NodeResult, RunContext, node
 from casefile.schemas import AssetRef, CaseFile, EvidenceLedger, Intent
@@ -16,12 +17,13 @@ from tools.llm import LlmClient, LlmRefusal, LlmUnavailable
 
 log = logging.getLogger("intake")
 
-# Accepts FD003-A100 and the ways people type it: FD003 A100, fd003_a100.
-ASSET_PATTERN = re.compile(r"\bFD\s?(\d{3})\s?[-_ ]?\s?([AH])\s?-?\s?(\d{3})\b", re.IGNORECASE)
-ESN_PATTERN = re.compile(r"\bESN[- ]?(\d{6})\b", re.IGNORECASE)
+# Accepts FD003-A100 and the ways people type it: FD003 A100, fd003_a100. ASCII digits only: the question is NFKC-
+# normalised first (fullwidth digits read as ASCII); other scripts' digits ask back instead of reaching the SQL guard.
+ASSET_PATTERN = re.compile(r"\bFD\s?(\d{3})\s?[-_ ]?\s?([AH])\s?-?\s?(\d{3})\b", re.IGNORECASE | re.ASCII)
+ESN_PATTERN = re.compile(r"\bESN[- ]?(\d{6})\b", re.IGNORECASE | re.ASCII)
 # "engine 31 in the FD001 fleet": an active-fleet unit number plus a fleet name.
-FLEET_PATTERN = re.compile(r"\bFD\s?(\d{3})\b", re.IGNORECASE)
-UNIT_PATTERN = re.compile(r"\b(?:engine|unit)\s*(?:no\.?|number|#)?\s*(\d{1,3})\b", re.IGNORECASE)
+FLEET_PATTERN = re.compile(r"\bFD\s?(\d{3})\b", re.IGNORECASE | re.ASCII)
+UNIT_PATTERN = re.compile(r"\b(?:engine|unit)\s*(?:no\.?|number|#)?\s*(\d{1,3})\b", re.IGNORECASE | re.ASCII)
 FLEET_WORDS = ("which engine", "what engines", "fleet", "all engines", "any engine", "need attention", "most urgent",
                "worst engine", "rank")
 FLEET_QUESTION = ("This asks about the whole fleet. The Fleet tab ranks every active engine by urgency; "
@@ -33,7 +35,7 @@ GOAL_WORDS = {
     "diagnosis": ("what is wrong", "wrong", "fault", "diagnos", "why", "cause"),
     "maintenance_plan": ("what should i do", "plan", "work order", "schedule", "action", "fix", "replace"),
 }
-CANONICAL = re.compile(r"^(FD\d{3}-[AH]\d{3}|ESN-\d{6})$")
+CANONICAL = re.compile(r"(FD\d{3}-[AH]\d{3}|ESN-\d{6})", re.ASCII)
 NUMBER_WORDS = {w: i for i, w in enumerate(
     "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
     "seventeen eighteen nineteen".split())}
@@ -52,6 +54,7 @@ INTAKE_PROMPT = (
 
 
 def parse(question: str) -> Intent:
+    question = unicodedata.normalize("NFKC", question)
     text = question.lower()
     goals = [goal for goal, words in GOAL_WORDS.items() if any(w in text for w in words)]
     goal = goals[0] if len(goals) == 1 else "full_assessment"
@@ -95,7 +98,7 @@ def grounded_engine(question: str, reply: dict) -> tuple[str | None, str]:
     quote = " ".join(str(reply.get("quote") or "").split())
     if not engine:
         return None, "the model named no engine"
-    if not CANONICAL.match(engine):
+    if not CANONICAL.fullmatch(engine):
         return None, f"{engine} is not an engine ID"
     if not quote or quote.lower() not in " ".join(question.split()).lower():
         return None, f"the quoted words are not in the question: {quote!r}"
@@ -126,66 +129,78 @@ def intake_prompt(question: str) -> str:
     return INTAKE_PROMPT + question[:500]
 
 
-def read_engine_with_llm(question: str, ctx: RunContext) -> tuple[str | None, str | None, str]:
-    """Ask the critic's Nightshift lane which engine the question names. Returns (engine, model, note). In sample
-    mode a recorded reply to exactly this prompt is used, checked by the same code; else no model is read."""
+def read_engine_with_llm(question: str, ctx: RunContext) -> tuple[str | None, str | None, str, str | None]:
+    """Ask the critic's Nightshift lane which engine the question names. Returns (engine, model, note, recorded). In
+    sample mode a recorded reply to exactly this prompt is used, checked by the same code, and `recorded` is its label
+    ("recorded Nemotron response (captured <date>)"); else no model is read."""
     if ctx.settings.sample_mode:
         recording = recordings.lookup(intake_prompt(question), "intake")
         if recording is None:
-            return None, None, "sample mode"
+            return None, None, "sample mode", None
         try:
             engine, reason = grounded_engine(question, _json(recording.text))
-        except (ValueError, json.JSONDecodeError) as error:
-            return None, recording.model, f"recorded reply unreadable ({type(error).__name__})"
-        return engine, recording.model, recording.label if engine else reason
+        except (ValueError, TypeError, KeyError) as error:
+            return None, recording.model, f"recorded reply unreadable ({type(error).__name__})", recording.label
+        return engine, recording.model, recording.label if engine else reason, recording.label
     client = LlmClient(ctx.settings)
     reply = None
     try:
         if not client.configured:
-            return None, None, "no Nightshift token"
+            return None, None, "no Nightshift token", None
         reply = client.chat([{"role": "user", "content": intake_prompt(question)}],
                             model=ctx.settings.meterless_critic_model, temperature=0, max_tokens=200,
                             app=ctx.settings.meterless_critic_app, response_format={"type": "json_object"},
                             timeout_s=ctx.settings.critic_timeout_s)
+        from tools.status import note_model_reply
+        note_model_reply(ctx.settings.meterless_critic_app, reply.model)
         engine, reason = grounded_engine(question, _json(reply.text))
-        return engine, reply.model, reason
-    except (LlmUnavailable, LlmRefusal, ValueError, json.JSONDecodeError) as error:
+        return engine, reply.model, reason, None
+    except (LlmUnavailable, LlmRefusal, ValueError, TypeError, KeyError) as error:
         log.warning("llm intake skipped (%s: %s)", type(error).__name__, str(error)[:200])
-        return None, (reply.model if reply else None), f"LLM intake unavailable ({type(error).__name__})"
+        return None, (reply.model if reply else None), f"LLM intake unavailable ({type(error).__name__})", None
     finally:
         client.close()
 
 
-def _ask_back(intent: Intent, model: str | None = None) -> NodeResult:
-    return NodeResult({"intent": intent, "status": "needs_clarification"}, intent.clarification,
-                      status="needs_revision", target_agent="engineer", model=model)
+def _ask_back(intent: Intent, model: str | None = None, recorded: str | None = None) -> NodeResult:
+    summary = intent.clarification + (f" ({recorded})" if recorded and model else "")
+    return NodeResult({"intent": intent, "status": "needs_clarification"}, summary,
+                      status="needs_revision", target_agent="engineer", model=model,
+                      recorded=recorded if model else None)
 
 
 @node("intake", "parse_and_resolve", lambda s: s.question[:200])
 def intake(state: CaseFile, ctx: RunContext) -> NodeResult:
     intent = parse(state.question)
-    model, note = None, ""
+    model, note, recorded = None, "", None
     # "engine thirty-one of the first fleet" sounds like a fleet question; the model gets to read it too, and the
     # fleet answer stands when it finds no engine that code can ground in the question.
     if intent.needs_clarification and intent.clarification in {WHICH_ENGINE, FLEET_QUESTION}:
-        engine, model, note = read_engine_with_llm(state.question, ctx)
+        engine, model, note, recorded = read_engine_with_llm(state.question, ctx)
         if engine is None:
-            return _ask_back(intent, model)
+            return _ask_back(intent.model_copy(update={"recorded": recorded}) if recorded else intent, model,
+                             recorded)
         intent = intent.model_copy(update={"asset_id": engine, "needs_clarification": False, "clarification": None,
-                                           "resolved_by": model,
-                                           "recorded": note if note.startswith("recorded ") else None})
+                                           "resolved_by": model, "recorded": recorded})
     if intent.needs_clarification:
         return _ask_back(intent)
     ledger = EvidenceLedger("intake", state.evidence)
     tools = DataTools(ctx.data, ledger, ctx.pack, ctx.settings.reference_time)
     try:
         profile = tools.asset_profile(intent.asset_id)
-    except AssetNotFound:
+    except (AssetNotFound, ValueError):          # ValueError: an ID the data layer refuses (safe_id)
         intent = intent.model_copy(update={
             "needs_clarification": True,
             "clarification": f"No engine {intent.asset_id} in the asset registry. Check the ID or serial number."})
-        return _ask_back(intent, model)
+        return _ask_back(intent, model, recorded)
     content = profile.content
+    if content.get("fleet_status") not in (None, "active"):
+        # A historical engine (removed at failure) has no current telemetry to assess.
+        intent = intent.model_copy(update={
+            "needs_clarification": True,
+            "clarification": (f"{content['asset_id']} is a historical engine ({content['fleet_status']}); Cleris "
+                              "assesses active engines (FD00x-A###). Ask about one of them.")})
+        return _ask_back(intent, model, recorded)
     if content["asset_type"] != ctx.pack["asset_type"]:
         raise ValueError(f"{content['asset_id']} is a {content['asset_type']}; loaded asset pack is {ctx.pack['asset_type']}")
     asset = AssetRef(asset_id=content["asset_id"], asset_type=content["asset_type"],
@@ -197,4 +212,4 @@ def intake(state: CaseFile, ctx: RunContext) -> NodeResult:
         if intent.recorded:
             summary += f" ({intent.recorded})"
     return NodeResult({"intent": intent, "asset": asset, "evidence": ledger.records}, summary,
-                      target_agent="data,prognostics,diagnostics", model=model)
+                      target_agent="data,prognostics,diagnostics", model=model, recorded=recorded if model else None)

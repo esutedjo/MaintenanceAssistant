@@ -12,9 +12,10 @@ from typing import Any
 
 import yaml
 
-from casefile.schemas import AGENT_CODES
-from ui.brief import (ESCALATION_TITLES, check_summary, fault_label, primary_fault, rul_context, verdict_tone,
-                      world_eligibility)
+from casefile.schemas import AGENT_CODES, INSPECTION_CODE
+from casefile.wear import NOT_DETECTED
+from ui.brief import (ESCALATION_TITLES, check_summary, fault_display, fault_label, primary_fault, rul_context,
+                      verdict_tone, world_eligibility)
 
 GLOSSARY_FILE = Path(__file__).with_name("glossary.yaml")
 
@@ -35,7 +36,7 @@ WHAT_IT_DOES = ("Cleris answers three questions about one engine: what is wrong,
 
 SECTION_HELP = {
     "verdict": "The coloured box is the recommendation. Red means act now, amber means plan soon or check "
-               "something first, green means keep flying with routine checks.",
+               "something first, green means no action is proposed before the next scheduled inspection.",
     "metrics": "Two independent methods estimate how many more flights the engine can make before it should "
                "come off the wing. If they disagree a lot, the tool lowers its confidence and asks for an inspection "
                "instead of averaging them.",
@@ -52,7 +53,12 @@ SECTION_HELP = {
                 "you approve.",
     "evidence": "The raw facts behind the brief. Open any item to see exactly what was measured or calculated "
                 "and where it came from.",
-    "signoff": "You stay in charge. Type your name (required) and tick each escalation as read; with an urgent "
+    "inspection": "When the brief asks for an inspection, the result comes back here. Enter what the inspector "
+                  "found; code compares a measurement with the manual's limit (synthetic in this demo). Beyond "
+                  "limits, the plan removes the engine before further flight; at the limit, it re-inspects within the "
+                  "manual's interval; within limits, no removal. Findings are stored for the engine and never edited.",
+    "signoff": "You stay in charge. Type your name (required) and tick each urgent, warning or mandatory-document "
+               "escalation as read (info notes need no tick; the log records them as noted); with an urgent "
                "escalation, also say why you approve despite it. Approve then drafts a work order for your "
                "organisation's own release process. It is not a certificate of release to service. Reject drafts "
                "nothing and records your reason. Both go into the decision log, which records agent, gate, model and "
@@ -68,7 +74,8 @@ HOW_TO_READ = [
     "that chose it.",
     "If you want proof, open any **EV-** item under Details. The **Decision log** tab lists who decided what: "
     "agents, gates, the model and, once you sign, you.",
-    "Type your name in **Signed by** and tick each escalation as read; with an urgent escalation, also say why you "
+    "Type your name in **Signed by** and tick each urgent, warning or mandatory-document escalation as read (info "
+    "notes need no tick; they are recorded as noted); with an urgent escalation, also say why you "
     "approve despite it. **Approve** drafts a work order for your organisation's own release process; it is not a "
     "certificate of release to service. **Reject** records your comment and drafts nothing. Either way the "
     "decision log is stored with a hash chain.",
@@ -77,7 +84,7 @@ HOW_TO_READ = [
 TONE_WORDS = {
     "urgent": "**Red**: act now; the engine may wear out before the normal repair can happen.",
     "warning": "**Amber**: plan soon, or inspect first because the evidence is uncertain.",
-    "ok": "**Green**: keep flying; routine inspection.",
+    "ok": "**Green**: no action proposed before the next scheduled inspection.",
     "hold": "**Grey**: no recommendation (question unclear, or not enough evidence).",
 }
 
@@ -115,6 +122,9 @@ TOPICS = {
                                              "Certificate of release to service", "Decision log", "Hash chain"]),
     "details": ("The detail tabs", "evidence", ["Evidence ID", "Claim", "Rule checks", "Critic", "Decision log",
                                                 "Hash chain", "Trace"]),
+    "inspection": ("Inspection findings", "inspection", ["Inspection finding", "Limit section", "Serviceable limit",
+                                                         "Reject limit", "Inspector-classified", "Borescope",
+                                                         "Potentially reportable"]),
 }
 
 AGENT_NAMES = {"intake": "intake", "planner": "planner", "data": "data agent", "prognostics": "prognostics",
@@ -219,6 +229,8 @@ def evidence_tip(evidence_id: str) -> str:
     code = EVIDENCE_REF.match(evidence_id)
     agent = next((a for a, c in AGENT_CODES.items() if code and c == code.group(1)), None)
     who = f"produced by the {AGENT_NAMES.get(agent, agent)}" if agent else "an evidence record"
+    if code and code.group(1) == INSPECTION_CODE:
+        who = "an inspection finding an inspector entered, recorded by the data agent"
     return f"Evidence ID: {who}. Open it under Details, Checks and evidence."
 
 
@@ -306,6 +318,18 @@ def plain_summary(case: dict, pack: dict) -> list[str]:
         lines.append(f"{asset} is wearing out, {certainty} in the **{part.lower()}** "
                      f"({info.get('label', top['failure_mode'])}).")
 
+    current = [i for i in findings.get("inspections") or [] if i.get("current", True)]
+    if current:
+        worst = max(current, key=lambda i: ["within", "at_limit", "beyond"].index(i["result"]))
+        spec = pack.get("inspections") or {}
+        kind = (spec.get("kinds") or {}).get(worst["kind"], worst["kind"]).split(" (")[0].lower()
+        module = (spec.get("modules") or {}).get(worst["module"], worst["module"])
+        result = {"within": "within limits", "at_limit": "at the limit", "beyond": "beyond limits"}[worst["result"]]
+        then = {"beyond": "so the engine comes off before it flies again",
+                "at_limit": f"so it is looked at again within {worst.get('interval_cycles')} flights",
+                "within": "so that finding needs no removal"}[worst["result"]]
+        lines.append(f"An inspector's **{kind}** of the {module} found it **{result}**, {then}.")
+
     if a and b and not healthy:
         low, high = sorted([b["rul"], a["rul"]])
         lines.append(f"It can fly roughly **{low:.0f}–{high:.0f} more flights** (lower and higher of two methods), "
@@ -322,7 +346,7 @@ def plain_summary(case: dict, pack: dict) -> list[str]:
 
     for esc in case.get("escalations") or []:
         if esc.get("rule") == "rul_below_lead_time":
-            swap = (rec.get("action") or "").lower().startswith("swap")
+            swap = "swap" in (rec.get("action") or "").lower()
             lines.append("The engine will wear out sooner than parts and a hangar slot can be arranged for a normal "
                          "repair" + (", so a rented spare engine keeps the aircraft flying meanwhile." if swap else "."))
         elif esc.get("rule") == "rul_divergence":
@@ -410,7 +434,13 @@ def screen_guide(case: dict | None, pack: dict) -> list[tuple[str, str]]:
                      "averages them."))
 
     fault, prob = primary_fault(findings, pack)
-    if prob is not None:
+    shown, note = fault_display(case, pack)
+    if prob is not None and shown == NOT_DETECTED:
+        rows.append(("Fault mode", f"**No wear detected**; this fleet's only known wear mode is "
+                                   f"{note.split(': ', 1)[-1]}. The two remaining-life methods agree and sit at or near "
+                                   "the cap, and the health index is not above the fleet, so there is no fault to name "
+                                   "yet; similar past cases are not searched."))
+    elif prob is not None:
         modes = (pack.get("variants") or {}).get((case.get("asset") or {}).get("variant") or "", [])
         text = f"**{fault}**, probability {prob:.2f} (1.00 means the sensors point clearly to it). "
         if len(modes) > 1:
@@ -445,24 +475,37 @@ def screen_guide(case: dict | None, pack: dict) -> list[tuple[str, str]]:
         rows.append(("Plan", "The plan card lists the tasks, parts and hangar slot. **Why this plan and not another** "
                              "gives each rule the planner applied and the value at which the plan would change."))
 
+    found = [i for i in findings.get("inspections") or [] if i.get("current", True)]
+    if found:
+        rows.append(("Inspection findings",
+                     f"{len(found)} inspection finding{'s' if len(found) != 1 else ''} an inspector entered "
+                     f"({', '.join(i['evidence_id'] for i in found)}). Code compared each measurement with the "
+                     "manual's limit section (synthetic here); a result with no limit is marked inspector-classified. "
+                     "Beyond limits: remove before further flight; at the limit: re-inspect within the manual's "
+                     "interval; within limits: no removal."))
+
     escalations = case.get("escalations") or []
     if escalations:
         titles = "; ".join(ESCALATION_TITLES.get(e.get("rule"), (e.get("rule") or "").replace("_", " "))
                            for e in escalations)
         rows.append(("Escalations", f"{len(escalations)} fixed rule{'s' if len(escalations) != 1 else ''} raised the "
-                                    f"alarm: {titles}. Red cards are urgent, amber are warnings. Tick each one as read "
-                                    "before Approve works."))
+                                    f"alarm: {titles}. Red cards are urgent, amber are warnings, blue-grey are notes. "
+                                    "Tick each urgent, warning or mandatory-document card as read before Approve "
+                                    "works (an urgent one also needs a reason); info notes need no tick and the "
+                                    "decision log records them as noted."))
     else:
         rows.append(("Escalations", ("No escalation rule fired for this engine. " if case else "")
                      + "Red or amber cards under the verdict are fixed rules that raise the alarm; you tick each one as "
-                       "read before approving."))
+                       "read before approving (an urgent one also needs a reason). Blue-grey info notes need no tick; "
+                       "they are recorded as noted."))
 
     evidence = case.get("evidence") or {}
     example = next(iter(sorted(evidence)), "EV-PRG-01")
     codes = ", ".join(f"{AGENT_CODES[agent]} {AGENT_NAMES[agent]}" for agent in
                       ("intake", "data", "prognostics", "diagnostics", "knowledge", "maint_planner"))
     rows.append(("Evidence tags", f"Tags like **{example}** point to the record behind a statement. The three letters "
-                                  f"name the agent that made it ({codes})."
+                                  f"name the agent that made it ({codes}; INS is an inspection finding an "
+                                  "inspector entered)."
                  + (f" This brief has {len(evidence)} records, under Details, Checks and evidence." if evidence else "")))
 
     chips = [text for text, _ in check_summary(case)] if case else []
@@ -476,7 +519,8 @@ def screen_guide(case: dict | None, pack: dict) -> list[tuple[str, str]]:
                                  "deletion or reordering shows."))
     urgent = any(e.get("severity") == "urgent" for e in escalations)
     rows.append(("Sign-off", "Type your name in **Signed by** (required; typed, not checked against a licence "
-                             "register) and tick each escalation as read"
+                             "register) and tick each urgent, warning or mandatory-document escalation as read (info "
+                             "notes need no tick; they are recorded as noted)"
                  + ("; because an escalation here is urgent, Approve also needs a short reason why you approve "
                     "despite it" if urgent else "; with an urgent escalation, Approve also needs a short reason")
                  + ". **Approve** drafts a work order for your organisation's own release process; it is not a "

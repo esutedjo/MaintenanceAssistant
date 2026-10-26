@@ -1,8 +1,9 @@
 import pandas as pd
 
 from ui.brief import (
-    approval_gate, check_summary, decision_log_rows, driving_sensor_figure, escalation_ack_label, escalation_view,
-    fault_label, fmt_rul, sensor_label, trace_rows, verdict_headline, verdict_tone, world_eligibility,
+    approval_gate, check_summary, decision_log_rows, decision_rows, driving_sensor_figure, escalation_ack_label,
+    escalation_view, fault_display, fault_label, fmt_rul, md_lines, md_text, sensor_label, status_chips, strip_links,
+    trace_rows, verdict_headline, verdict_tone, world_eligibility,
 )
 from ui.fleet import list_active_assets
 from data.db import load_pack
@@ -126,3 +127,72 @@ def test_fleet_lists_active_snapshot_engines():
     assert "FD001-A001" in set(assets.asset_id)
     assert "FD003-A100" in set(assets.asset_id)
     assert (assets.asset_id.str.startswith("FD") ).all()
+
+
+def test_a_recorded_critic_reply_reads_as_recorded_not_live():
+    label = "recorded Nemotron response (captured 2026-10-26)"
+    case = {"verdicts": [{"gate": "critic", "outcome": "accept", "model": "nvidia/nemotron-3-ultra-550b-a55b",
+                          "recorded": label}],
+            "intent": {"resolved_by": "nvidia/nemotron-3-ultra-550b-a55b", "recorded": label}}
+    chips = dict(check_summary(case))
+    assert f"critic: {label}" in chips and not any(c.startswith("LLM critic") for c in chips)
+    assert f"engine read from free text by {label}, checked by code" in chips
+    rows = decision_rows(case)
+    assert rows[0]["model"] == f"nvidia/nemotron-3-ultra-550b-a55b ({label})"
+    [row] = trace_rows([{"agent_name": "critic", "action": "disprove", "status": "success",
+                         "model": "nvidia/nemotron-3-ultra-550b-a55b", "recorded": True}])
+    assert row["model"] == "nvidia/nemotron-3-ultra-550b-a55b (recorded reply)" and not row["call"]
+
+
+def test_fault_chip_says_none_detected_on_a_healthy_one_mode_engine():
+    pack = load_pack()
+    healthy = {"asset": {"variant": "FD001"}, "findings": {
+        "rul_ml": {"rul": 120.9, "lower": 114.9, "upper": 125.0, "at_cap": False},
+        "rul_trend": {"rul": 125.0, "lower": 125.0, "upper": 125.0, "at_cap": True},
+        "anomaly": {"flagged": False}, "fault_modes": [{"failure_mode": "hpc_degradation", "probability": 1.0}]}}
+    assert fault_display(healthy, pack) == ("none detected", "only known mode: HPC degradation")
+    worn = {**healthy, "findings": {**healthy["findings"],
+                                    "rul_ml": {"rul": 9.8, "lower": 5.0, "upper": 11.0, "at_cap": False},
+                                    "rul_trend": {"rul": 6.7, "lower": 0.0, "upper": 8.0, "at_cap": False}}}
+    assert fault_display(worn, pack) == ("HPC degradation", "p = 1.00")
+    two_modes = {**healthy, "asset": {"variant": "FD003"}}
+    assert fault_display(two_modes, pack)[0] == "HPC degradation", "two-mode fleets keep the fault-mode chip"
+
+
+def test_data_and_model_text_cannot_render_images_or_links():
+    import re
+
+    stored = "Insp ![i](http://127.0.0.1:8097/inspector.png) **bold** [js](javascript:alert(1)) $x$ :red[hi]"
+    shown = md_text(stored)
+    assert "\\!\\[i\\]\\(http://127\\.0\\.0\\.1:8097/inspector\\.png\\)" in shown and "\\*\\*bold\\*\\*" in shown
+    assert not re.search(r"(?<!\\)[!\[\]()*$]", shown), "every Markdown character is escaped"
+    assert md_lines("line one\n![x](u)") == "line one  \n\\!\\[x\\]\\(u\\)"
+    answer = "- **Method A** says 10.\n- ![beacon](https://evil.test/?d=brief) see [docs](https://evil.test) <https://x.test>"
+    clean = strip_links(answer)
+    assert "evil.test" not in clean and "x.test" not in clean and "**Method A**" in clean and "beacon" in clean
+
+
+def test_status_strip_is_one_grey_chip_in_sample_mode():
+    sample = {"overall": "sample", "summary": "Sample mode: snapshot · SQLite · recorded Nemotron", "components": []}
+    assert status_chips(sample) == [("off", "", "Sample mode: snapshot · SQLite · recorded Nemotron")]
+    live = {"overall": "ok", "components": [{"key": "zetaris", "label": "Zetaris", "state": "ok", "summary": "s",
+                                             "chip": "reachable · 0.9 s"}]}
+    assert status_chips(live) == [("ok", "Zetaris", "reachable · 0.9 s")]
+
+
+def test_info_escalations_are_notes_and_need_no_tick():
+    sb = escalation_view({"rule": "sb_adoption", "severity": "info", "message": "SB would replace AMM."})
+    assert (sb["title"], sb["label"], sb["tick"]) == ("Service bulletin needs engineering approval", "note", False)
+    assert escalation_view({"rule": "rul_divergence", "severity": "warning", "message": "m"})["tick"]
+    assert escalation_view({"rule": "document_mandate", "severity": "info", "message": "m"})["tick"], "mandates tick"
+
+
+def test_decision_log_tones_cover_the_planner_and_the_inspector():
+    rows = decision_log_rows([
+        {"actor_type": "agent", "actor": "planner", "decision": decision, "timestamp": "2026-10-26T06:00:00Z"}
+        for decision in ("delegated follow-up", "routed gap", "ran follow-up", "ran repair", "no follow-up needed",
+                         "no agent can fix")] + [
+        {"actor_type": "human", "actor": "J. Inspector", "decision": "entered inspection finding",
+         "timestamp": "2026-10-22T08:00:00Z", "evidence_ids": ["EV-INS-01"]}])
+    assert [r["tone"] for r in rows[:6]] == ["plain", "flag", "plain", "plain", "ok", "bad"]
+    assert (rows[-1]["chip"], rows[-1]["details"]) == ("inspector", ["Entered 2026-10-22 08:00:00 UTC"])

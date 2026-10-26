@@ -7,6 +7,8 @@ same write semantics: provenance required, idempotent writes, single-valued edge
 import json
 import re
 import sqlite3
+import threading
+import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from pathlib import Path
@@ -214,9 +216,14 @@ class SqliteStore(ContextStore):
     def __init__(self, path: Path | str):
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        # Parallel graph nodes run on worker threads; the sqlite3 module is built serialized (threadsafety 3).
-        self._db = sqlite3.connect(str(path), check_same_thread=False)
+        # Parallel graph nodes run on worker threads; the sqlite3 module is built serialized (threadsafety 3). Other
+        # processes (the UI and the API on one clone) share the file: wait for a lock instead of failing, and WAL lets
+        # readers run beside a writer.
+        self._db = sqlite3.connect(str(path), check_same_thread=False, timeout=30)
+        self._write_lock = threading.Lock()
         self._db.row_factory = sqlite3.Row
+        if str(path) != ":memory:":
+            self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(SCHEMA)
 
     def health(self) -> dict[str, Any]:
@@ -291,8 +298,12 @@ class SqliteStore(ContextStore):
         return [e for e in rows if all(e["attrs"].get(k) == v for k, v in (where or {}).items())]
 
     def write_memories(self, memories: list[MemoryIn]) -> dict[str, Any]:
+        """Idempotent by source. One write transaction (BEGIN IMMEDIATE) per call, so two threads or processes
+        seeding at once cannot both take the same `mem-N` or insert the same source (INSERT OR IGNORE)."""
         created, ids = 0, []
-        with self._db:
+        with self._write_lock, self._db:
+            if not self._db.in_transaction:
+                self._db.execute("BEGIN IMMEDIATE")
             for m in memories:
                 row = self._db.execute("SELECT id, content FROM memories WHERE source = ?", (m.source,)).fetchone()
                 if row:
@@ -302,9 +313,14 @@ class SqliteStore(ContextStore):
                     ids.append(row["id"])
                     continue
                 id_ = f"mem-{self._db.execute('SELECT COUNT(*) FROM memories').fetchone()[0] + 1}"
-                self._db.execute("INSERT INTO memories VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                 (id_, m.content, m.source, json.dumps(m.tags), min(max(m.confidence, 0.0), 1.0),
-                                  m.provenance.model_dump_json() if m.provenance else None, _now()))
+                while self._db.execute("SELECT 1 FROM memories WHERE id = ?", (id_,)).fetchone():
+                    id_ = f"mem-{uuid.uuid4().hex[:12]}"              # a gap left by an ignored insert
+                cur = self._db.execute("INSERT OR IGNORE INTO memories VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                       (id_, m.content, m.source, json.dumps(m.tags), min(max(m.confidence, 0.0), 1.0),
+                                        m.provenance.model_dump_json() if m.provenance else None, _now()))
+                if not cur.rowcount:
+                    ids.append(self._db.execute("SELECT id FROM memories WHERE source = ?", (m.source,)).fetchone()[0])
+                    continue
                 self._db.execute("INSERT INTO ledger VALUES (?, 'create', ?, NULL)", (id_, _now()))
                 created += 1
                 ids.append(id_)
@@ -344,14 +360,24 @@ class SqliteStore(ContextStore):
         self._db.close()
 
 
+SAMPLE_PROBE_S = 2.0
+
+
 def open_context_store(settings: Settings) -> ContextStore:
-    """Meterless when configured and reachable; otherwise SQLite, with the reason kept for the decision brief."""
+    """Meterless when configured and reachable; otherwise SQLite, with the reason kept for the decision brief.
+    Sample mode uses SQLite (no Node needed) unless CONTEXT_STORE=meterless is set explicitly: then the local context
+    service is used when one quick health probe answers, else SQLite with the same flag as in live mode."""
     sqlite_path = settings.context_sqlite_path
-    if settings.context_store == "sqlite" or settings.sample_mode:
+    if settings.context_store == "sqlite" or (settings.sample_mode and not settings.explicit("context_store")):
         return SqliteStore(sqlite_path)
     store = MeterlessStore(settings.context_service_url)
     try:
-        store.health()
+        if settings.sample_mode:
+            response = store._http.get("/health", timeout=SAMPLE_PROBE_S)     # one try, no retries: never stall
+            if response.status_code >= 400:
+                raise ContextServiceError(f"GET /health: HTTP {response.status_code}")
+        else:
+            store.health()
         return store
     except (httpx.HTTPError, ContextServiceError) as error:
         store.close()

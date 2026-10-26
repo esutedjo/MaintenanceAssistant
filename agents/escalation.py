@@ -7,7 +7,7 @@ from casefile.schemas import CaseFile
 
 @node("escalation", "apply_rules", lambda s: f"rec={s.recommendation.action if s.recommendation else None}")
 def escalation(state: CaseFile, ctx: RunContext) -> NodeResult:
-    items = run_escalations(state, ctx.pack)
+    items = run_escalations(state, ctx.pack, ctx.settings.reference_time.date())
     urgent = any(e.severity == "urgent" for e in items)
     status = "success"
     summary = f"{len(items)} escalation(s)" + ("; URGENT" if urgent else "")

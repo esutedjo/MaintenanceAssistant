@@ -229,7 +229,8 @@
 - term: Evidence ID
   full: EV-XXX-NN
   meaning: A tag on every fact in the brief. The three letters name the agent that produced it (INT intake, DAT data,
-    PRG prognostics, DIA diagnostics, KNW documents, MNT maintenance planner) and NN counts up.
+    PRG prognostics, DIA diagnostics, KNW documents, MNT maintenance planner; INS is an inspection finding an inspector
+    entered, recorded by the data agent) and NN counts up.
   where: After every statement in Details, plan card ("EV-MNT-02"), decision log.
   aliases: [evidence, ev, evidence tag, ev-]
 
@@ -424,8 +425,10 @@
 # --- How Cleris checks itself ------------------------------------------------------------------------------------
 - term: Escalation
   meaning: A fixed rule that raises the alarm, red for urgent and amber for a warning, for example when the engine
-    will wear out before parts and a hangar slot are available. Tick each one as read before Approve works.
-  where: Red or amber cards under the verdict, sign-off ticks, Checks and evidence tab.
+    will wear out before parts and a hangar slot are available; blue-grey cards are info notes. Urgent, warning and
+    mandatory-document escalations need a tick as read before Approve works, and an urgent one also a reason; info
+    notes need no tick and your sign-off records them as noted.
+  where: Red, amber or blue-grey cards under the verdict, sign-off ticks, Checks and evidence tab.
   aliases: [escalations, alarm, urgent, warning]
 
 - term: Rule checks
@@ -465,9 +468,9 @@
   aliases: [timeline]
 
 - term: Sign-off
-  meaning: 'Your decision: type your name (required), tick each escalation and, with an urgent escalation, say why
-    you approve despite it. Approve then drafts a work order and Reject records your comment, both in the decision
-    log.'
+  meaning: 'Your decision: type your name (required), tick each urgent, warning and mandatory-document escalation as
+    read (info notes need no tick and are recorded as noted) and, with an urgent escalation, say why you approve
+    despite it. Approve then drafts a work order and Reject records your comment, both in the decision log.'
   where: Your decision, under the plan.
   aliases: [signoff, sign off, approve, reject, signed by]
 
@@ -548,3 +551,87 @@
     agents hold no engine-specific code.
   where: Asset pack tab.
   aliases: [manifest]
+
+# --- Inspection findings and records -----------------------------------------------------------------------------
+- term: Inspection finding
+  meaning: What an inspector found when looking at the engine (borescope, visual, oil analysis, chip detector or a
+    material test), entered with the date, the engine cycle and the inspector's name. It is stored for the engine and
+    never edited, every later brief for that engine reads it, and a photo is stored with it but not analysed by AI.
+  where: Inspection findings card under the plan, Add inspection finding form, evidence tags EV-INS-…
+  aliases: [finding, inspection result, ev-ins, add inspection finding]
+
+- term: Limit section
+  full: limits table in the manual (table 601)
+  meaning: The part of the manual that says how much wear is acceptable, row by row (for example HPC blade tip
+    erosion in mm). Cleris compares a measurement with the revision in effect; the limits in this demo are synthetic.
+  where: Inspection findings card, Plan and documents tab (sections ending -601).
+  aliases: [limits, manual limit, table 601, limit table]
+
+- term: Serviceable limit
+  meaning: Up to this value the part stays in service at the routine interval ("within limits").
+  where: Inspection findings card, Why this plan and not another.
+  aliases: [within limits, serviceable]
+
+- term: Reject limit
+  meaning: Above this value the part is beyond limits and the engine is removed before further flight. Between the
+    serviceable and the reject limit the part is "at the limit" and is re-inspected sooner.
+  where: Inspection findings card, Why this plan and not another, escalation "Inspection finding beyond limits".
+  aliases: [beyond limits, at the limit, at limit, reject]
+
+- term: Inspector-classified
+  meaning: No limit in the documents covers the finding (or it has no measurement), so the inspector's own result
+    (within, at the limit or beyond) stands and the brief says so.
+  where: Inspection findings card.
+  aliases: [inspector classified]
+
+- term: Oil analysis
+  full: spectrometric oil analysis (SOAP)
+  meaning: A lab measures worn metal in an oil sample in parts per million (ppm). Rising iron (Fe), chromium (Cr) or
+    silver (Ag) points at wearing bearings and gears.
+  where: Add inspection finding form.
+  aliases: [soap, wear metal, ppm, spectrometric oil analysis]
+
+- term: Chip detector
+  full: magnetic chip detector
+  meaning: A magnet in the oil system that catches metal particles; their size and number say whether parts inside
+    are breaking up.
+  where: Add inspection finding form.
+  aliases: [magnetic chip detector, chips]
+
+- term: NDT
+  full: non-destructive testing
+  meaning: Checking parts for cracks without damaging them, for example with eddy current (a probe that senses cracks
+    through changes in an electric field).
+  where: Add inspection finding form ("Material test").
+  aliases: [eddy current, material test, non-destructive testing]
+  abbr: [NDT]
+
+- term: Potentially reportable
+  meaning: A note that a finding beyond limits, or a mandatory action the plan would complete late, may be an
+    occurrence to report under the operator's scheme (EU 376/2014 and 2015/1018 Annex II; 14 CFR 121.703 and
+    145.221). Cleris files nothing; people decide whether to report.
+  where: Escalation note "Potentially reportable occurrence".
+  aliases: [occurrence reporting, reportable, occurrence report]
+
+- term: Note (escalation)
+  meaning: An info-level escalation. It needs no tick before Approve; your sign-off records it as noted (shown).
+  where: Blue-grey escalation cards, Your decision.
+  aliases: [info escalation, note]
+
+- term: Brief snapshot
+  meaning: At sign-off the brief exactly as shown, documents used included, is stored as a file and its SHA-256
+    fingerprint goes in your decision-log entry, so anyone can later prove what you read.
+  where: Decision log tab, sign-off details.
+  aliases: [snapshot of the brief, documents used]
+
+- term: Hash anchor
+  meaning: The decision log's last hash is also written outside the log (the case-memory record and the run's trace),
+    so a log replaced or cut short no longer matches them.
+  where: Decision log tab, verification line.
+  aliases: [anchor, head hash]
+
+- term: Version stamp
+  meaning: Each stored decision-log entry records the code version, asset pack version, fingerprints of the model
+    files and the AI model used (or "recorded" or "none"), so a decision can be traced to what produced it.
+  where: Decision log tab, sign-off details.
+  aliases: [versions, code version, model hash]

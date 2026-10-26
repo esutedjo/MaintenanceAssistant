@@ -85,6 +85,22 @@ thresholds:
   severe_rul_cycles: 25
   moderate_rul_cycles: 80
 
+# Inspection findings an inspector enters (UI form; run.py and POST /run "inspections"). Limits are not here: they
+# come from the documents' limit sections (topic limits:<kind>:<name>), which Knowledge retrieves and code compares.
+inspections:
+  kinds:
+    borescope: Borescope
+    visual: Visual
+    oil_analysis: Oil analysis (spectrometric)
+    chip_detector: Magnetic chip detector
+    material_test: Material test (eddy current or other NDT)
+  modules: {fan: Fan, lpc: LPC, hpc: HPC, combustor: Combustor, hpt: HPT, lpt: LPT, oil_system: Oil system}
+  # A finding taken within this many cycles of the last observed cycle is fresh: it answers the planner's "methods
+  # disagree" and "fault unclear" follow-ups in place of a back-test or a longer sensor window.
+  fresh_cycles: 30
+  # Re-inspection interval for a finding no limit section covers (inspector-classified, at the limit).
+  default_reinspect_cycles: 10
+
 # Input plausibility (deterministic, before any model runs). Ranges and largest cycle-to-cycle steps come from
 # the run-to-failure training engines (`uv run task sensor-ranges`). A value may sit outside the training range by
 # range_margin x (max - min), or by min_margin x |value| for sensors that never move. Issues on sensors the RUL

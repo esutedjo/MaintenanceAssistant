@@ -9,6 +9,7 @@ from agents.critic import deterministic_gaps
 from assurance import routing
 from assurance.rules import run_rule_checks
 from assurance.routing import ROUTES, gap_kind, named_parts, routes_for
+from casefile.calls import CALL_ACTIONS
 from casefile.context_store import SqliteStore
 from casefile.decision_log import derive_log
 from data.db import load_pack
@@ -27,7 +28,7 @@ OWNER = {"uncited_claim": "maint_planner", "evidence_deleted": "prognostics", "r
          "wrong_asset": None, "fabricated_part": "data", "stock_inflated": "data", "slot_not_free": "data",
          "deadline_past_rul": "maint_planner", "mandate_dropped": "knowledge", "mandate_uncited": "knowledge",
          "drivers_as_signature": "maint_planner", "similar_cases_dropped": "diagnostics",
-         "claim_number_altered": "maint_planner"}
+         "claim_number_altered": "maint_planner", "inspection_ignored": "maint_planner"}
 
 
 @pytest.fixture
@@ -43,7 +44,9 @@ def golden(tmp_path_factory):
 
 
 def _events(case, agent=None, action=None):
-    return [e for e in case.trace if (agent is None or e.agent_name == agent) and (action is None or e.action == action)]
+    """Agent steps (Zetaris and context-store call lines left out)."""
+    return [e for e in case.trace if (agent is None or e.agent_name == agent) and (action is None or e.action == action)
+            and e.action not in CALL_ACTIONS]
 
 
 @pytest.mark.parametrize("name", sorted(FAULTS))

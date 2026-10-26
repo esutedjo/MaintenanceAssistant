@@ -1,17 +1,15 @@
-"""Model access. Meterless Nightshift is the primary provider (Meterless Runtime provider contract v4).
-NVIDIA's hosted API is an interim fallback used only when Nightshift cannot be reached at all; a typed
-refusal from Nightshift goes back to the caller and never falls back."""
+"""Model access. Meterless Nightshift is the only model provider (Meterless Runtime provider contract v4); NVIDIA
+models are reached through Nightshift's Providers tab, never with a key in this app. A typed refusal from Nightshift
+goes back to the caller; an unreachable Nightshift or a missing token raises LlmUnavailable, and the callers then
+keep their deterministic path (the critic flags "LLM critic unavailable")."""
 
 import logging
 import re
-import ssl
 import time
 from typing import Any, Literal
 
 import httpx
-import truststore
 from pydantic import BaseModel
-from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from settings import Settings
 
@@ -32,11 +30,10 @@ def normalise_base_url(url: str) -> str:
 
 class LlmResponse(BaseModel):
     text: str
-    provider: Literal["meterless", "nvidia"]
+    provider: Literal["meterless"]
     requested_model: str
     model: str
     duration_s: float
-    fallback_reason: str | None = None
     usage: dict[str, Any] | None = None
 
 
@@ -67,15 +64,8 @@ def _refusal(provider: str, response: httpx.Response) -> LlmRefusal:
         return LlmRefusal(provider, response.status_code, response.text[:300])
 
 
-def _retryable(error: BaseException) -> bool:
-    if isinstance(error, httpx.TransportError):
-        return True
-    return isinstance(error, LlmRefusal) and (error.status == 429 or error.status >= 500)
-
-
 class LlmClient:
-    def __init__(self, settings: Settings, meterless_transport: httpx.BaseTransport | None = None,
-                 nvidia_transport: httpx.BaseTransport | None = None):
+    def __init__(self, settings: Settings, meterless_transport: httpx.BaseTransport | None = None):
         self._settings = settings
         self._token = settings.meterless_runtime_token.get_secret_value().strip()
         self.base_url = normalise_base_url(settings.meterless_base_url)
@@ -84,23 +74,15 @@ class LlmClient:
             headers["Authorization"] = f"Bearer {self._token}"
         self._meterless = httpx.Client(base_url=self.base_url, timeout=settings.llm_timeout_s,
                                        transport=meterless_transport, headers=headers)
-        nvidia_key = settings.nvidia_api_key.get_secret_value()
-        self._nvidia = None
-        if nvidia_key:
-            self._nvidia = httpx.Client(
-                base_url=settings.nvidia_base_url.rstrip("/"), timeout=settings.llm_timeout_s, transport=nvidia_transport,
-                verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT),
-                headers={"Authorization": f"Bearer {nvidia_key}"},
-            )
 
     @property
     def configured(self) -> bool:
         return self._token not in PLACEHOLDER_TOKENS
 
-    def status(self) -> tuple[ProviderState, list[str]]:
+    def status(self, timeout_s: float = 5.0) -> tuple[ProviderState, list[str]]:
         """GET /v1/models decides: 401/403 unauthorized, 200 with meterless ids online, anything else offline."""
         try:
-            response = self._meterless.get("/models", timeout=5.0)
+            response = self._meterless.get("/models", timeout=timeout_s)
         except httpx.HTTPError:
             return "offline", []
         if response.status_code in (401, 403):
@@ -123,45 +105,26 @@ class LlmClient:
             body["response_format"] = response_format
 
         if not self.configured:
-            return self._fallback(body, "METERLESS_RUNTIME_TOKEN is not set")
+            raise LlmUnavailable("METERLESS_RUNTIME_TOKEN is not set")
         start = time.monotonic()
         try:
             headers = {"meterless-scope": "user", **({"meterless-app": app} if app else {})}
             response = self._meterless.post("/chat/completions", json=body, headers=headers,
                                             timeout=timeout_s or self._settings.llm_timeout_s)
         except httpx.TransportError as error:
-            return self._fallback(body, f"Nightshift unreachable at {self.base_url} ({type(error).__name__})")
+            raise LlmUnavailable(f"Nightshift unreachable ({type(error).__name__})") from error
         if response.status_code >= 400:
             raise _refusal("meterless", response)
-        return self._result("meterless", requested, response.json(), start)
+        return self._result(requested, response.json(), start)
 
-    def _fallback(self, body: dict[str, Any], reason: str) -> LlmResponse:
-        if self._nvidia is None:
-            raise LlmUnavailable(f"{reason}; no fallback provider configured")
-        model = body["model"] if body["model"].startswith("nvidia/") else self._settings.nvidia_model
-        log.warning("fallback to nvidia (%s): %s", model, reason)
-        start = time.monotonic()
-        data = self._post_nvidia({**body, "model": model})
-        return self._result("nvidia", body["model"], data, start, fallback_reason=reason)
-
-    @retry(retry=retry_if_exception(_retryable), stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=8), reraise=True)
-    def _post_nvidia(self, body: dict[str, Any]) -> dict[str, Any]:
-        response = self._nvidia.post("/chat/completions", json=body)
-        if response.status_code >= 400:
-            raise _refusal("nvidia", response)
-        return response.json()
-
-    def _result(self, provider: str, requested: str, data: dict[str, Any], start: float,
-                fallback_reason: str | None = None) -> LlmResponse:
+    def _result(self, requested: str, data: dict[str, Any], start: float) -> LlmResponse:
         choice = (data.get("choices") or [{}])[0]
         text = (choice.get("message") or {}).get("content") or ""
-        result = LlmResponse(text=text, provider=provider, requested_model=requested, model=data.get("model") or requested,
-                             duration_s=round(time.monotonic() - start, 3), fallback_reason=fallback_reason,
+        result = LlmResponse(text=text, provider="meterless", requested_model=requested,
+                             model=data.get("model") or requested, duration_s=round(time.monotonic() - start, 3),
                              usage=data.get("usage"))
-        log.info("provider=%s requested=%s model=%s duration_s=%.2f", provider, requested, result.model, result.duration_s)
+        log.info("provider=meterless requested=%s model=%s duration_s=%.2f", requested, result.model, result.duration_s)
         return result
 
     def close(self) -> None:
         self._meterless.close()
-        if self._nvidia is not None:
-            self._nvidia.close()

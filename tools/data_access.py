@@ -2,6 +2,7 @@
 data/snapshot (sample mode, tests, judging without credentials). FallbackSource switches to the snapshot for
 the rest of the run when Zetaris fails, and every result carries the reason."""
 
+import logging
 import re
 import time
 from abc import ABC, abstractmethod
@@ -15,7 +16,7 @@ from data.fleet import SENSORS
 from settings import ROOT, Settings
 
 SNAPSHOT_DIR = ROOT / "data" / "snapshot"
-SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
+SAFE_ID = re.compile(r"[A-Za-z0-9_.-]{1,40}", re.ASCII)
 
 CYCLE_COLUMNS = ["asset_id", "cycle", "ts", "operating_regime", "setting_1", "setting_2", "setting_3", *SENSORS]
 ASSET_COLUMNS = ["asset_id", "asset_type", "dataset", "esn", "fleet_status", "last_cycle", "last_seen"]
@@ -29,6 +30,19 @@ DOC_COLUMNS = ["chunk_id", "doc_id", "doc_type", "title", "revision", "effective
                "superseded_on", "asset_type", "applies_to", "section", "heading", "components", "failure_modes",
                "tasks", "topic", "mandate", "text", "embedding"]
 
+# What each read is for and the Zetaris tables it reads (live), for the trace line each query gets.
+QUERY_PURPOSE = {
+    "asset": ("asset registry", "cmms_pg.assets"),
+    "cycles": ("telemetry cycles", "telemetry_pg.cycles"),
+    "history": ("maintenance history", "cmms_pg.work_orders + cmms_pg.findings"),
+    "parts": ("parts stock and lead time", "cmms_pg.planning_parts + cmms_pg.planning_stock"),
+    "free_slots": ("free hangar slots", "cmms_pg.planning_hangar_slots"),
+    "flight_schedule": ("flight schedule", "cmms_pg.planning_flight_schedule"),
+    "fmea_tasks": ("FMEA tasks with stock and lead time",
+                   "s3_files.fmea + cmms_pg.planning_stock + cmms_pg.planning_parts"),
+    "doc_chunks": ("document sections", "knowledge_pg.doc_chunks"),
+}
+
 INT_COLUMNS = {"cycle", "last_cycle", "cycle_at", "lead_time_days", "qty_on_hand", "qty_reserved", "slot_no",
                "planned_cycles", "qty"}
 FLOAT_COLUMNS = {"setting_1", "setting_2", "setting_3", "unit_cost_usd", *SENSORS}
@@ -37,7 +51,8 @@ DATE_COLUMNS = {"slot_date", "flight_date"}
 
 
 def safe_id(value: str) -> str:
-    if not SAFE_ID.match(value or ""):
+    """The whole value (fullmatch: a trailing newline does not pass) is an ID safe to quote in SQL."""
+    if not isinstance(value, str) or not SAFE_ID.fullmatch(value):
         raise ValueError(f"invalid identifier {value!r}")
     return value
 
@@ -249,7 +264,14 @@ class FallbackSource(DataSource):
             try:
                 return getattr(self.live, name)(*args)
             except (ZetarisError, httpx.HTTPError) as error:
-                self.degraded = f"Zetaris unavailable ({type(error).__name__}: {str(error)[:160]}); using snapshot"
+                # The type and HTTP status only: an error's text can carry the gateway URL or a response body, and
+                # this note reaches the brief, the trace and the API result. The log keeps the detail.
+                found = re.search(r"HTTP (\d{3})", str(error))
+                status = (error.response.status_code if isinstance(error, httpx.HTTPStatusError)
+                          else found.group(1) if found else None)
+                self.degraded = (f"Zetaris unavailable ({type(error).__name__}"
+                                 + (f", HTTP {status}" if status else "") + "); using snapshot")
+                logging.getLogger("data").warning("Zetaris call %s failed: %s", name, str(error)[:300])
             finally:
                 self.spent_s += time.monotonic() - start
         result = getattr(self.snapshot, name)(*args)

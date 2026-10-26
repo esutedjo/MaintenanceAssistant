@@ -1,13 +1,15 @@
-"""Data agent: telemetry trend, input plausibility, maintenance history, flight schedule and hangar slots as Evidence.
-Also runs the tasks the planner delegates: follow-ups (inspection history for a disagreement, a re-read when the
-inputs fail a plausibility check) and repairs (a targeted re-query of parts or slots a gate found unsupported)."""
+"""Data agent: telemetry trend, input plausibility, maintenance history, flight schedule and hangar slots as Evidence,
+and each inspection finding an inspector entered for the engine (EV-INS-nn). Also runs the tasks the planner
+delegates: follow-ups (inspection history for a disagreement, a re-read when the inputs fail a plausibility check) and
+repairs (a targeted re-query of parts or slots a gate found unsupported)."""
 
 import pandas as pd
 
 from agents.runtime import NodeResult, RunContext, node, run_tasks
 from assurance.routing import named_parts
-from casefile.schemas import CaseFile, EvidenceLedger, Task
+from casefile.schemas import INSPECTION_CODE, CaseFile, EvidenceLedger, Task
 from tools.data_tools import DataTools
+from tools.inspections import load_findings, measured_text, merged, where
 
 # Back-test point when no inspection is on record: this many cycles before the last one (RUL A's features use 30).
 LONG_WINDOW = 60
@@ -29,9 +31,53 @@ def data_agent(state: CaseFile, ctx: RunContext) -> NodeResult:
     tools.history(asset_id)
     tools.flight_schedule(asset_id)
     tools.free_slots()
+    entered, ignored = inspection_evidence(state, ctx, int(telemetry.cycles.cycle.max()))
     fallback = any(e.degraded for e in ledger.records.values() if e.kind == "query")
     summary = f"{len(ledger.records)} evidence records via {ctx.data.mode}; input data {quality.content['data_quality']}"
-    return NodeResult({"evidence": ledger.records}, summary, status="fallback" if fallback else "success")
+    if entered:
+        summary += f"; {len(entered)} inspection finding(s) ({', '.join(entered)})"
+    update = {"evidence": {**ledger.records, **entered}}
+    if ignored:
+        update["degraded"] = ignored
+    return NodeResult(update, summary, status="fallback" if fallback else "success")
+
+
+def inspection_evidence(state: CaseFile, ctx: RunContext, last_cycle: int) -> tuple[dict, list[str]]:
+    """Each inspection finding for this engine, stored or entered with the question, as EV-INS-nn (oldest first),
+    sourced to the inspector who entered it. Fresh: taken 0 to the pack's `fresh_cycles` cycles before the last one.
+    A finding after the last telemetry cycle or dated after the reference date is held back: recorded, never assessed
+    (so it can never supersede a real finding), and a serious input-plausibility issue (data_quality escalation)."""
+    asset_id = state.asset.asset_id
+    stored = load_findings(ctx.settings, asset_id)
+    given = [f for f in state.inspections if f.asset_id == asset_id]
+    ignored = [f"Inspection finding {f.finding_id} names {f.asset_id}, not {asset_id}; ignored"
+               for f in state.inspections if f.asset_id != asset_id]
+    ledger = EvidenceLedger("data", state.evidence, code=INSPECTION_CODE)
+    fresh_cycles = int((ctx.pack.get("inspections") or {}).get("fresh_cycles") or 0)
+    reference = ctx.settings.reference_time.date()
+    stored_ids = {f.finding_id for f in stored}
+    for finding in merged(stored, given):
+        checks = []
+        if finding.cycle > last_cycle:
+            checks.append(f"cycle {finding.cycle} is after the last telemetry cycle {last_cycle}")
+        if finding.inspected_on > reference:
+            checks.append(f"dated {finding.inspected_on}, after the reference date {reference}")
+        held = bool(checks)
+        issues = [{"check": "inspection_finding_implausible", "severity": "serious",
+                   "detail": f"inspection finding {finding.finding_id} {' and '.join(checks)}; held back, not assessed"}
+                  ] if held else []
+        record = finding.model_dump(mode="json")
+        stated = f"; inspector's result {finding.stated_result.replace('_', ' ')}" if finding.stated_result else ""
+        summary = (f"Inspection finding {finding.finding_id} entered by {finding.inspector}"
+                   + (" (EXAMPLE DATA)" if finding.example else "") + (" (HELD BACK: implausible)" if held else "")
+                   + f": {where(record, ctx.pack)} at cycle {finding.cycle} ({finding.inspected_on}): "
+                   f"{measured_text(record)}{stated}; {finding.observation[:160]}")
+        ledger.add("inspection", f"entered by {finding.inspector}", summary, {
+            "finding": record, "asset_id": asset_id,
+            "fresh": not held and 0 <= last_cycle - finding.cycle <= fresh_cycles,
+            "cycles_before_last": last_cycle - finding.cycle, "telemetry_last_cycle": last_cycle, "checks": checks,
+            "quarantined": held, "issues": issues, "stored": finding.finding_id in stored_ids})
+    return ledger.records, ignored
 
 
 def inspection_history(state: CaseFile, ctx: RunContext, task: Task, ledger: EvidenceLedger):

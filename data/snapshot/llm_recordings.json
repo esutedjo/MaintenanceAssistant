@@ -11,22 +11,6 @@
   },
   {
    "purpose": "critic",
-   "case": "What is the status of FD001-A001?",
-   "prompt_sha256": "0a517df209874a4574a53e26cf2b9682121096a3faa880d21b8e047496781626",
-   "model": "nvidia/nemotron-3-ultra-550b-a55b",
-   "captured_at": "2026-10-26T00:34:22Z",
-   "text": "{\n  \"outcome\": \"accept\",\n  \"gaps\": [],\n  \"challenges\": []\n}"
-  },
-  {
-   "purpose": "critic",
-   "case": "What should I do about FD001-A031?",
-   "prompt_sha256": "ba3ab726375fbda90aab55e4e95807f49df597f970398168ccf039003256b388",
-   "model": "nvidia/nemotron-3-ultra-550b-a55b",
-   "captured_at": "2026-10-26T00:34:28Z",
-   "text": "{\n  \"outcome\": \"revise\",\n  \"gaps\": [\n    \"Claim 0 cites EV-PRG-01 for RUL A 10th-90th percentile 5-11, but EV-PRG-01 is not listed in the evidence; only EV-PRG-02 is available, so the ML model percentile range cannot be verified.\",\n    \"Claim 8 derives deadline 2026-10-22 from RUL lower bound 0 cycles at 2 cycles/day, but EV-INT-01 shows last observed cycle 196 at 2026-10-22T00:00:00+00:00, meaning the deadline equals the current date, not a future bound; the calculation appears to use the observation date as the deadline.\",\n    \"Claim 11 states all parts are on hand but the next free slot is 1 day away; EV-MNT-03 shows TF-HPC-1101 lead time 35 d and TF-HPC-1104 lead time 21 d, so those parts are not immediately available for on-wing repair, contradicting the statement that all parts are on hand.\"\n  ],\n  \"challenges\": [\n    {\"kind\": \"unsupported_number\", \"claim\": 0, \"value\": 5, \"detail\": \"RUL A 10th percentile 5 cycles cited from EV-PRG-01, but EV-PRG-01 is not in the evidence list.\"},\n    {\"kind\": \"unsupported_number\", \"claim\": 0, \"value\": 11, \"detail\": \"RUL A 90th percentile 11 cycles cited from EV-PRG-01, but EV-PRG-01 is not in the evidence list.\"},\n    {\"kind\": \"deadline_after_bound\", \"claim\": 8, \"value\": 0, \"detail\": \"Deadline 2026-10-22 equals the observation date in EV-INT-01, not a future date derived from RUL lower bound.\"},\n    {\"kind\": \"unsupported_number\", \"claim\": 11, \"value\": 1, \"detail\": \"Claim says next free slot is 1 day away (EV-DAT-05), but TF-HPC-1101 and TF-HPC-1104 have lead times 35 d and 21 d per EV-MNT-03, so parts are not all on hand for immediate on-wing repair.\"}\n  ]\n}"
-  },
-  {
-   "purpose": "critic",
    "case": "How long can FD003-A100 keep flying and what is wrong with it?",
    "prompt_sha256": "68f4120b15d0cb5945a7f5552f567b39b6e5646a011463002445778f2c91ac5c",
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
@@ -43,10 +27,26 @@
   },
   {
    "purpose": "critic",
-   "case": "Should we pull the engine with serial 700131?",
-   "prompt_sha256": "38b677e67ecdaf012359325c6ec86cd421fd45938f1d38bbc15e73734fe8945c",
+   "case": "What is the status of FD001-A001?",
+   "prompt_sha256": "e7e73358844d6446837ff85c68d3bc64549580a8ce6f57c734ea07ed70579ea0",
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
-   "captured_at": "2026-10-26T00:34:54Z",
+   "captured_at": "2026-10-26T07:14:21Z",
+   "text": "{\n  \"outcome\": \"accept\",\n  \"gaps\": [],\n  \"challenges\": []\n}"
+  },
+  {
+   "purpose": "critic",
+   "case": "What should I do about FD001-A031?",
+   "prompt_sha256": "06515e824a53819754925a4429d00a41c7e66f3aa305962d0016d76a6a7425e4",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "captured_at": "2026-10-26T07:14:34Z",
+   "text": "{\n  \"outcome\": \"revise\",\n  \"gaps\": [\n    \"Claim 0 cites EV-PRG-01 for RUL A 10th-90th percentile 5-11, but EV-PRG-01 is not listed in the evidence; only EV-PRG-02 is available, so the ML model percentile range cannot be verified.\",\n    \"Claim 8 derives deadline 2026-10-22 from RUL lower bound 0 cycles at 2 cycles/day, but EV-INT-01 shows last observed cycle 196 at 2026-10-22T00:00:00+00:00, meaning the deadline equals the current date, not a future bound; the calculation appears to use the observation date as the deadline.\",\n    \"Claim 11 states all parts are on hand but the next free slot is 1 day away; EV-MNT-03 shows TF-HPC-1101 lead time 35 d and TF-HPC-1104 lead time 21 d, so those parts are not immediately available for on-wing repair, contradicting the statement that all parts are on hand.\"\n  ],\n  \"challenges\": [\n    {\"kind\": \"unsupported_number\", \"claim\": 0, \"value\": 5, \"detail\": \"RUL A 10th percentile 5 cycles cited from EV-PRG-01, but EV-PRG-01 is not in the evidence list.\"},\n    {\"kind\": \"unsupported_number\", \"claim\": 0, \"value\": 11, \"detail\": \"RUL A 90th percentile 11 cycles cited from EV-PRG-01, but EV-PRG-01 is not in the evidence list.\"},\n    {\"kind\": \"deadline_after_bound\", \"claim\": 8, \"value\": 0, \"detail\": \"Deadline 2026-10-22 equals the observation date in EV-INT-01, not a future date derived from RUL lower bound.\"},\n    {\"kind\": \"unsupported_number\", \"claim\": 11, \"value\": 1, \"detail\": \"Claim says next free slot is 1 day away (EV-DAT-05), but TF-HPC-1101 and TF-HPC-1104 have lead times 35 d and 21 d per EV-MNT-03, so parts are not all on hand for immediate on-wing repair.\"}\n  ]\n}"
+  },
+  {
+   "purpose": "critic",
+   "case": "Should we pull the engine with serial 700131?",
+   "prompt_sha256": "270641ce6144fa40a88f4444ef8ff3c67ad4895f69a927be8f44d1f4c2d0cf5d",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "captured_at": "2026-10-26T07:14:41Z",
    "text": "{\n  \"outcome\": \"revise\",\n  \"gaps\": [\n    \"Claim 0 cites EV-PRG-01 for RUL A 10th-90th percentile 5-11, but EV-PRG-01 is not listed in the evidence; only EV-PRG-02 is available, so the ML model percentile range cannot be verified.\",\n    \"Claim 8 derives deadline 2026-10-22 from RUL lower bound 0 cycles at 2 cycles/day, but EV-INT-01 shows last observed cycle 196 at 2026-10-22T00:00:00+00:00, meaning the deadline equals the current date, not a future bound; the calculation appears to use the observation date as the deadline.\",\n    \"Claim 11 states all parts are on hand but the next free slot is 1 day away; EV-MNT-03 shows TF-HPC-1101 lead time 35 d and TF-HPC-1104 lead time 21 d, so those parts are not immediately available for on-wing repair, contradicting the statement that all parts are on hand.\"\n  ],\n  \"challenges\": [\n    {\"kind\": \"unsupported_number\", \"claim\": 0, \"value\": 5, \"detail\": \"RUL A 10th percentile 5 cycles cited from EV-PRG-01, but EV-PRG-01 is not in the evidence list.\"},\n    {\"kind\": \"unsupported_number\", \"claim\": 0, \"value\": 11, \"detail\": \"RUL A 90th percentile 11 cycles cited from EV-PRG-01, but EV-PRG-01 is not in the evidence list.\"},\n    {\"kind\": \"deadline_after_bound\", \"claim\": 8, \"value\": 0, \"detail\": \"Deadline 2026-10-22 equals the observation date in EV-INT-01, not a future date derived from RUL lower bound.\"},\n    {\"kind\": \"unsupported_number\", \"claim\": 11, \"value\": 1, \"detail\": \"Claim says next free slot is 1 day away (EV-DAT-05), but TF-HPC-1101 and TF-HPC-1104 have lead times 35 d and 21 d per EV-MNT-03, so parts are not all on hand for immediate on-wing repair.\"}\n  ]\n}"
   }
  ]

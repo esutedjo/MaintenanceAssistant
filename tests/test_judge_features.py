@@ -28,7 +28,7 @@ def test_stress_test_catches_every_applicable_mistake_and_passes_the_clean_brief
     assert gate_result(hpc, PACK, reference)["caught_by"] is None
     rows = stress_rows(hpc, PACK, reference)
     applied = [r for r in rows if r["applies"]]
-    assert len(rows) == 16 and len(applied) >= 10
+    assert len(rows) == 17 and len(applied) >= 11
     assert all(r["caught_by"] in {"rule checks", "critic"} and r["gaps"] for r in applied)
 
 
@@ -55,3 +55,10 @@ def test_triage_row_classifies_the_decision(hpc, settings):
     assert decision_kind("Continue in service; next scheduled inspection") == "keep flying"     # older briefs
     assert decision_kind("Borescope inspection; do not average the two remaining-life estimates") == "inspect"
     assert decision_kind(None) == "no recommendation"
+
+
+def test_decision_boundaries_word_the_healthy_plan_as_the_brief_does(settings):
+    case = execute_run("What is the status of FD001-A001?", settings).case
+    text = " ".join(decision_boundaries(case.model_dump(mode="json"), PACK))
+    assert "**No action proposed before the next scheduled inspection** because" in text
+    assert "Kept in service" not in text

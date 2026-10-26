@@ -25,7 +25,9 @@ def chunks():
 
 
 def test_every_section_becomes_an_embedded_chunk(chunks):
-    assert len(chunks) == 13
+    limits = [c for c in chunks if c["topic"].startswith("limits:")]
+    assert len(chunks) == 19 and len(limits) == 6           # 13 sections plus 6 synthetic limit tables
+    assert all(c["text"].startswith("SYNTHETIC LIMITS") and not c["tasks"] and not c["failure_modes"] for c in limits)
     assert {c["doc_type"] for c in chunks} == {"manual", "service_bulletin", "airworthiness_directive"}
     assert all(len(c["embedding"]) == 512 for c in chunks)
     assert embed(["borescope HPC"]).shape == (1, 512)
@@ -94,6 +96,6 @@ def test_graph_keeps_mandated_task_next_to_engine_swap(tmp_path):
     result = run_case("What should I do about FD001-A031?", Settings(sample_mode=True,
                                                                      context_sqlite_path=tmp_path / "c.sqlite"))
     rec = result["recommendation"]
-    assert rec["action"].lower().startswith("swap") and "FM-HPC-01" in rec["task_ids"]
+    assert "swap in lease engine" in rec["action"].lower() and "FM-HPC-01" in rec["task_ids"]
     assert result["escalations"][0]["rule"] == "document_mandate"
     assert any(e["kind"] == "document" for e in result["evidence"].values())

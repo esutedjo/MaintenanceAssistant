@@ -2,7 +2,8 @@
 
 Agent, gate and model entries are derived from what the case file already records (trace, verdicts, escalations,
 document findings): the planner's follow-up delegations and gap routing come from its handoff trace lines, so no
-agent writes them. The engineer's sign-off is the one entry added at decision time.
+agent writes them. An inspector's finding is a human entry derived from its evidence record (EV-INS), timed when it
+was entered. The engineer's sign-off is the one entry added at decision time.
 Persisted per case as append-only JSONL with a SHA-256 hash chain, so an edited, deleted or reordered entry shows."""
 
 from __future__ import annotations
@@ -17,9 +18,15 @@ from typing import Any, Iterator, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from casefile.schemas import MAX_ROUNDS, CaseFile, Escalation, TraceEvent, Verdict, utcnow
+from casefile.calls import CALL_ACTIONS
+from casefile.schemas import MAX_ROUNDS, CaseFile, Escalation, TraceEvent, Verdict, as_utc, utcnow
 
 ActorType = Literal["agent", "gate", "model", "human"]
+# Trace lines that record a call or an audit detail, not a decision: Zetaris queries, context-store calls and the
+# critic's screening of the model's notes (agents/critic.py).
+SCREEN_NOTES = "screen_notes"
+NOT_DECISIONS = CALL_ACTIONS | {SCREEN_NOTES}
+FOLDED = re.compile(r"\((\d+) challenges\)")
 GATES = {"rule_checks", "critic", "escalation", "close"}
 OUTCOME = {"accept": "accepted", "revise": "sent back for revision", "reject": "rejected"}
 CONFIDENCE = {0.3: "low", 0.6: "medium", 0.9: "high"}       # maint_planner trace confidence
@@ -27,10 +34,11 @@ TASK_AGENTS = {"data", "prognostics", "diagnostics", "knowledge"}
 TASK_DECISION = {"follow_up": "ran follow-up", "repair": "ran repair"}
 HANDOFF_DECISION = {"delegate": "delegated follow-up", "route": "routed gap"}
 ROUND = re.compile(r"\bround=(\d+)")
-# Wording of agents/critic.py checked_challenges; tests/test_decision_log.py keeps the two in step.
+# Wording of agents/critic.py verify_challenges (it uses REFUTED); tests/test_decision_log.py keeps the two in step.
 REFUTED = "challenge refuted by code"
 CONFIRMED = "confirmed by code)"
 EVIDENCE_REF = re.compile(r"\bEV-[A-Z]{3}-\d{2,}\b")
+RESULT_WORDS = {"within": "within limits", "at_limit": "at the limit", "beyond": "beyond limits"}
 GENESIS = "0" * 64
 CHAIN_FIELDS = ("seq", "prev_hash", "hash")
 SIGNOFF_NOTE = {
@@ -83,6 +91,8 @@ class DecisionEntry(BaseModel):
     rationale: str                      # one plain sentence
     evidence_ids: list[str] = Field(default_factory=list)
     round: int | None = None            # revise round, when the decision belongs to one
+    # Entries from a model reply: True when it was a sample-mode replay of a recorded reply, False for a live call
+    recorded: bool | None = None
     # Sign-off entries only
     signer: Signer | None = None
     comment: str | None = None
@@ -98,12 +108,20 @@ class DecisionEntry(BaseModel):
     prev_hash: str | None = None
     hash: str | None = None
 
+    @field_validator("timestamp")
+    @classmethod
+    def _utc(cls, value: datetime) -> datetime:
+        return as_utc(value)
+
 
 def derive_log(case: CaseFile) -> list[DecisionEntry]:
-    """Agent, gate and model decisions in trace order. Each gate trace line is paired with that gate's next verdict."""
+    """Agent, gate and model decisions in trace order. Each gate trace line is paired with that gate's next verdict.
+    Inspection findings an inspector entered come first: they were recorded before this run read them."""
     verdicts = {gate: iter([v for v in case.verdicts if v.gate == gate]) for gate in ("rule_checks", "critic")}
-    entries, plans, round_no = [], 0, None
+    entries, plans, round_no = _inspectors(case), 0, None
     for event in case.trace:
+        if event.action in NOT_DECISIONS:
+            continue
         if event.status == "error":
             entries.append(_entry(event, _actor_type(event.agent_name), event.agent_name, "failed",
                                   event.output_summary))
@@ -190,8 +208,14 @@ def append_entries(path: Path, entries: list[DecisionEntry]) -> list[dict[str, A
     return [*rows, *new]
 
 
-def verify_rows(rows: list[dict[str, Any]], head_hash: str | None = None) -> tuple[bool, str]:
-    """Walk the hash chain: (intact, reason). `head_hash` (from the work order) also catches entries cut from the end."""
+def verify_rows(rows: list[dict[str, Any]], head_hash: str | None = None,
+                anchors: dict[str, str | None] | None = None) -> tuple[bool, str]:
+    """Walk the hash chain: (intact, reason). `head_hash` (from the work order) also catches entries cut from the end.
+    `anchors` are the head hashes written outside the log at sign-off (the run's trace, the case-memory record): each
+    must be an entry of this chain, else entries were removed or the log was replaced. A correction appended after
+    the sign-off leaves the anchor further up the chain, which is fine."""
+    if not rows:
+        return False, "unverifiable: the log has no entries (missing or empty file)"
     prev = GENESIS
     for n, row in enumerate(rows, 1):
         if row.get("seq") != n:
@@ -203,15 +227,31 @@ def verify_rows(rows: list[dict[str, Any]], head_hash: str | None = None) -> tup
         prev = row["hash"]
     if head_hash is not None and prev != head_hash:
         return False, "the last entry is not the one the work order references: entries were removed"
-    return True, f"hash chain intact, {len(rows)} entries"
+    hashes, notes = [row["hash"] for row in rows], []
+    for name, anchored in (anchors or {}).items():
+        if not anchored:
+            notes.append(f"no {name} anchor found")
+        elif anchored not in hashes:
+            return False, (f"the {name} anchor references head {anchored[:12]}, which is not in the log: entries were "
+                           "removed or the log was replaced")
+        else:
+            later = len(hashes) - 1 - hashes.index(anchored)
+            notes.append(f"{name} anchor matches" + (f" ({later} later entries)" if later else ""))
+    if head_hash is None and not any((anchors or {}).values()):
+        # Tamper-evident, not tamper-proof: with nothing outside the file to compare, a cut or a full rewrite of the
+        # log cannot be ruled out.
+        return False, (f"unverifiable: the chain of {len(rows)} entries is consistent, but there is no head hash "
+                       "(work order, trace or case memory) to check it against")
+    return True, f"hash chain intact, {len(rows)} entries" + (f"; {'; '.join(notes)}" if notes else "")
 
 
-def verify_log(path: Path, head_hash: str | None = None) -> tuple[bool, str]:
+def verify_log(path: Path, head_hash: str | None = None,
+               anchors: dict[str, str | None] | None = None) -> tuple[bool, str]:
     try:
         rows = read_log(path)
     except json.JSONDecodeError as error:
         return False, f"line {error.lineno} is not valid JSON"
-    return verify_rows(rows, head_hash)
+    return verify_rows(rows, head_hash, anchors)
 
 
 def _canonical(value: Any) -> str:
@@ -245,10 +285,11 @@ def _count(n: int, noun: str) -> str:
 
 
 def _entry(event: TraceEvent, actor_type: ActorType, actor: str, decision: str, rationale: str,
-           evidence_ids: list[str] | None = None, round_no: int | None = None) -> DecisionEntry:
+           evidence_ids: list[str] | None = None, round_no: int | None = None,
+           recorded: bool | None = None) -> DecisionEntry:
     return DecisionEntry(timestamp=event.timestamp, run_id=event.run_id, actor_type=actor_type, actor=actor,
                          decision=decision, rationale=_sentence(rationale),
-                         evidence_ids=list(dict.fromkeys(evidence_ids or [])), round=round_no)
+                         evidence_ids=list(dict.fromkeys(evidence_ids or [])), round=round_no, recorded=recorded)
 
 
 def _other(case: CaseFile, event: TraceEvent) -> Iterator[DecisionEntry]:
@@ -256,6 +297,7 @@ def _other(case: CaseFile, event: TraceEvent) -> Iterator[DecisionEntry]:
         yield from _intake(case, event)
     elif event.agent_name == "knowledge" and event.action == "retrieve_documents":
         yield from _mandates(case, event)
+        yield from _comparisons(case, event)
     elif event.agent_name == "escalation":
         yield from _escalations(case, event)
     elif event.agent_name == "close":
@@ -263,20 +305,21 @@ def _other(case: CaseFile, event: TraceEvent) -> Iterator[DecisionEntry]:
 
 
 def _intake(case: CaseFile, event: TraceEvent) -> Iterator[DecisionEntry]:
+    label = case.intent.recorded if case.intent else None
+    replayed = f" ({label})" if label else ""
     if event.status == "needs_revision":
         if event.model:
             yield _entry(event, "model", event.model, "no engine confirmed",
                          "Its reading of the question named no engine that code could confirm in the question and "
-                         "the asset registry")
+                         f"the asset registry{replayed}", recorded=bool(event.recorded))
         yield _entry(event, "agent", "intake", "asked back", event.output_summary)
         return
     asset = case.asset.asset_id if case.asset else (case.intent.asset_id if case.intent else "the engine")
     resolved_by = case.intent.resolved_by if case.intent else None
     if resolved_by:
-        replayed = f" ({case.intent.recorded})" if case.intent.recorded else ""
         yield _entry(event, "model", resolved_by, "read the engine from free text",
                      f"Named {asset}; code found the quoted words in the question and the engine in the "
-                     f"registry{replayed}", event.evidence_ids)
+                     f"registry{replayed}", event.evidence_ids, recorded=bool(label))
     yield _entry(event, "agent", "intake", "resolved engine",
                  f"The question resolves to {asset}, found in the asset registry", event.evidence_ids)
 
@@ -293,6 +336,33 @@ def _planner(event: TraceEvent, round_no: int | None) -> list[DecisionEntry]:
     if event.action == "route_gaps" and event.target_agent == "close":
         return [_entry(event, "agent", "planner", "no agent can fix", event.output_summary, round_no=round_no)]
     return []
+
+
+def _inspectors(case: CaseFile) -> list[DecisionEntry]:
+    """One human entry per finding, by the inspector who entered it, at the time it was entered (UTC)."""
+    entries = []
+    for evidence in [e for e in case.evidence.values() if e.kind == "inspection"]:
+        finding = evidence.content.get("finding") or {}
+        entered = finding.get("entered_at")
+        entries.append(DecisionEntry(
+            timestamp=as_utc(datetime.fromisoformat(entered.replace("Z", "+00:00"))) if entered else evidence.created_at,
+            run_id=run_id_of(case), actor_type="human", actor=finding.get("inspector") or "inspector",
+            decision="entered inspection finding",
+            rationale=_sentence(("Example data: " if finding.get("example") else "")
+                                + evidence.summary.split(": ", 1)[-1]),
+            evidence_ids=[evidence.id]))
+    return sorted(entries, key=lambda e: e.timestamp)
+
+
+def _comparisons(case: CaseFile, event: TraceEvent) -> Iterator[DecisionEntry]:
+    """Knowledge's comparison of each finding with its limit section (code), or the inspector's own result."""
+    for item in case.findings.inspections:
+        how = (f"against {item.reference}" if item.classified_by == "limit"
+               else "as the inspector classified it (no limit applies)")
+        superseded = f"; superseded by {item.superseded_by}" if item.superseded_by else ""
+        yield _entry(event, "agent", "knowledge", "compared finding with limits",
+                     f"{item.evidence_id} is {RESULT_WORDS[item.result]} {how}{superseded}",
+                     [item.evidence_id, *([item.limit_evidence_id] if item.limit_evidence_id else [])])
 
 
 def _mandates(case: CaseFile, event: TraceEvent) -> Iterator[DecisionEntry]:
@@ -334,15 +404,22 @@ def _critic(event: TraceEvent, verdict: Verdict) -> list[DecisionEntry]:
     others = [g for g in verdict.gaps if g not in refuted and g not in confirmed]
     model, round_no = verdict.model, verdict.round
     blocking = confirmed + ([] if model else others)
+    replay = bool(verdict.recorded) if model else None
+    source = f" (from the {verdict.recorded})" if verdict.recorded else ""
+    raised = sum(int(m.group(1)) if (m := FOLDED.search(g)) else 1 for g in [*confirmed, *refuted])
     entries = []
     if model:
         replayed = f" ({verdict.recorded})" if verdict.recorded else ""
+        dropped = (f"; code dropped {_count(len(verdict.dropped_notes), 'note')} it showed false or repeating a "
+                   "refuted challenge (kept in the trace)" if verdict.dropped_notes else "")
         entries.append(_entry(event, "model", model, "reviewed the brief",
-                              f"Raised {_count(len(confirmed) + len(refuted), 'checkable challenge')} and "
+                              f"Raised {_count(raised, 'checkable challenge')} and "
                               f"{_count(len(others), 'note')} for the engineer; notes cannot block a cited "
-                              f"brief{replayed}", _refs(others), round_no))
-    entries += [_entry(event, "gate", "critic", "challenge confirmed", g, _refs([g]), round_no) for g in confirmed]
-    entries += [_entry(event, "gate", "critic", "challenge refuted", g, _refs([g]), round_no) for g in refuted]
+                              f"brief{dropped}{replayed}", _refs(others), round_no, recorded=replay))
+    entries += [_entry(event, "gate", "critic", "challenge confirmed", g + source, _refs([g]), round_no,
+                       recorded=replay) for g in confirmed]
+    entries += [_entry(event, "gate", "critic", "challenge refuted", g + source, _refs([g]), round_no,
+                       recorded=replay) for g in refuted]
     if verdict.outcome == "accept":
         reason = "No gap found by the deterministic checks" + ("; no model challenge was confirmed by code"
                                                                if model else "")

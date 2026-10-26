@@ -25,7 +25,7 @@ OUT = ROOT / "evaluation"
 
 def _ask(case, ctx) -> dict:
     start = time.monotonic()
-    gaps, model, note, challenges = _llm_gaps(case, ctx)
+    gaps, model, note, challenges, _ = _llm_gaps(case, ctx)
     confirmed, refuted = checked_challenges(case, ctx, challenges, model)
     return {"model": model, "note": note, "seconds": round(time.monotonic() - start, 1), "free_text_gaps": len(gaps),
             "challenges": len(challenges), "confirmed": confirmed, "refuted": refuted}

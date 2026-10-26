@@ -1,6 +1,6 @@
 {
- "run_id": "20261026T003711Z-4bece7",
- "trace_id": "trace-20261026T003711Z-4bece7",
+ "run_id": "20261026T071517Z-77e592",
+ "trace_id": "trace-20261026T071517Z-77e592",
  "status": "needs_review",
  "question": "What is the status of FD001-A001?",
  "mode": {
@@ -146,6 +146,7 @@
     "evidence_id": "EV-KNW-05"
    }
   ],
+  "inspections": [],
   "claims": [
    {
     "text": "Remaining useful life is about 121 cycles (10th-90th percentile 115-125) by the ML model; the health-index trend gives 125.",
@@ -156,9 +157,11 @@
     "confidence": "medium"
    },
    {
-    "text": "Most likely fault mode: HPC degradation (probability 1.00).",
+    "text": "No wear detected; this fleet's only known wear mode is HPC degradation.",
     "evidence_ids": [
-     "EV-DIA-01"
+     "EV-DIA-01",
+     "EV-PRG-01",
+     "EV-PRG-02"
     ],
     "confidence": "high"
    },
@@ -214,9 +217,11 @@
     "confidence": "high"
    },
    {
-    "text": "Primary fault mode HPC degradation (p=1.00).",
+    "text": "No wear detected; this fleet's only known wear mode is HPC degradation.",
     "evidence_ids": [
-     "EV-DIA-01"
+     "EV-DIA-01",
+     "EV-PRG-01",
+     "EV-PRG-02"
     ],
     "confidence": "high"
    },
@@ -246,7 +251,8 @@
    "gaps": [],
    "model": null,
    "routes": [],
-   "recorded": null
+   "recorded": null,
+   "dropped_notes": []
   },
   {
    "round": 1,
@@ -255,7 +261,8 @@
    "gaps": [],
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
    "routes": [],
-   "recorded": "recorded Nemotron response (captured 2026-10-26)"
+   "recorded": "recorded Nemotron response (captured 2026-10-26)",
+   "dropped_notes": []
   }
  ],
  "evidence": {
@@ -395,8 +402,8 @@
  },
  "decision_log": [
   {
-   "timestamp": "2026-10-26T00:37:11.269489Z",
-   "run_id": "20261026T003711Z-4bece7",
+   "timestamp": "2026-10-26T07:15:17.982942Z",
+   "run_id": "20261026T071517Z-77e592",
    "actor_type": "agent",
    "actor": "intake",
    "decision": "resolved engine",
@@ -405,22 +412,24 @@
     "EV-INT-01"
    ],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:11.472531Z",
-   "run_id": "20261026T003711Z-4bece7",
+   "timestamp": "2026-10-26T07:15:18.181083Z",
+   "run_id": "20261026T071517Z-77e592",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "no follow-up needed",
    "rationale": "RUL methods agree within 20 cycles (A 121, B 125); fault mode clear (hpc_degradation p=1.00); input data plausible.",
    "evidence_ids": [],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:11.516143Z",
-   "run_id": "20261026T003711Z-4bece7",
+   "timestamp": "2026-10-26T07:15:18.208930Z",
+   "run_id": "20261026T071517Z-77e592",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "proposed plan",
@@ -432,11 +441,12 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:11.517662Z",
-   "run_id": "20261026T003711Z-4bece7",
+   "timestamp": "2026-10-26T07:15:18.212930Z",
+   "run_id": "20261026T071517Z-77e592",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -444,23 +454,26 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:11.520178Z",
-   "run_id": "20261026T003711Z-4bece7",
+   "timestamp": "2026-10-26T07:15:18.214931Z",
+   "run_id": "20261026T071517Z-77e592",
    "actor_type": "model",
    "actor": "nvidia/nemotron-3-ultra-550b-a55b",
    "decision": "reviewed the brief",
    "rationale": "Raised 0 checkable challenges and 0 notes for the engineer; notes cannot block a cited brief (recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [],
    "round": 1,
+   "recorded": true,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:11.520178Z",
-   "run_id": "20261026T003711Z-4bece7",
+   "timestamp": "2026-10-26T07:15:18.214931Z",
+   "run_id": "20261026T071517Z-77e592",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "accepted",
@@ -468,11 +481,12 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:11.521180Z",
-   "run_id": "20261026T003711Z-4bece7",
+   "timestamp": "2026-10-26T07:15:18.215931Z",
+   "run_id": "20261026T071517Z-77e592",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "no escalation",
@@ -480,7 +494,8 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   }
  ],
  "agents": [
@@ -498,7 +513,7 @@
   },
   {
    "name": "data",
-   "role": "Telemetry, input plausibility, history, schedule, slots; inspection history and targeted re-queries",
+   "role": "Telemetry, input plausibility, history, schedule, slots, entered inspection findings; inspection history and targeted re-queries",
    "uses_model": false,
    "can_block_or_send_back": false
   },
@@ -510,13 +525,13 @@
   },
   {
    "name": "diagnostics",
-   "role": "Fault-mode match and similar past cases; checks both candidates when unclear",
+   "role": "Fault-mode match and similar past cases; checks both candidates when unclear; checks an inspection finding against the fault mode",
    "uses_model": false,
    "can_block_or_send_back": false
   },
   {
    "name": "knowledge",
-   "role": "Applicable documents in precedence order, mandates decided in code; binds a missing mandate",
+   "role": "Applicable documents in precedence order, mandates decided in code; the limit section for each inspection finding, compared in code; binds a missing mandate",
    "uses_model": false,
    "can_block_or_send_back": false
   },
@@ -550,10 +565,11 @@
    "agent": "critic",
    "round": 1,
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "recorded": true,
    "source": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
- "trace_file": "logs\\trace-20261026T003711Z-4bece7.jsonl",
- "duration_s": 0.27,
- "execution_time_seconds": 0.266
+ "trace_file": "logs\\trace-20261026T071517Z-77e592.jsonl",
+ "duration_s": 0.25,
+ "execution_time_seconds": 0.25
 }

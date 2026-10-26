@@ -7,10 +7,11 @@ Evidence IDs carry the producing agent's code (EV-DAT-01) so parallel agents nev
 import hashlib
 import json
 import re
+import uuid
 from datetime import date, datetime, timezone
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 MAX_ROUNDS = 3
 EVIDENCE_ID = re.compile(r"^EV-[A-Z]{3}-\d{2,}$")
@@ -18,15 +19,26 @@ AGENT_CODES = {
     "intake": "INT", "planner": "PLN", "data": "DAT", "prognostics": "PRG", "diagnostics": "DIA",
     "knowledge": "KNW", "maint_planner": "MNT", "rule_checks": "RUL", "critic": "CRT", "escalation": "ESC",
 }
+# An inspection finding an inspector entered: the data agent records it as EV-INS-nn, not as its own query.
+INSPECTION_CODE = "INS"
 
 Confidence = Literal["low", "medium", "high"]
-EvidenceKind = Literal["query", "model", "document", "case", "rule"]
+EvidenceKind = Literal["query", "model", "document", "case", "rule", "inspection"]
+InspectionKind = Literal["borescope", "visual", "oil_analysis", "chip_detector", "material_test"]
+InspectionResult = Literal["within", "at_limit", "beyond"]
+RESULT_RANK = {"within": 0, "at_limit": 1, "beyond": 2}
 AgentName = Literal["intake", "planner", "data", "prognostics", "diagnostics", "knowledge", "maint_planner",
                     "rule_checks", "critic", "escalation", "engineer"]
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def as_utc(value: datetime) -> datetime:
+    """Every stored time is UTC-aware: a naive legacy value is read as UTC, an offset is converted. Mixing naive and
+    aware times broke sorting (a stored naive `entered_at` failed every later brief for the engine)."""
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
 def content_hash(value: Any) -> str:
@@ -72,6 +84,80 @@ class Intent(BaseModel):
     clarification: str | None = None
     resolved_by: str | None = None      # set when an LLM read the engine from free text and code verified it
     recorded: str | None = None         # sample mode: "recorded Nemotron response (captured <date>)"
+
+
+class Measurement(BaseModel):
+    """What the inspector measured: `parameter` names the manual's limit row ("HPC-TIP") or what was measured."""
+    parameter: str = Field(min_length=1, max_length=40)
+    value: float = Field(ge=0, allow_inf_nan=False)
+    unit: str = Field(min_length=1, max_length=16)
+
+
+class InspectionFindingIn(BaseModel):
+    """What an inspector enters (the API body, the UI form), with length limits on every text. The server assigns the
+    finding ID, the entry time and the example flag, and a photo only comes from the UI's own upload."""
+    asset_id: str = Field(min_length=1, max_length=40)
+    kind: InspectionKind
+    module: str = Field(min_length=1, max_length=40)  # asset pack inspections.modules: fan, lpc, hpc, ..., oil_system
+    location: str = Field("", max_length=120)        # "HPC stage 3"
+    observation: str = Field(min_length=1, max_length=2000)
+    measurement: Measurement | None = None
+    stated_result: InspectionResult | None = None   # the inspector's call; decides only when no limit applies
+    inspector: str = Field(min_length=1, max_length=120)
+    inspected_on: date                              # UTC date
+    cycle: int = Field(ge=0, le=1_000_000)          # engine cycle at inspection
+
+    @field_validator("asset_id", "inspector", "observation", "location", mode="before")
+    @classmethod
+    def _strip(cls, value: Any) -> Any:
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _classifiable(self):
+        if self.measurement is None and self.stated_result is None:
+            raise ValueError("a finding needs a measurement or the inspector's result (within, at_limit, beyond)")
+        return self
+
+    def to_finding(self) -> "InspectionFinding":
+        """The stored finding, with a server-assigned ID and entry time (UTC), never an example."""
+        return InspectionFinding(**self.model_dump())
+
+
+class InspectionFinding(InspectionFindingIn):
+    """One inspection result as an inspector entered it (borescope, visual, oil analysis, chip detector, NDT). Stored
+    append-only per engine. Code compares a measurement with the manual's limit; without a limit the inspector's own
+    result stands and is flagged inspector-classified. A photo is stored by path and never analysed by AI."""
+    finding_id: str = Field(default_factory=lambda: f"INS-{uuid.uuid4().hex[:8]}", max_length=64)
+    photo: str | None = None
+    entered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    example: bool = False                           # the UI's "Load example finding" data, labelled as an example
+
+    @field_validator("entered_at")
+    @classmethod
+    def _utc(cls, value: datetime) -> datetime:
+        return as_utc(value)
+
+
+class InspectionAssessment(BaseModel):
+    """A finding compared with the limit section Knowledge retrieved (code), or as the inspector classified it when
+    no limit applies. `current` is False once a later finding on the same module, location and measure replaces it."""
+    finding_id: str
+    evidence_id: str                                # EV-INS-nn
+    kind: InspectionKind
+    module: str
+    location: str = ""
+    cycle: int
+    result: InspectionResult
+    classified_by: Literal["limit", "inspector"]
+    limit_evidence_id: str | None = None            # EV-KNW-nn: the limit section
+    reference: str | None = None                    # "AMM-TF-R3 72-31-00-601"
+    limit: dict[str, Any] | None = None             # the limit row: id, name, unit, serviceable, reject
+    action: Literal["remove", "reinspect", "routine"]
+    interval_cycles: int | None = None              # re-inspection (at limit) or next routine inspection (within)
+    fresh: bool = False                             # taken close enough to the last cycle to answer a follow-up
+    current: bool = True
+    superseded_by: str | None = None
+    note: str | None = None
 
 
 class Task(BaseModel):
@@ -150,6 +236,7 @@ class Findings(BaseModel):
     anomaly: AnomalyFinding | None = None
     similar_cases: list[str] = Field(default_factory=list)     # evidence IDs of kind "case"
     documents: list[DocumentFinding] = Field(default_factory=list)
+    inspections: list[InspectionAssessment] = Field(default_factory=list)
     claims: list[Claim] = Field(default_factory=list)
 
 
@@ -179,6 +266,8 @@ class Verdict(BaseModel):
     model: str | None = None
     routes: list[GapRoute] = Field(default_factory=list)    # the blocking gaps, by kind and fixing agent
     recorded: str | None = None                 # "recorded Nemotron response (captured <date>)" in sample mode
+    # Model notes code showed false or repeating a refuted challenge, as "<why>: <note>"; kept for audit, not shown
+    dropped_notes: list[str] = Field(default_factory=list)
 
 
 class Escalation(BaseModel):
@@ -200,12 +289,20 @@ class TraceEvent(BaseModel):
     output_summary: str
     target_agent: str | None = None
     model: str | None = None
+    # Set only on lines that read a model reply: True for a sample-mode replay of a recorded reply, False for a live
+    # call. Left out of the JSONL line when None (code steps), so a replay never reads as a live call.
+    recorded: bool | None = None
     confidence: float | None = None
     retry_count: int = 0
     status: Literal["success", "needs_revision", "rejected", "fallback", "error", "skipped"] = "success"
     duration_s: float | None = None
     input_hash: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("timestamp")
+    @classmethod
+    def _utc(cls, value: datetime) -> datetime:
+        return as_utc(value)
 
 
 def merge_evidence(left: dict[str, Evidence], right: dict[str, Evidence]) -> dict[str, Evidence]:
@@ -249,9 +346,14 @@ def merge_findings(left: Findings, right: Findings) -> Findings:
     return merged
 
 
+# Follow-ups that need the limit section Knowledge retrieves, so they run after it.
+AFTER_KNOWLEDGE = {"inspection_check"}
+
+
 class CaseFile(BaseModel):
     case_id: str
     question: str
+    inspections: list[InspectionFinding] = Field(default_factory=list)  # entered with the question (API, run.py)
     asset: AssetRef | None = None
     intent: Intent | None = None
     plan: Annotated[list[Task], merge_tasks] = Field(default_factory=list)
@@ -273,13 +375,18 @@ class CaseFile(BaseModel):
         """Follow-ups and repairs the planner delegated to this agent and it has not run yet."""
         return [t for t in self.plan if t.agent == agent and t.status == "pending" and t.kind]
 
+    def ready(self, agent: str) -> list[Task]:
+        """Pending tasks the agent can run now: one that needs Knowledge's limit section waits until Knowledge ran."""
+        knew = any(e.agent_name == "knowledge" for e in self.trace)
+        return [t for t in self.pending(agent) if knew or t.kind not in AFTER_KNOWLEDGE]
+
 
 class EvidenceLedger:
     """Allocates IDs for one agent and collects its evidence; the agent returns ledger.records as its update."""
 
-    def __init__(self, agent: AgentName, existing: dict[str, Evidence] | None = None):
+    def __init__(self, agent: AgentName, existing: dict[str, Evidence] | None = None, code: str | None = None):
         self.agent = agent
-        self.prefix = f"EV-{AGENT_CODES[agent]}-"
+        self.prefix = f"EV-{code or AGENT_CODES[agent]}-"
         taken = [int(k[len(self.prefix):]) for k in (existing or {}) if k.startswith(self.prefix)]
         self._next = max(taken, default=0) + 1
         self.records: dict[str, Evidence] = {}

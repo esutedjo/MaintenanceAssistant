@@ -8,9 +8,12 @@ from tools import llm_recordings
 
 @pytest.fixture(autouse=True)
 def _no_settings_from_shell(monkeypatch):
-    """Tests build their own Settings; a SAMPLE_MODE or ZETARIS_MODE exported in the shell must not leak in."""
+    """Tests build their own Settings; a SAMPLE_MODE or ZETARIS_MODE exported in the shell must not leak in.
+    CONTEXT_STORE=sqlite keeps every test off a local context service, whatever .env.local says (sample mode honours
+    an explicit CONTEXT_STORE=meterless); a test that wants Meterless passes context_store itself."""
     for name in Settings.model_fields:
         monkeypatch.delenv(name.upper(), raising=False)
+    monkeypatch.setenv("CONTEXT_STORE", "sqlite")
     get_settings.cache_clear()
 
 

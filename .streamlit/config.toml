@@ -5,8 +5,16 @@ backgroundColor = "#0f1419"
 secondaryBackgroundColor = "#1a2332"
 textColor = "#e8eef5"
 
+[server]
+# Loopback only: approve, reject and inspection findings must not be reachable from the LAN.
+address = "127.0.0.1"
+# Inspection photos (MB).
+maxUploadSize = 10
+
 [browser]
 gatherUsageStats = false
 
 [client]
 toolbarMode = "minimal"
+# Exception type only, never a traceback with paths.
+showErrorDetails = "type"

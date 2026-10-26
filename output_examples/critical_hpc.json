@@ -1,6 +1,6 @@
 {
- "run_id": "20261026T003714Z-eede0a",
- "trace_id": "trace-20261026T003714Z-eede0a",
+ "run_id": "20261026T071512Z-0a4c01",
+ "trace_id": "trace-20261026T071512Z-0a4c01",
  "status": "needs_review",
  "question": "What should I do about FD001-A031?",
  "mode": {
@@ -174,6 +174,7 @@
     "evidence_id": "EV-KNW-05"
    }
   ],
+  "inspections": [],
   "claims": [
    {
     "text": "Remaining useful life is about 10 cycles (10th-90th percentile 5-11) by the ML model; the health-index trend gives 7.",
@@ -244,7 +245,7 @@
   ]
  },
  "recommendation": {
-  "action": "Swap in lease engine; module shop visit on the removed engine",
+  "action": "Do not dispatch; swap in lease engine at the first free slot (2026-10-23); module shop visit on the removed engine",
   "task_ids": [
    "FM-HPC-06",
    "FM-HPC-04",
@@ -314,6 +315,16 @@
      "EV-MNT-04",
      "EV-PRG-01",
      "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Planning lower bound 0 cycles leaves no flight before the work: do not dispatch; the engine stays on the ground until the work at the first free slot 2026-10-23.",
+    "evidence_ids": [
+     "EV-MNT-04",
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-DAT-05"
     ],
     "confidence": "high"
    },
@@ -421,20 +432,14 @@
   {
    "rule": "rul_below_lead_time",
    "severity": "urgent",
-   "message": "RUL lower bound is 0.0 days; lead time of short parts 0 d plus next free slot 1 d.",
+   "message": "RUL lower bound is 0.0 days (do not dispatch); all parts on hand; next free slot 1 d.",
    "actions": [
-    "Propose expedite",
-    "Propose engine swap",
-    "Propose derate"
+    "Propose engine swap"
    ],
    "evidence_ids": [
     "EV-PRG-01",
     "EV-PRG-02",
     "EV-DAT-05",
-    "EV-MNT-03",
-    "EV-MNT-03",
-    "EV-MNT-03",
-    "EV-MNT-03",
     "EV-MNT-03"
    ]
   },
@@ -460,24 +465,26 @@
    "gaps": [],
    "model": null,
    "routes": [],
-   "recorded": null
+   "recorded": null,
+   "dropped_notes": []
   },
   {
    "round": 1,
    "gate": "critic",
    "outcome": "accept",
    "gaps": [
-    "Claim 0 cites EV-PRG-01 for RUL A 10th-90th percentile 5-11, but EV-PRG-01 is not listed in the evidence; only EV-PRG-02 is available, so the ML model percentile range cannot be verified.",
-    "Claim 8 derives deadline 2026-10-22 from RUL lower bound 0 cycles at 2 cycles/day, but EV-INT-01 shows last observed cycle 196 at 2026-10-22T00:00:00+00:00, meaning the deadline equals the current date, not a future bound; the calculation appears to use the observation date as the deadline.",
-    "Claim 11 states all parts are on hand but the next free slot is 1 day away; EV-MNT-03 shows TF-HPC-1101 lead time 35 d and TF-HPC-1104 lead time 21 d, so those parts are not immediately available for on-wing repair, contradicting the statement that all parts are on hand.",
-    "unsupported number challenge refuted by code: claim [0] does not state 5",
-    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "unsupported number challenge refuted by code (2 challenges): claim [0] does not state 5 or 11",
     "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
-    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+    "unsupported number challenge refuted by code: EV-MNT-03, EV-MNT-04 supports 1"
    ],
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
    "routes": [],
-   "recorded": "recorded Nemotron response (captured 2026-10-26)"
+   "recorded": "recorded Nemotron response (captured 2026-10-26)",
+   "dropped_notes": [
+    "says EV-PRG-01 is missing, but EV-PRG-01 is in the case file: Claim 0 cites EV-PRG-01 for RUL A 10th-90th percentile 5-11, but EV-PRG-01 is not listed in the evidence; only EV-PRG-02 is available, so the ML model percentile range cannot be verified.",
+    "repeats the deadline after bound challenge code refuted: Claim 8 derives deadline 2026-10-22 from RUL lower bound 0 cycles at 2 cycles/day, but EV-INT-01 shows last observed cycle 196 at 2026-10-22T00:00:00+00:00, meaning the deadline equals the current date, not a future bound; the calculation appears to use the observation date as the deadline.",
+    "repeats the unsupported number challenge code refuted: Claim 11 states all parts are on hand but the next free slot is 1 day away; EV-MNT-03 shows TF-HPC-1101 lead time 35 d and TF-HPC-1104 lead time 21 d, so those parts are not immediately available for on-wing repair, contradicting the statement that all parts are on hand."
+   ]
   }
  ],
  "evidence": {
@@ -659,8 +666,8 @@
  },
  "decision_log": [
   {
-   "timestamp": "2026-10-26T00:37:14.352079Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.552358Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "agent",
    "actor": "intake",
    "decision": "resolved engine",
@@ -669,22 +676,24 @@
     "EV-INT-01"
    ],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.566751Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.771888Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "no follow-up needed",
    "rationale": "RUL methods agree within 20 cycles (A 10, B 7); fault mode clear (hpc_degradation p=1.00); input data plausible.",
    "evidence_ids": [],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.582836Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.789240Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "agent",
    "actor": "knowledge",
    "decision": "applied mandate",
@@ -693,15 +702,16 @@
     "EV-KNW-02"
    ],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.621952Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.805391Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "proposed plan",
-   "rationale": "Swap in lease engine; module shop visit on the removed engine; deadline 2026-10-22; 5 parts, confidence high.",
+   "rationale": "Do not dispatch; swap in lease engine at the first free slot (2026-10-23); module shop visit on the removed engine; deadline 2026-10-22; 5 parts, confidence high.",
    "evidence_ids": [
     "EV-MNT-01",
     "EV-MNT-02",
@@ -711,11 +721,12 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.626460Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.811389Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -723,82 +734,71 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.628461Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.815404Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "model",
    "actor": "nvidia/nemotron-3-ultra-550b-a55b",
    "decision": "reviewed the brief",
-   "rationale": "Raised 4 checkable challenges and 3 notes for the engineer; notes cannot block a cited brief (recorded Nemotron response (captured 2026-10-26)).",
+   "rationale": "Raised 4 checkable challenges and 0 notes for the engineer; notes cannot block a cited brief; code dropped 3 notes it showed false or repeating a refuted challenge (kept in the trace) (recorded Nemotron response (captured 2026-10-26)).",
+   "evidence_ids": [],
+   "round": 1,
+   "recorded": true,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:12.815404Z",
+   "run_id": "20261026T071512Z-0a4c01",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code (2 challenges): claim [0] does not state 5 or 11 (from the recorded Nemotron response (captured 2026-10-26)).",
+   "evidence_ids": [],
+   "round": 1,
+   "recorded": true,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:12.815404Z",
+   "run_id": "20261026T071512Z-0a4c01",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22) (from the recorded Nemotron response (captured 2026-10-26)).",
+   "evidence_ids": [],
+   "round": 1,
+   "recorded": true,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T07:15:12.815404Z",
+   "run_id": "20261026T071512Z-0a4c01",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code: EV-MNT-03, EV-MNT-04 supports 1 (from the recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [
-    "EV-PRG-01",
-    "EV-PRG-02",
-    "EV-INT-01",
-    "EV-MNT-03"
+    "EV-MNT-03",
+    "EV-MNT-04"
    ],
    "round": 1,
+   "recorded": true,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.628461Z",
-   "run_id": "20261026T003714Z-eede0a",
-   "actor_type": "gate",
-   "actor": "critic",
-   "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: claim [0] does not state 5.",
-   "evidence_ids": [],
-   "round": 1,
-   "case_feedback": {},
-   "acknowledged": []
-  },
-  {
-   "timestamp": "2026-10-26T00:37:14.628461Z",
-   "run_id": "20261026T003714Z-eede0a",
-   "actor_type": "gate",
-   "actor": "critic",
-   "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: claim [0] does not state 11.",
-   "evidence_ids": [],
-   "round": 1,
-   "case_feedback": {},
-   "acknowledged": []
-  },
-  {
-   "timestamp": "2026-10-26T00:37:14.628461Z",
-   "run_id": "20261026T003714Z-eede0a",
-   "actor_type": "gate",
-   "actor": "critic",
-   "decision": "challenge refuted",
-   "rationale": "Deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22).",
-   "evidence_ids": [],
-   "round": 1,
-   "case_feedback": {},
-   "acknowledged": []
-  },
-  {
-   "timestamp": "2026-10-26T00:37:14.628461Z",
-   "run_id": "20261026T003714Z-eede0a",
-   "actor_type": "gate",
-   "actor": "critic",
-   "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1.",
-   "evidence_ids": [
-    "EV-PRG-01",
-    "EV-PRG-02",
-    "EV-MNT-04",
-    "EV-DAT-05",
-    "EV-MNT-03"
-   ],
-   "round": 1,
-   "case_feedback": {},
-   "acknowledged": []
-  },
-  {
-   "timestamp": "2026-10-26T00:37:14.628461Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.815404Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "accepted",
@@ -806,11 +806,12 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.629963Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.816403Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -820,15 +821,16 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.629963Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.816403Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
-   "rationale": "RUL lower bound is 0.0 days; lead time of short parts 0 d plus next free slot 1 d (urgent, rule rul_below_lead_time).",
+   "rationale": "RUL lower bound is 0.0 days (do not dispatch); all parts on hand; next free slot 1 d (urgent, rule rul_below_lead_time).",
    "evidence_ids": [
     "EV-PRG-01",
     "EV-PRG-02",
@@ -837,11 +839,12 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:14.629963Z",
-   "run_id": "20261026T003714Z-eede0a",
+   "timestamp": "2026-10-26T07:15:12.816403Z",
+   "run_id": "20261026T071512Z-0a4c01",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -852,7 +855,8 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   }
  ],
  "agents": [
@@ -870,7 +874,7 @@
   },
   {
    "name": "data",
-   "role": "Telemetry, input plausibility, history, schedule, slots; inspection history and targeted re-queries",
+   "role": "Telemetry, input plausibility, history, schedule, slots, entered inspection findings; inspection history and targeted re-queries",
    "uses_model": false,
    "can_block_or_send_back": false
   },
@@ -882,13 +886,13 @@
   },
   {
    "name": "diagnostics",
-   "role": "Fault-mode match and similar past cases; checks both candidates when unclear",
+   "role": "Fault-mode match and similar past cases; checks both candidates when unclear; checks an inspection finding against the fault mode",
    "uses_model": false,
    "can_block_or_send_back": false
   },
   {
    "name": "knowledge",
-   "role": "Applicable documents in precedence order, mandates decided in code; binds a missing mandate",
+   "role": "Applicable documents in precedence order, mandates decided in code; the limit section for each inspection finding, compared in code; binds a missing mandate",
    "uses_model": false,
    "can_block_or_send_back": false
   },
@@ -922,10 +926,11 @@
    "agent": "critic",
    "round": 1,
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "recorded": true,
    "source": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
- "trace_file": "logs\\trace-20261026T003714Z-eede0a.jsonl",
- "duration_s": 0.3,
- "execution_time_seconds": 0.297
+ "trace_file": "logs\\trace-20261026T071512Z-0a4c01.jsonl",
+ "duration_s": 0.28,
+ "execution_time_seconds": 0.281
 }

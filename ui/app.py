@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import html
+import io
 import json
+import logging
+import re
 import sys
 from pathlib import Path
 
@@ -34,16 +37,19 @@ importlib.reload(ui.methods)
 importlib.reload(ui.stress)
 
 from casefile.decision_log import Signer, brief_ref, derive_log, verify_rows
-from casefile.schemas import CaseFile
+from casefile.schemas import CaseFile, InspectionFinding, Measurement
 from data.db import load_pack
 from graph.runner import execute_run
 from settings import get_settings
-from tools.writeback import approve_case, cited_cases, reject_case
+from tools.inspections import EXAMPLES, limit_catalog, record_finding, store_dir
+from tools.writeback import approve_case, cited_cases, reject_case, signoff_anchors
+from tools import status as live_status
 from ui.brief import (
-    CSS, approval_gate, asset_context, check_summary, decision_boundaries, decision_log_rows, decision_rows,
-    driving_sensor_figure, escalation_ack_label, escalation_view, fault_label, fmt_rul, load_trace_file,
-    needs_urgent_reason, primary_fault, rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries,
-    trace_chips, trace_rows, verdict_headline, verdict_meta, verdict_tone, world_eligibility,
+    CSS, approval_gate, asks_for_inspection, asset_context, check_summary, decision_boundaries, decision_log_rows,
+    decision_rows, driving_sensor_figure, escalation_ack_label, escalation_view, fault_display, fault_label, fmt_rul,
+    inspection_rows, load_trace_file, md_lines, md_text, needs_tick, needs_urgent_reason, rul_context,
+    sensor_trend_rows, signature_sensors, similar_case_summaries, status_chips, strip_links, trace_chips, trace_rows,
+    verdict_headline, verdict_meta, verdict_tone, world_eligibility,
 )
 from ui.engine import component_probabilities, credit, engine_figure, engine_svg, photos
 from ui.explain import explain
@@ -58,6 +64,8 @@ from ui.stress import gate_result, stress_rows
 from agents.intake import FLEET_QUESTION
 from tools.triage import build_triage, load_triage, save_triage
 
+ENGINE_LINK = re.compile(r"FD\d{3}-A\d{3}", re.ASCII | re.IGNORECASE)
+MAX_QUESTION = 2000                 # as POST /run
 GOLDEN = [
     ("Healthy · FD001-A001", "What is the status of FD001-A001?"),
     ("HPC swap · FD001-A031", "What should I do about FD001-A031?"),
@@ -132,26 +140,29 @@ def _ask_bar(settings) -> None:
     """Question, Run and the golden cases at the top of the page, so a tablet needs no sidebar."""
     if "question" not in st.session_state:
         st.session_state.question = GOLDEN[2][1]
-        # A link such as ?engine=FD001-A031 opens that engine's brief directly.
-        linked = st.query_params.get("engine")
-        if linked:
-            st.session_state.question = f"What should I do about {linked}?"
+        # A link such as ?engine=FD001-A031 opens that engine's brief directly: an active-engine ID only, never text.
+        linked = st.query_params.get("engine") or ""
+        if ENGINE_LINK.fullmatch(linked):
+            st.session_state.question = f"What should I do about {linked.upper()}?"
             st.session_state.run_now = True
     st.markdown(f'<div class="brand"><b>Cleris</b><span title="{html.escape(CLEARANCE)}">the MRO clearance '
                 'assistant</span></div>', unsafe_allow_html=True)
     with st.container(key="ask"):
         ask, run = st.columns([5, 1], vertical_alignment="bottom")
-        ask.text_input("Ask about an engine", key="question", placeholder="What should I do about FD001-A031?")
+        ask.text_input("Ask about an engine", key="question", placeholder="What should I do about FD001-A031?",
+                       max_chars=MAX_QUESTION)
         clicked = run.button("Run", type="primary", width="stretch", key="run_case")
     with st.container(key="grid2-golden"):
         for col, (label, question) in zip(st.columns(len(GOLDEN)), GOLDEN):
             col.button(label, width="stretch", on_click=_set_question, args=(question, True))
-    mode = "Sample mode: committed snapshot, no network" if settings.sample_mode else \
-        f"Live mode: data {settings.zetaris_mode}"
+    if settings.sample_mode:
+        _status_strip(settings)
+    else:
+        _live_status_strip(settings)
     result = st.session_state.get("result") or {}
-    last = f" · last run {result.get('duration_s', 0):.1f} s" if result else ""
+    last = f"Last run {result.get('duration_s', 0):.1f} s. " if result else ""
     note, toggle, helper = st.columns([4, 1, 1], vertical_alignment="center")
-    note.caption(f"{mode}{last}. Telemetry is NASA C-MAPSS (simulated); maintenance, spares and documents are "
+    note.caption(f"{last}Telemetry is NASA C-MAPSS (simulated); maintenance, spares and documents are "
                  f"synthetic.  \n{DISCLAIMER_SHORT}")
     toggle.toggle("Explain", value=False, key="explain",
                   help="Show a short plain-language note under each section. Help has the glossary.")
@@ -160,6 +171,38 @@ def _ask_bar(settings) -> None:
                        "engine, and AI help")
     if clicked or st.session_state.pop("run_now", False):
         _run(settings)
+
+
+def _status_strip(settings) -> None:
+    """Which background services are active: one chip each (green, amber, grey), details folded underneath. The
+    checks run on a background thread and are cached (tools/status.py), so the strip never holds up the brief;
+    sample mode checks nothing over the network and says what it uses instead."""
+    memory = ((st.session_state.get("result") or {}).get("mode") or {}).get("context_store")
+    board = live_status.current(settings, memory=memory)
+    if any(item.get("summary") == "checking…" for item in board.get("components") or []):
+        # First look after start: the parallel checks time out at 2.5 s, so wait that long once rather than 30 s.
+        board = live_status.current(settings, wait_s=3.0, memory=memory)
+    esc = html.escape
+    chips = "".join(f'<span class="{esc(state)}" title="{esc(text)}"><i></i>'
+                    + (f"<b>{esc(label)}</b>" if label else "") + f"{esc(text)}</span>"
+                    for state, label, text in status_chips(board))
+    st.markdown(f'<div class="status-strip">{chips}</div>', unsafe_allow_html=True)
+    checked = board.get("checked_at")
+    with st.expander("Services" + (f" · checked {checked[11:19]} UTC" if checked and board["overall"] != "sample"
+                                   else ""), expanded=False):
+        for item in board.get("components") or []:
+            st.markdown(f"**{md_text(item['label'])}** · {md_text(item['summary'])}")
+            for line in item.get("details") or []:
+                st.caption(md_text(line))
+        st.caption("Green: active. Amber: degraded or a fallback in use. Grey: not used in this mode or not checked "
+                   "yet. Checks are read-only, take at most a few seconds on a background thread and are reused for "
+                   f"{settings.status_ttl_s:.0f} s; no credentials or hosts are shown.")
+
+
+@st.fragment(run_every=30)
+def _live_status_strip(settings) -> None:
+    """Live mode: the strip re-reads the cached checks every 30 s without re-running the page."""
+    _status_strip(settings)
 
 
 def _set_question(question: str, run: bool = False) -> None:
@@ -172,11 +215,15 @@ def _run(settings) -> None:
     if not question:
         st.error("Ask a question first.")
         return
+    if len(question) > MAX_QUESTION:
+        st.error(f"Questions are limited to {MAX_QUESTION} characters; name one engine, e.g. FD001-A031.")
+        return
     try:
         with st.spinner("Running specialists and assurance gates…"):
             outcome = execute_run(question, settings)
     except Exception as error:
-        st.error(f"{type(error).__name__}: {error}")
+        logging.getLogger("ui").exception("run failed")
+        st.error(f"The run failed ({type(error).__name__}); the server log has the details.")
         return
     st.session_state.case = outcome.case.model_dump(mode="json")
     st.session_state.result = outcome.result
@@ -200,7 +247,7 @@ def _brief_page(settings, pack: dict) -> None:
                  "Press **Help** at the top for what each part means, a glossary and pictures of the engine.")
         return
     if case.get("degraded"):
-        st.warning("Degraded: " + "; ".join(case["degraded"]))
+        st.warning("Degraded: " + "; ".join(md_text(d) for d in case["degraded"]))
     terms = glossary(pack)
 
     def tip(text) -> str:
@@ -226,13 +273,15 @@ def _brief_page(settings, pack: dict) -> None:
         if view["proposed"]:
             extra += f'<div class="esc-act">Proposed: {tip(" · ".join(view["proposed"]))}</div>'
         st.markdown(f'<div class="esc {view["severity"]}"><div class="esc-title"><span class="esc-sev">'
-                    f'{html.escape(view["severity"])}</span>{tip(view["title"])}</div>'
+                    f'{html.escape(view["label"])}</span>{tip(view["title"])}</div>'
                     f'<div class="esc-msg">{tip(view["message"])}</div>{extra}</div>',
                     unsafe_allow_html=True)
 
     _explain("metrics")
     _overview_cards(case, pack)
     _plan_summary(case, tip)
+    _inspection_card(case, pack, tip)
+    _inspection_form(settings, case, pack)
     why = decision_boundaries(case, pack)
     if why:
         with st.container(border=True):
@@ -257,10 +306,10 @@ def _evidence_list(case: dict, ids: list[str], heading: str = "Evidence behind t
     for eid in ids:
         item = evidence[eid]
         degraded = " · degraded" if item.get("degraded") else ""
-        with st.expander(f"{eid} · {item.get('summary', '')}{degraded}"):
-            st.caption(f"{item.get('kind')} · {item.get('source')} · produced by {item.get('produced_by')}")
+        with st.expander(f"{eid} · {md_text(item.get('summary', ''))}{degraded}"):
+            st.caption(md_text(f"{item.get('kind')} · {item.get('source')} · produced by {item.get('produced_by')}"))
             if item.get("degraded"):
-                st.warning(item["degraded"])
+                st.warning(md_text(item["degraded"]))
             st.json(item.get("content") or {})
 
 
@@ -271,7 +320,7 @@ def _ids_by_agent(case: dict, agent: str) -> list[str]:
 def _overview_cards(case: dict, pack: dict) -> None:
     findings = case.get("findings") or {}
     evidence = case.get("evidence") or {}
-    fault, prob = primary_fault(findings, pack)
+    fault, fault_note = fault_display(case, pack)
     rc = rul_context(findings, pack)
     a, b = findings.get("rul_ml"), findings.get("rul_trend")
     with st.container(key="grid2-kpis"):
@@ -285,9 +334,9 @@ def _overview_cards(case: dict, pack: dict) -> None:
             st.write("A machine-learning model trained on 160 engines that ran to failure reads the last 30 "
                      "flights. 8 in 10 similar engines fall inside the range.")
             if a and a.get("note"):
-                st.caption(a["note"])
+                st.caption(md_text(a["note"]))
             if a:
-                st.caption(f"`{a['evidence_id']}` {evidence.get(a['evidence_id'], {}).get('summary', '')}")
+                st.caption(f"`{a['evidence_id']}` {md_text(evidence.get(a['evidence_id'], {}).get('summary', ''))}")
 
     with c2.container(border=True):
         st.metric("Flights left · method B (trend)", fmt_rul(b),
@@ -296,24 +345,27 @@ def _overview_cards(case: dict, pack: dict) -> None:
             st.write("Combines the sensors that worsen with wear into one health score and projects when it "
                      "reaches the failure level.")
             if b and b.get("note"):
-                st.caption(b["note"])
+                st.caption(md_text(b["note"]))
             if "gap" in rc:
                 st.caption(f"A and B are {rc['gap']:.0f} flights apart; the limit is {rc['divergence_limit']}.")
             if b:
-                st.caption(f"`{b['evidence_id']}` {evidence.get(b['evidence_id'], {}).get('summary', '')}")
+                st.caption(f"`{b['evidence_id']}` {md_text(evidence.get(b['evidence_id'], {}).get('summary', ''))}")
 
     with c3.container(border=True):
-        st.metric("Fault mode", fault, None if prob is None else f"p = {prob:.2f}", delta_color="off",
-                  delta_arrow="off")
+        st.metric("Fault mode", fault, fault_note, delta_color="off", delta_arrow="off")
         with st.popover("Why?", width="stretch"):
             st.write("Which part of the engine is wearing, judged from the sensors that move differently for "
                      "each fault.")
+            if fault_note and not fault_note.startswith("p ="):
+                st.caption("No wear is detected: both remaining-life methods sit at or near the cap and agree, and "
+                           "the health index is not above the fleet. This fleet has one known wear mode, so the "
+                           "matcher's 1.00 for it is by construction, not a finding.")
             for m in sorted(findings.get("fault_modes") or [], key=lambda m: -m["probability"]):
                 st.write(f"{fault_label(m['failure_mode'], pack)}: {m['probability']:.2f}")
             modes = findings.get("fault_modes") or []
             if modes:
                 eid = modes[0]["evidence_id"]
-                st.caption(f"`{eid}` {evidence.get(eid, {}).get('summary', '')}")
+                st.caption(f"`{eid}` {md_text(evidence.get(eid, {}).get('summary', ''))}")
 
     with c4.container(border=True):
         similar = findings.get("similar_cases") or []
@@ -321,7 +373,7 @@ def _overview_cards(case: dict, pack: dict) -> None:
         with st.popover("Why?", width="stretch"):
             st.write("Past engines removed with the same fault, from case memory.")
             for line in similar_case_summaries(case) or ["None found (engine still in the healthy range)."]:
-                st.caption(line)
+                st.caption(md_text(line))
 
 
 def _plan_summary(case: dict, tip=None) -> None:
@@ -330,7 +382,7 @@ def _plan_summary(case: dict, tip=None) -> None:
     if not rec:
         intent = case.get("intent") or {}
         if intent.get("needs_clarification"):
-            st.info(intent.get("clarification") or "Need a clearer question.")
+            st.info(md_text(intent.get("clarification") or "Need a clearer question."))
         if intent.get("clarification") == FLEET_QUESTION:
             triage = load_triage()
             if triage is not None:
@@ -368,6 +420,150 @@ def _plan_summary(case: dict, tip=None) -> None:
     )
 
 
+def _inspection_card(case: dict, pack: dict, tip=None) -> None:
+    """The inspection findings this brief read: result chips, how each was classified, the evidence behind it."""
+    note = st.session_state.pop("inspection_note", None)
+    if note:
+        st.success(note)
+    rows = inspection_rows(case, pack)
+    if not rows:
+        return
+    tip, esc = tip or _esc, html.escape
+    items = []
+    for r in rows:
+        chips = f'<span class="ins-chip {r["tone"]}">{esc(r["result"])}</span>'
+        if r["inspector_classified"]:
+            chips += '<span class="ins-chip">inspector-classified</span>'
+        if r["example"]:
+            chips += '<span class="ins-chip flag">example data</span>'
+        if not r["current"]:
+            chips += f'<span class="ins-chip">superseded by {esc(r["superseded_by"] or "")}</span>'
+        head = (f"{r['kind']} · {r['location'] or r['module']} · cycle {r['cycle']} · {r['date']} · "
+                f"{r['inspector']}")
+        tags = "".join(f'<span class="ev-tag">{esc(i)}</span>' for i in (r["evidence_id"], r["limit_evidence_id"]) if i)
+        photo = f" Photo stored at {r['photo']} (not analysed by AI)." if r["photo"] else ""
+        items.append(f'<div class="ins-row{"" if r["current"] else " old"}">{chips}<span>{tip(head)}</span>{tags}'
+                     f'<div class="ins-what">{esc(r["observation"])} {tip(r["basis"])}.{esc(photo)}</div></div>')
+    st.markdown('<div class="plan-card"><div class="plan-label">Inspection findings</div>' + "".join(items)
+                + "</div>", unsafe_allow_html=True)
+
+
+INSPECTION_RESULTS = {"": "Not stated", "within": "Within limits", "at_limit": "At the limit", "beyond": "Beyond limits"}
+
+
+def _ins_key(name: str, asset: str) -> str:
+    return f"ins_{name}_{asset}"
+
+
+def _load_example(which: str, asset: str, cycle: int, on) -> None:
+    """Fill the form with a synthetic HPC borescope result (labelled example data when stored)."""
+    example = EXAMPLES[which]
+    values = {"kind": example["kind"], "module": example["module"], "location": example["location"],
+              "observation": example["observation"], "parameter": example["measurement"]["parameter"],
+              "value": float(example["measurement"]["value"]), "stated": "", "inspector": "Example inspector",
+              "date": on, "cycle": cycle, "example": which}
+    for name, value in values.items():
+        st.session_state[_ins_key(name, asset)] = value
+
+
+def _inspection_form(settings, case: dict, pack: dict) -> None:
+    """Where an inspection's result comes back in: open when the verdict asks for an inspection, folded otherwise.
+    The finding is stored append-only for the engine and the brief is re-run with it."""
+    asset = (case.get("asset") or {}).get("asset_id")
+    if not asset or not case.get("recommendation"):
+        return
+    spec = pack.get("inspections") or {}
+    kinds, modules = spec.get("kinds") or {}, spec.get("modules") or {}
+    reference = settings.reference_time.date()
+    last = int((asset_context(case, pack).get("profile") or {}).get("last_cycle") or 0)
+    key = lambda name: _ins_key(name, asset)  # noqa: E731
+    for name, value in {"date": reference, "cycle": last, "stated": "", "value": 0.0}.items():
+        st.session_state.setdefault(key(name), value)
+    asked = asks_for_inspection(case)
+    with st.expander("Add inspection finding" + (": the brief asks for an inspection" if asked else ""),
+                     expanded=asked):
+        st.caption("What the inspector found (borescope, visual, oil analysis, chip detector, NDT). Code compares a "
+                   "measurement with the manual's limit; without one, your result stands and is marked "
+                   "inspector-classified. The finding is stored for this engine, never edited, and every later brief "
+                   "for it reads it.")
+        _help_link("inspection")
+        ex1, ex2 = st.columns(2)
+        ex1.button("Load example finding: within limits", key=key("ex_within"), on_click=_load_example,
+                   args=("within", asset, last, reference), width="stretch")
+        ex2.button("Load example finding: beyond limits", key=key("ex_beyond"), on_click=_load_example,
+                   args=("beyond", asset, last, reference), width="stretch")
+        if st.session_state.get(key("example")):
+            st.info("Example data loaded: a synthetic HPC borescope result for the demo, not a real inspection. It is "
+                    "stored marked as example data.")
+        with st.container(key=f"grid2-ins-what-{asset}"):
+            c1, c2, c3 = st.columns(3)
+        kind = c1.selectbox("Inspection", list(kinds), format_func=kinds.get, key=key("kind"))
+        module = c2.selectbox("Module", list(modules), format_func=modules.get, key=key("module"))
+        location = c3.text_input("Location", key=key("location"), placeholder="e.g. HPC stage 3", max_chars=120)
+        observation = st.text_area("What the inspector saw", key=key("observation"), height=80, max_chars=2000)
+        table = limit_catalog(pack, reference, (case.get("asset") or {}).get("variant")).get((kind, module))
+        rows = (table or {}).get("rows") or []
+        names = {r["id"]: (f"{r['id']} · {r['name']} ({r['unit']}): serviceable up to {r['serviceable']:g}, "
+                           f"reject above {r['reject']:g}") for r in rows}
+        if st.session_state.get(key("parameter")) not in ("", *names):
+            st.session_state[key("parameter")] = ""
+        with st.container(key=f"grid2-ins-measure-{asset}"):
+            m1, m2 = st.columns([3, 1])
+        parameter = m1.selectbox(
+            f"Measured, against {table['reference']} {table['heading']} (synthetic)" if table else
+            "Measured (no limit table covers this inspection and module)", ["", *names],
+            format_func=lambda o: names.get(o, "No measurement"), key=key("parameter"))
+        row = next((r for r in rows if r["id"] == parameter), None)
+        value = m2.number_input(f"Value ({row['unit']})" if row else "Value", min_value=0.0, step=0.01, format="%.2f",
+                                key=key("value"), disabled=row is None)
+        stated = st.radio("Inspector's result" + ("" if row else " (needed without a measurement)"),
+                          list(INSPECTION_RESULTS), format_func=INSPECTION_RESULTS.get, horizontal=True,
+                          key=key("stated"))
+        with st.container(key=f"grid2-ins-who-{asset}"):
+            w1, w2, w3 = st.columns(3)
+        inspector = w1.text_input("Inspector", key=key("inspector"), placeholder="Name (required)", max_chars=120)
+        # No later than the reference date or the engine's last cycle: a typo (9800 for 98) would otherwise be held
+        # back as implausible by the data agent.
+        on = w2.date_input("Inspection date (UTC)", key=key("date"), max_value=reference)
+        cycle = w3.number_input("Engine cycle at inspection", min_value=0, max_value=max(last, 0), step=1,
+                                key=key("cycle"))
+        photo = st.file_uploader("Photo (optional; stored with the finding, not analysed by AI)",
+                                 type=["jpg", "jpeg", "png"], key=key("photo"))
+        ready = bool((inspector or "").strip() and (observation or "").strip() and (row or stated))
+        if not ready:
+            st.caption("To record: the inspector's name, what was seen, and a measurement or the inspector's result.")
+        if st.button("Record finding and re-run the brief", type="primary", key=key("record"), disabled=not ready,
+                     width="stretch"):
+            try:
+                finding = InspectionFinding(
+                    asset_id=asset, kind=kind, module=module, location=location or "", observation=observation,
+                    measurement=Measurement(parameter=row["id"], value=float(value), unit=row["unit"]) if row else None,
+                    stated_result=stated or None, inspector=inspector, inspected_on=on, cycle=int(cycle),
+                    example=bool(st.session_state.get(key("example"))))
+                if photo is not None:
+                    data = photo.getvalue()
+                    try:                                    # an image, not whatever bytes were uploaded
+                        from PIL import Image
+                        Image.open(io.BytesIO(data)).verify()
+                    except Exception:
+                        raise ValueError("the photo is not a readable JPEG or PNG image") from None
+                    path = store_dir(settings) / "photos" / f"{finding.finding_id}{Path(photo.name).suffix.lower()}"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(data)
+                    shown = path.relative_to(ROOT) if path.is_relative_to(ROOT) else Path("photos") / path.name
+                    finding = finding.model_copy(update={"photo": shown.as_posix()})
+                stored = record_finding(settings, finding)
+            except ValueError as error:
+                st.error(f"Not recorded: {md_text(error)}")
+                return
+            for name in [k for k in st.session_state if str(k).startswith("ins_") and str(k).endswith(f"_{asset}")]:
+                del st.session_state[name]
+            st.session_state.inspection_note = (f"Recorded inspection finding {finding.finding_id} for {asset} in "
+                                                f"{stored.name} and re-ran the brief with it.")
+            st.session_state.run_now = True
+            st.rerun()
+
+
 def _details(case: dict, ctx: dict, pack: dict) -> None:
     st.divider()
     _heading("Details", "details")
@@ -392,7 +588,7 @@ def _details(case: dict, ctx: dict, pack: dict) -> None:
         st.markdown("#### All evidence")
         _evidence(case)
     with tabs[5]:
-        _tab_decision_log(entries, stored)
+        _tab_decision_log(entries, stored, case)
 
 
 def _log_entries(case: dict) -> tuple[list[dict], dict | None]:
@@ -403,7 +599,7 @@ def _log_entries(case: dict) -> tuple[list[dict], dict | None]:
     return [e.model_dump(mode="json") for e in derive_log(CaseFile.model_validate(case))], None
 
 
-def _tab_decision_log(entries: list[dict], stored: dict | None) -> None:
+def _tab_decision_log(entries: list[dict], stored: dict | None, case: dict) -> None:
     st.caption("Who decided what, in order: agents propose, gates accept or send the work back, the model raises "
                "challenges that code confirms or refutes, and the engineer signs. Read from the case file; the "
                "sign-off is added when you decide.")
@@ -412,7 +608,9 @@ def _tab_decision_log(entries: list[dict], stored: dict | None) -> None:
         return
     st.markdown("".join(_log_row_html(r) for r in decision_log_rows(entries)), unsafe_allow_html=True)
     if stored:
-        intact, note = verify_rows(entries, stored.get("head_hash"))
+        # The head hash is also anchored in the run's trace and the case-memory record; both must be in the chain.
+        anchors = signoff_anchors(case.get("case_id") or "", entries[-1].get("run_id") or "", get_settings())
+        intact, note = verify_rows(entries, stored.get("head_hash"), anchors)
         (st.caption if intact else st.error)(f"Stored at `{stored['path']}` · {note}. The draft work-order record "
                                              "carries the same entries.")
     else:
@@ -456,24 +654,24 @@ def _tab_documents(case: dict, pack: dict) -> None:
         with st.container(border=True):
             badge = ("**MANDATORY** · " if d.get("mandatory") else
                      "overridden · " if d.get("overridden_by") else "")
-            st.markdown(f"{badge}**{d['doc_id']} {d['section']}: {d['heading']}**  \n"
-                        f"{kind} · revision {d['revision']} · effective {d['effective_date']} · "
+            st.markdown(f"{badge}**{md_text(d['doc_id'])} {md_text(d['section'])}: {md_text(d['heading'])}**  \n"
+                        f"{kind} · revision {md_text(d['revision'])} · effective {md_text(d['effective_date'])} · "
                         f"`{d['evidence_id']}`")
             if d.get("mandatory"):
-                st.error(f"Required: {d.get('action')} (FMEA task {d.get('required_task')}, within "
-                         f"{d.get('within_cycles')} cycles). Applies because {content.get('mandate_reason')}.")
+                st.error(md_text(f"Required: {d.get('action')} (FMEA task {d.get('required_task')}, within "
+                                 f"{d.get('within_cycles')} cycles). Applies because {content.get('mandate_reason')}."))
             elif d.get("overridden_by"):
-                st.warning(f"On this topic, {d['overridden_by']} takes precedence (higher document type).")
+                st.warning(md_text(f"On this topic, {d['overridden_by']} takes precedence (higher document type)."))
             elif content.get("mandate"):
-                st.caption(ev.get("summary", "").split("]: ", 1)[-1])
-            st.write(content.get("text", ""))
-            st.caption(f"Relevance to this finding {d['relevance']:.2f} · source {ev.get('source', '')}")
+                st.caption(md_text(ev.get("summary", "").split("]: ", 1)[-1]))
+            st.markdown(md_lines(content.get("text", "")))
+            st.caption(md_text(f"Relevance to this finding {d['relevance']:.2f} · source {ev.get('source', '')}"))
     retrieval = next((e for e in evidence.values()
                       if e.get("produced_by") == "knowledge" and e.get("kind") == "query"), None)
     if retrieval and retrieval["content"].get("excluded"):
         st.markdown("**Not used**")
         for item in retrieval["content"]["excluded"]:
-            st.caption(f"{item['chunk']}: {item['reason']}")
+            st.caption(md_text(f"{item['chunk']}: {item['reason']}"))
 
 
 def _tab_life(case: dict, pack: dict) -> None:
@@ -647,11 +845,12 @@ def _tab_history(case: dict, ctx: dict) -> None:
     history, schedule, slots = ctx.get("history"), ctx.get("schedule"), ctx.get("slots")
     if history:
         by_type = ", ".join(f"{v} {k.replace('_', ' ')}" for k, v in (history.get("by_type") or {}).items())
-        st.write(f"{history['work_orders']} work orders ({by_type or 'none'})")
+        st.write(f"{history['work_orders']} work orders ({md_text(by_type) or 'none'})")
         last = history.get("last_inspection")
         if last:
-            st.markdown(f"Last inspection **{last['wo_id']}** at cycle {last['cycle']} "
-                        f"({(last.get('date') or '')[:10]}), severity **{last['severity']}**: {last['note']}")
+            st.markdown(f"Last inspection **{md_text(last['wo_id'])}** at cycle {md_text(last['cycle'])} "
+                        f"({md_text((last.get('date') or '')[:10])}), severity **{md_text(last['severity'])}**: "
+                        f"{md_text(last['note'])}")
         if history.get("findings"):
             st.dataframe(pd.DataFrame(history["findings"]), hide_index=True, width="stretch")
         st.caption("Synthetic CMMS records generated from the degradation curves.")
@@ -666,7 +865,7 @@ def _tab_history(case: dict, ctx: dict) -> None:
     if similar:
         st.markdown("**Similar past cases**")
         for line in similar:
-            st.caption(line)
+            st.caption(md_text(line))
     ids = [x["id"] for x in (history, schedule, slots) if x]
     _evidence_list(case, ids + ((case.get("findings") or {}).get("similar_cases") or []))
 
@@ -675,7 +874,8 @@ def _tab_checks(case: dict) -> None:
     _decision_path(case)
     for esc in case.get("escalations") or []:
         st.markdown(f"**{esc.get('severity', '').upper()} · {esc.get('rule', '').replace('_', ' ')}**: "
-                    f"{esc.get('message', '')} " + " ".join(f"`{i}`" for i in dict.fromkeys(esc.get("evidence_ids") or [])))
+                    f"{md_text(esc.get('message', ''))} "
+                    + " ".join(f"`{i}`" for i in dict.fromkeys(esc.get("evidence_ids") or [])))
     chips = trace_chips(case.get("trace") or [])
     if chips:
         st.caption("Trace · " + " → ".join(chips))
@@ -743,7 +943,8 @@ def _decision_path(case: dict) -> None:
              f"{len(case.get('escalations') or [])} escalation rule(s) fired.")
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     st.caption("Rule checks and escalation rules are deterministic. The critic runs deterministic checks first; "
-               "an LLM pass is added only outside sample mode.")
+               "then Nemotron through Nightshift (live mode) or a recorded Nemotron reply to the same prompt (sample "
+               "mode, labelled recorded with its capture date). Code drops model notes it can show are false.")
 
 
 def _plan(rec: dict) -> None:
@@ -751,11 +952,11 @@ def _plan(rec: dict) -> None:
         st.caption("No plan for this case.")
         return
     _explain("plan")
-    st.markdown(f"**{rec.get('action') or ''}**")
+    st.markdown(f"**{md_text(rec.get('action') or '')}**")
     st.markdown("**Why**")
     for claim in rec.get("rationale") or []:
         tags = " ".join(f"`{i}`" for i in claim.get("evidence_ids") or [])
-        st.markdown(f"- {claim.get('text', '')} {tags}")
+        st.markdown(f"- {md_text(claim.get('text', ''))} {tags}")
     parts = rec.get("parts") or []
     if parts:
         st.dataframe(
@@ -781,10 +982,10 @@ def _evidence(case: dict) -> None:
     _explain("evidence")
     for eid, item in sorted(evidence.items()):
         degraded = " · degraded" if item.get("degraded") else ""
-        with st.expander(f"{eid} · {item.get('kind')} · {item.get('summary', '')}{degraded}"):
-            st.caption(f"{item.get('source')} · {item.get('produced_by')}")
+        with st.expander(f"{eid} · {item.get('kind')} · {md_text(item.get('summary', ''))}{degraded}"):
+            st.caption(md_text(f"{item.get('source')} · {item.get('produced_by')}"))
             if item.get("degraded"):
-                st.warning(item["degraded"])
+                st.warning(md_text(item["degraded"]))
             st.json(item.get("content") or {})
 
 
@@ -792,13 +993,14 @@ def _sign_off(settings, case: dict) -> None:
     decision = st.session_state.get("decision")
     if decision:
         rec = decision["record"]
-        signed = (rec.get("signed_by") or {}).get("name")
+        signed = md_text((rec.get("signed_by") or {}).get("name"))
         if decision["kind"] == "approved":
-            where = "CMMS" if rec.get("backend") == "cmms" else rec.get("path", "local file")
-            st.success(f"DRAFT work order **{rec['wo_id']}** written to {where}, signed by {signed}. It goes to your "
-                       "organisation's own release process; it is not a certificate of release to service.")
+            where = "CMMS" if rec.get("backend") == "cmms" else md_text(rec.get("path", "local file"))
+            st.success(f"DRAFT work order **{md_text(rec['wo_id'])}** written to {where}, signed by {signed}. It goes "
+                       "to your organisation's own release process; it is not a certificate of release to service.")
         else:
-            st.info(f"Rejected {rec['wo_id']}, signed by {signed}. No work order drafted; comment stored with the case.")
+            st.info(f"Rejected {md_text(rec['wo_id'])}, signed by {signed}. No work order drafted; comment stored "
+                    "with the case.")
         if rec.get("cmms_error"):
             st.warning(f"CMMS insert failed ({rec['cmms_error']}); saved locally instead.")
         log = rec.get("decision_log") or {}
@@ -817,7 +1019,7 @@ def _sign_off(settings, case: dict) -> None:
         if case.get("status") == "insufficient_evidence":
             gaps = [g for v in case.get("verdicts") or [] for g in v.get("gaps") or []]
             if gaps:
-                st.error("Gaps: " + "; ".join(dict.fromkeys(gaps)))
+                st.error("Gaps: " + "; ".join(md_text(g) for g in dict.fromkeys(gaps)))
         return
     _heading("Your decision", "signoff")
     _explain("signoff")
@@ -835,13 +1037,18 @@ def _sign_off(settings, case: dict) -> None:
         with st.expander(f"Rate the {len(cited)} cited past case{'s' if len(cited) != 1 else ''} (optional)"):
             feedback = _case_feedback_form(model)
     escalations = case.get("escalations") or []
+    # Urgent, warning and mandatory escalations get a tick; info ones are notes the log records as seen.
+    to_tick = [(i, esc) for i, esc in enumerate(escalations) if needs_tick(esc)]
+    notes = [esc for esc in escalations if not needs_tick(esc)]
     ticked = []
-    if escalations:
-        st.markdown(f"**Before you approve, confirm you have read the {len(escalations)} "
-                    f"escalation{'s' if len(escalations) != 1 else ''} above**")
+    if to_tick:
+        st.markdown(f"**Before you approve, confirm you have read the {len(to_tick)} "
+                    f"escalation{'s' if len(to_tick) != 1 else ''} above**")
         # Keyed by case so a tick never carries over to the next brief.
-        ticked = [st.checkbox(escalation_ack_label(esc), key=f"ack_{model.case_id}_{i}")
-                  for i, esc in enumerate(escalations)]
+        ticked = [st.checkbox(escalation_ack_label(esc), key=f"ack_{model.case_id}_{i}") for i, esc in to_tick]
+    if notes:
+        st.caption("Notes, no tick needed: " + "; ".join(escalation_view(esc)["title"] for esc in notes)
+                   + ". Your sign-off records them as noted.")
     reason = ""
     if needs_urgent_reason(escalations):
         reason = st.text_input("Why approve despite the urgent escalation?", key=f"urgent_reason_{model.case_id}",
@@ -850,23 +1057,31 @@ def _sign_off(settings, case: dict) -> None:
     sha = brief_ref(model).recommendation_sha256 or ""
     st.caption(f"You sign brief `{model.case_id}` · recommendation fingerprint `{sha[:12]}`. Approval drafts a work "
                "order for your organisation's own release process; it is not a certificate of release to service.")
-    can_approve, missing = approval_gate(name, escalations, ticked, reason)
+    can_approve, missing = approval_gate(name, [esc for _, esc in to_tick], ticked, reason)
     if missing:
         st.caption(missing)
     unsigned = not (name or "").strip()
-    read = [i for i, tick in enumerate(ticked) if tick]
+    read = [i for (i, _), tick in zip(to_tick, ticked) if tick]
     left, right = st.columns(2)
     if left.button("Approve and draft work order", type="primary", key="approve_case", width="stretch",
                    disabled=not can_approve):
-        signer = Signer(name=name, role=role, licence_ref=licence)
-        record = approve_case(model, settings, comment, case_feedback=feedback, signer=signer, acknowledged=read,
-                              reason=reason)
+        try:
+            signer = Signer(name=name, role=role, licence_ref=licence)
+            record = approve_case(model, settings, comment, case_feedback=feedback, signer=signer, acknowledged=read,
+                                  reason=reason)
+        except ValueError as error:          # e.g. the case was signed already, from another session
+            st.error(f"Not signed: {md_text(error)}")
+            return
         st.session_state.decision = {"kind": "approved", "record": record}
         st.session_state.case = {**case, "status": "approved"}
         st.rerun()
     if right.button("Reject", key="reject_case", width="stretch", disabled=unsigned):
-        signer = Signer(name=name, role=role, licence_ref=licence)
-        record = reject_case(model, settings, comment, case_feedback=feedback, signer=signer, acknowledged=read)
+        try:
+            signer = Signer(name=name, role=role, licence_ref=licence)
+            record = reject_case(model, settings, comment, case_feedback=feedback, signer=signer, acknowledged=read)
+        except ValueError as error:
+            st.error(f"Not signed: {md_text(error)}")
+            return
         st.session_state.decision = {"kind": "rejected", "record": record}
         st.session_state.case = {**case, "status": "rejected"}
         st.rerun()
@@ -883,7 +1098,7 @@ def _case_feedback_form(case: CaseFile) -> dict[str, str]:
     st.caption("Similar past cases cited in this brief. Your verdict moves their trust in case memory.")
     out = {}
     for item in cited:
-        choice = st.radio(f"{item['evidence_id']} · {item['summary'][:110]}",
+        choice = st.radio(f"{item['evidence_id']} · {md_text(item['summary'][:110])}",
                           ["Follow my decision", *FEEDBACK_LABELS.values()], horizontal=True,
                           key=f"fb_{item['memory_id']}")
         if choice != "Follow my decision":
@@ -891,6 +1106,8 @@ def _case_feedback_form(case: CaseFile) -> dict[str, str]:
     return out
 
 
+# The triage keeps its decision categories (the eval scores them); the healthy one reads as the brief words it.
+DECISION_LABELS = {"keep flying": "no action before the next scheduled inspection"}
 TRIAGE_COLUMNS = {"asset_id": "engine", "decision": "decision", "deadline": "deadline", "days_to_deadline": "days left",
                   "lower_bound_cycles": "bound (cycles)", "fault_mode": "fault", "escalations": "escalations"}
 
@@ -898,7 +1115,8 @@ TRIAGE_COLUMNS = {"asset_id": "engine", "decision": "decision", "deadline": "dea
 def _triage_table(triage: pd.DataFrame, due_days: int | None, key: str) -> pd.DataFrame:
     shown = triage if due_days is None else triage[triage["days_to_deadline"] <= due_days]
     pack = load_pack()
-    table = shown.assign(fault_mode=shown["fault_mode"].map(lambda m: fault_label(m, pack) if m else ""))
+    table = shown.assign(fault_mode=shown["fault_mode"].map(lambda m: fault_label(m, pack) if m else ""),
+                         decision=shown["decision"].map(lambda d: DECISION_LABELS.get(d, d)))
     st.dataframe(table[list(TRIAGE_COLUMNS)].rename(columns=TRIAGE_COLUMNS), hide_index=True, width="stretch", key=key,
                  height=min(38 + 35 * len(shown), 420))
     return shown
@@ -912,7 +1130,8 @@ def _fleet_page() -> None:
     else:
         counts = triage["decision"].value_counts()
         st.markdown('<div class="checks">' + "".join(
-            f'<span class="{"flag" if d != "keep flying" else "ok"}">{int(counts.get(d, 0))} {d}</span>'
+            f'<span class="{"flag" if d != "keep flying" else "ok"}">{int(counts.get(d, 0))} '
+            f'{DECISION_LABELS.get(d, d)}</span>'
             for d in ("remove, swap or repair", "inspect", "keep flying")) + "</div>", unsafe_allow_html=True)
         due = st.radio("Due within", ["7 days", "30 days", "All engines"], horizontal=True, key="triage_due")
         shown = _triage_table(triage, {"7 days": 7, "30 days": 30}.get(due), "triage_table")
@@ -947,10 +1166,14 @@ def _trace_page() -> None:
         return
     rows = trace_rows(events)
     sent_back = sum(r["status"] == "needs revision" for r in rows)
+    calls = [r for r in rows if r["call"]]
     st.write(f"Run `{result.get('run_id', case.get('case_id'))}` · {result.get('duration_s', '')}s · "
-             f"{len(rows)} steps · sent back for revision {sent_back}×")
-    st.caption("Every step the agents and gates took, in order. Amber rows are where a gate sent the work back. "
-               "The model column names the model that actually answered; blank means the step was code.")
+             f"{len(rows) - len(calls)} steps · {len(calls)} Zetaris and context-store calls · sent back for "
+             f"revision {sent_back}×")
+    st.caption("Every step the agents and gates took, in order, with one line per Zetaris query (zetaris query) and "
+               "per World Model or H-MEM call (context call) the step made. Amber rows are where a gate sent the work "
+               "back or a fallback was used. The model column names the model that answered, \"recorded reply\" "
+               "when sample mode replayed a captured one; blank means the step was code.")
     esc = html.escape
     st.markdown("".join(
         f'<div class="tl-row {r["tone"]}"><span class="tl-n">{r["step"]}</span><div>'
@@ -986,7 +1209,8 @@ def _stress_page(settings, pack: dict) -> None:
              "asked and nothing is saved.")
     clean = gate_result(model, pack, reference)
     if clean["caught_by"]:
-        st.warning(f"The unmodified brief is already flagged by {clean['caught_by']}: " + "; ".join(clean["gaps"]))
+        st.warning(f"The unmodified brief is already flagged by {clean['caught_by']}: "
+                   + "; ".join(md_text(g) for g in clean["gaps"]))
     else:
         st.caption("The unmodified brief passes both gates.")
     rows = stress_rows(model, pack, reference)
@@ -999,7 +1223,7 @@ def _stress_page(settings, pack: dict) -> None:
     if row["caught_by"]:
         st.success(f"Caught by {row['caught_by']}. The brief goes back to the maintenance planner and never reaches "
                    "the sign-off.")
-        st.markdown("\n".join(f"- {gap}" for gap in row["gaps"]))
+        st.markdown("\n".join(f"- {md_text(gap)}" for gap in row["gaps"]))
     else:
         st.error("Not caught. This brief would reach the engineer with the mistake in it.")
     caught = sum(1 for r in usable if r["caught_by"])
@@ -1106,21 +1330,22 @@ def _ask_cleris(prefix: str, settings, pack: dict, case: dict | None) -> None:
         return
     if answer.source == "model":
         with st.container(border=True):
-            st.markdown(answer.text.replace("$", "\\$"))
-            st.caption(answer.label)
+            # Model text keeps its bullets and emphasis but never an image or a link (no fetch from the viewer).
+            st.markdown(strip_links(answer.text).replace("$", "\\$"))
+            st.caption(md_text(answer.label))
         if answer.unsupported:
             st.warning("Not found in the brief or the glossary, so check before relying on it: "
-                       + ", ".join(answer.unsupported))
+                       + ", ".join(md_text(t) for t in answer.unsupported))
         else:
             st.caption("Every number, date and ID in this answer appears in the brief or the glossary.")
         if answer.advice:
             st.warning("This reads as advice, which the model was told not to give. The decision is the brief's "
-                       "recommendation and your sign-off: " + " / ".join(answer.advice))
+                       "recommendation and your sign-off: " + " / ".join(md_text(a) for a in answer.advice))
         if answer.entries:
             with st.expander("Related glossary entries"):
                 st.markdown(glossary_html(answer.entries), unsafe_allow_html=True)
     else:
-        st.info(answer.note)
+        st.info(answer.note)                    # code's own wording (sample mode, Nightshift did not answer, ...)
         if answer.entries:
             st.markdown(glossary_html(answer.entries), unsafe_allow_html=True)
         elif answer.note != "Type a question first.":

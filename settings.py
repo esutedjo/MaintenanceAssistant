@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # run.py --serve binds here; 0.0.0.0 inside Docker.
     run_host: str = "127.0.0.1"
     run_port: int = 8000
+    # POST /run: at most this many runs at once (503 when busy); "record": true needs API_ALLOW_RECORD=true.
+    run_concurrency: int = 4
+    api_allow_record: bool = False
     zetaris_mode: Literal["live", "snapshot"] = "snapshot"
     # "Now" for planning: the active fleet's last observed cycle (see data/fleet.py).
     reference_time: datetime = datetime(2026, 10, 22, tzinfo=timezone.utc)
@@ -41,6 +44,7 @@ class Settings(BaseSettings):
     zetaris_timeout_s: float = 10.0
     zetaris_budget_s: float = 30.0
 
+    # Default meterless (SQLite fallback, flagged). Sample mode uses SQLite unless CONTEXT_STORE is set explicitly.
     context_store: Literal["meterless", "sqlite"] = "meterless"
     context_service_url: str = "http://127.0.0.1:8710"
     context_sqlite_path: Path = ROOT / ".state" / "context.sqlite"
@@ -55,11 +59,13 @@ class Settings(BaseSettings):
     # Separate Nightshift app so its routing rule can keep the critic on another model family.
     meterless_critic_app: str = "turbofan-maintenance-critic"
     critic_timeout_s: float = 45.0
+    # Live status strip and GET /health: per-check timeout and how long a result is reused.
+    status_timeout_s: float = 2.5
+    status_ttl_s: float = 45.0
 
-    # Interim cloud fallback, used only when Nightshift is unreachable (transport failure).
-    nvidia_api_key: SecretStr = SecretStr("")
-    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    nvidia_model: str = "nvidia/nemotron-3-super-120b-a12b"
+    def explicit(self, name: str) -> bool:
+        """True when the field was set (environment or .env.local), not left at its default."""
+        return name in self.model_fields_set
 
 
 @lru_cache

@@ -9,17 +9,39 @@ from typing import Any, Callable
 
 from langchain_core.runnables import RunnableConfig
 
+from casefile import calls as service_calls
 from casefile.context_store import ContextStore
-from casefile.schemas import CaseFile, EvidenceLedger, Findings, Task, TraceEvent, content_hash, merge_findings
+from casefile.schemas import CaseFile, EvidenceLedger, Findings, Task, TraceEvent, content_hash, merge_findings, utcnow
 from casefile.trace import TraceWriter
 from settings import Settings
-from tools.data_access import DataSource, QueryResult
+from tools.data_access import QUERY_PURPOSE, DataSource, QueryResult
 
 log = logging.getLogger("agents")
 
 
+def _query_call(name: str, args: tuple, result: QueryResult, took: float, at) -> service_calls.Call:
+    """One trace line for a structured-data read: purpose, Zetaris tables, rows, latency, live or snapshot."""
+    purpose, tables = QUERY_PURPOSE.get(name, (name.replace("_", " "), "?"))
+    subject = ""
+    if args:
+        first = args[0]
+        subject = f" for {len(first)} part number(s)" if isinstance(first, (list, tuple)) else f" for {first}"
+    if result.source.startswith("zetaris:"):
+        mode, status = "live Zetaris SQL", "success"
+    elif result.degraded:
+        mode, status = f"snapshot {result.source.split(':', 1)[-1]} ({result.degraded.split(' (', 1)[0]})", "fallback"
+    else:
+        mode, status = f"snapshot {result.source.split(':', 1)[-1]}, no Zetaris call", "success"
+    rows = len(result.frame)
+    return service_calls.Call(
+        service_calls.ZETARIS_QUERY, "zetaris", f"{name}{subject}",
+        f"{purpose}{subject} · {tables} · {rows} row{'s' if rows != 1 else ''} · {took:.2f} s · {mode}",
+        took, status, at)
+
+
 class CachedSource:
-    """Memoises DataSource calls for one run: parallel agents share one query per (method, arguments)."""
+    """Memoises DataSource calls for one run: parallel agents share one query per (method, arguments). Each query
+    that reaches the source (a cache miss or a fresh re-read) adds one trace line to the agent step that made it."""
 
     def __init__(self, source: DataSource):
         self.source = source
@@ -35,9 +57,16 @@ class CachedSource:
     def degraded(self) -> str | None:
         return getattr(self.source, "degraded", None)
 
+    def _query(self, name: str, *args) -> QueryResult:
+        start, at = time.monotonic(), utcnow()
+        result = getattr(self.source, name)(*args)
+        if isinstance(result, QueryResult):
+            service_calls.note(_query_call(name, args, result, time.monotonic() - start, at))
+        return result
+
     def fresh(self, name: str, *args) -> QueryResult:
         """A re-query that skips the run's cache (a repair or follow-up must see the source again)."""
-        return getattr(self.source, name)(*args)
+        return self._query(name, *args)
 
     def __getattr__(self, name: str):
         method = getattr(self.source, name)
@@ -50,7 +79,7 @@ class CachedSource:
                 lock = self._locks.setdefault(key, threading.Lock())
             with lock:
                 if key not in self._cache:
-                    self._cache[key] = method(*args)
+                    self._cache[key] = self._query(name, *args)
                 return self._cache[key]
         return call
 
@@ -78,6 +107,9 @@ class NodeResult:
     status: str = "success"
     target_agent: str | None = None
     model: str | None = None
+    # The recording's label ("recorded Nemotron response (captured <date>)") when the model reply was a sample-mode
+    # replay: the trace line then says recorded=true, so it never reads as a live call.
+    recorded: str | None = None
     confidence: float | None = None
     retry_count: int = 0
     action: str | None = None                   # overrides the node's default action on the trace line
@@ -94,7 +126,7 @@ def run_tasks(state: CaseFile, ctx: RunContext, agent: str, handlers: dict[str, 
     ledger = EvidenceLedger(agent, state.evidence)
     done, lines, degraded, findings = [], [], [], Findings()
     repair = False
-    for task in state.pending(agent):
+    for task in state.ready(agent):
         is_repair = task.id.startswith("T-fix-")
         repair |= is_repair
         handler = handlers.get("repair" if is_repair else task.kind or "")
@@ -122,35 +154,39 @@ def run_tasks(state: CaseFile, ctx: RunContext, agent: str, handlers: dict[str, 
 
 def node(agent: str, action: str, describe_input: Callable[[CaseFile], str]):
     """Wrap an agent function (state, ctx) -> NodeResult as a graph node that times it, writes the trace line
-    and turns an exception into an error trace line plus status "error"."""
+    and turns an exception into an error trace line plus status "error". The Zetaris queries and context-store calls
+    the agent made come first, one line each (casefile/calls.py)."""
 
     def wrap(fn: Callable[[CaseFile, RunContext], NodeResult]):
         def run(state: CaseFile, config: RunnableConfig) -> dict[str, Any]:
             ctx = context(config)
             input_summary = describe_input(state)
             start = time.monotonic()
-            try:
-                overtime = time.monotonic() - ctx.started > ctx.settings.run_timeout_s
-                # Specialists that have not produced a brief yet must stop. Once we have findings, finish
-                # the case (critic skips the LLM; rule checks, escalation and close are milliseconds).
-                if overtime and agent not in {"critic", "rule_checks", "escalation", "close", "maint_planner"}:
-                    raise TimeoutError(f"run exceeded {ctx.settings.run_timeout_s:.0f}s")
-                result = fn(state, ctx)
-            except Exception as error:  # the trace must record every failed step; the run ends as "error"
-                log.exception("%s failed", agent)
-                result = NodeResult({"status": "error"}, f"{type(error).__name__}: {error}"[:300], status="error")
+            with service_calls.collecting() as made:
+                try:
+                    overtime = time.monotonic() - ctx.started > ctx.settings.run_timeout_s
+                    # Specialists that have not produced a brief yet must stop. Once we have findings, finish
+                    # the case (critic skips the LLM; rule checks, escalation and close are milliseconds).
+                    if overtime and agent not in {"critic", "rule_checks", "escalation", "close", "maint_planner"}:
+                        raise TimeoutError(f"run exceeded {ctx.settings.run_timeout_s:.0f}s")
+                    result = fn(state, ctx)
+                except Exception as error:  # the trace must record every failed step; the run ends as "error"
+                    log.exception("%s failed", agent)
+                    result = NodeResult({"status": "error"}, f"{type(error).__name__}: {error}"[:300], status="error")
             update = result.update
             evidence = update.get("evidence", {})
             event = TraceEvent(
                 run_id=ctx.run_id, agent_name=agent, action=result.action or action, input_summary=input_summary,
                 output_summary=result.summary, target_agent=result.target_agent, model=result.model,
+                recorded=(result.recorded is not None) if result.model else None,
                 confidence=result.confidence, retry_count=result.retry_count, status=result.status,
                 duration_s=round(time.monotonic() - start, 3), input_hash=content_hash(input_summary),
                 evidence_ids=sorted(evidence),
             )
-            events = [event, *(TraceEvent(run_id=ctx.run_id, agent_name=agent, action=kind, input_summary=input_summary,
-                                          output_summary=reason, target_agent=target, input_hash=event.input_hash,
-                                          duration_s=0.0) for kind, target, reason in result.handoffs)]
+            events = [*service_calls.events(ctx.run_id, agent, made), event,
+                      *(TraceEvent(run_id=ctx.run_id, agent_name=agent, action=kind, input_summary=input_summary,
+                                   output_summary=reason, target_agent=target, input_hash=event.input_hash,
+                                   duration_s=0.0) for kind, target, reason in result.handoffs)]
             for item in events:
                 ctx.trace.write(item)
             degraded = sorted(({e.degraded for e in evidence.values() if e.degraded} | set(update.get("degraded", [])))

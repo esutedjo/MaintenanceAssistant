@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-26 00:38 UTC",
+ "generated_at": "2026-10-26 07:17 UTC",
  "settings": {
   "sample_mode": true,
   "engines": 200,
@@ -15,9 +15,9 @@
    "brief_ready_share": 1.0,
    "crashes": 0,
    "duration_s": {
-    "p50": 0.38,
-    "p95": 0.44,
-    "max": 0.5
+    "p50": 0.3,
+    "p95": 0.39,
+    "max": 0.49
    }
   },
   "rul": {
@@ -119,9 +119,9 @@
    "fd003_engines_true_rul_le_60": 41
   },
   "evidence": {
-   "claims": 2961,
+   "claims": 2984,
    "claims_with_resolvable_evidence_share": 1.0,
-   "numeric_claims": 1951,
+   "numeric_claims": 1914,
    "numeric_claims_citing_computed_evidence_share": 1.0,
    "numeric_claims_quoting_documents_only": 0
   },
@@ -189,8 +189,8 @@
  "seeded_faults": {
   "briefs": 30,
   "clean_briefs_flagged": [],
-  "seeded": 311,
-  "caught": 311,
+  "seeded": 341,
+  "caught": 341,
   "catch_rate": 1.0,
   "by_fault": {
    "uncited_claim": {
@@ -256,6 +256,10 @@
    "claim_number_altered": {
     "seeded": 21,
     "caught": 21
+   },
+   "inspection_ignored": {
+    "seeded": 30,
+    "caught": 30
    }
   },
   "missed": []

@@ -1,6 +1,6 @@
 {
- "run_id": "20261026T003717Z-ef2e32",
- "trace_id": "trace-20261026T003717Z-ef2e32",
+ "run_id": "20261026T071515Z-4d9b06",
+ "trace_id": "trace-20261026T071515Z-4d9b06",
  "status": "needs_review",
  "question": "How long can FD003-A100 keep flying and what is wrong with it?",
  "mode": {
@@ -179,6 +179,7 @@
     "evidence_id": "EV-KNW-05"
    }
   ],
+  "inspections": [],
   "claims": [
    {
     "text": "Remaining useful life is about 27 cycles (10th-90th percentile 20-125) by the ML model; the health-index trend gives 10.",
@@ -380,9 +381,6 @@
     "EV-PRG-01",
     "EV-PRG-02",
     "EV-DAT-05",
-    "EV-MNT-08",
-    "EV-MNT-08",
-    "EV-MNT-08",
     "EV-MNT-08"
    ]
   }
@@ -395,7 +393,8 @@
    "gaps": [],
    "model": null,
    "routes": [],
-   "recorded": null
+   "recorded": null,
+   "dropped_notes": []
   },
   {
    "round": 1,
@@ -412,7 +411,8 @@
      "gap": "RUL drivers listed are Nc, NRc, htBleed, which move under every failure mode. The sensors that distinguish fan_degradation are phi, BPR, W31, W32, P30."
     }
    ],
-   "recorded": null
+   "recorded": null,
+   "dropped_notes": []
   },
   {
    "round": 2,
@@ -421,7 +421,8 @@
    "gaps": [],
    "model": null,
    "routes": [],
-   "recorded": null
+   "recorded": null,
+   "dropped_notes": []
   },
   {
    "round": 2,
@@ -430,14 +431,16 @@
    "gaps": [
     "RUL B lower bound of 3 cycles is not evidenced: EV-PRG-02 reports RUL B point estimate 10 cycles with lower 3 and upper 15, but the evidence does not show the derivation or confidence interval for the lower bound of 3 cycles. The planning lower bound calculation in EV-MNT-04 and EV-MNT-09 uses min(A 10th percentile 20, B lower 3) = 3 cycles, yet the source of the B lower value is not documented in the cited evidence items.",
     "Part shortage rationale for engine swap not fully substantiated: The brief claims the removed engine waits for parts (TF-FAN-2101) while the lease engine is swapped in. However, EV-MNT-01 and EV-MNT-06 show FM-FAN-03 (severe on-wing replace) lists TF-FAN-2101 as short, while FM-FAN-04 (engine_change) has no parts-short annotation. EV-MNT-03 and EV-MNT-08 show TF-FAN-2101 has 0 available (75-day lead) but TF-FAN-2103 has 2 available (28-day lead). No evidence establishes that fan_degradation repair definitively requires the unavailable TF-FAN-2101 rather than the available TF-FAN-2103, leaving the engine-swap-plus-parts-wait rationale unsubstantiated versus a 28-day on-wing repair under FM-FAN-03.",
-    "Mandatory document actions missing from plan: EV-MNT-07 lists mandatory document actions for fan_degradation: AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-21-00\u2192FM-FAN-01, SB-TF-72-0157 3.B\u2192FM-FAN-01. The plan uses FM-FAN-04 and FM-FAN-03 but does not include FM-FAN-01 (inspect) or FM-HPC-06, which are linked to mandatory documents. Per precedence rules, mandatory document actions stay in the plan even next to an engine swap; their absence is a gap.",
     "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 3",
     "part not in evidence challenge refuted by code: every part is in the evidence it cites",
     "missing mandate challenge refuted by code: every mandated task is in the plan"
    ],
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
    "routes": [],
-   "recorded": "recorded Nemotron response (captured 2026-10-26)"
+   "recorded": "recorded Nemotron response (captured 2026-10-26)",
+   "dropped_notes": [
+    "repeats the missing mandate challenge code refuted: Mandatory document actions missing from plan: EV-MNT-07 lists mandatory document actions for fan_degradation: AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-21-00\u2192FM-FAN-01, SB-TF-72-0157 3.B\u2192FM-FAN-01. The plan uses FM-FAN-04 and FM-FAN-03 but does not include FM-FAN-01 (inspect) or FM-HPC-06, which are linked to mandatory documents. Per precedence rules, mandatory document actions stay in the plan even next to an engine swap; their absence is a gap."
+   ]
   }
  ],
  "evidence": {
@@ -654,8 +657,8 @@
  },
  "decision_log": [
   {
-   "timestamp": "2026-10-26T00:37:17.399834Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.260142Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "agent",
    "actor": "intake",
    "decision": "resolved engine",
@@ -664,22 +667,24 @@
     "EV-INT-01"
    ],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.624835Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.492129Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "no follow-up needed",
    "rationale": "RUL methods agree within 20 cycles (A 27, B 10); fault mode clear (fan_degradation p=1.00); input data plausible.",
    "evidence_ids": [],
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.662647Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.524674Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "proposed plan",
@@ -693,11 +698,12 @@
    ],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.665647Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.529674Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -705,11 +711,12 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.675720Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.531674Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "sent back for revision",
@@ -717,11 +724,12 @@
    "evidence_ids": [],
    "round": 1,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.675720Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.534676Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "routed gap",
@@ -729,11 +737,12 @@
    "evidence_ids": [],
    "round": 2,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.685224Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.539057Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "revised plan",
@@ -747,11 +756,12 @@
    ],
    "round": 2,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.689226Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.544220Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -759,15 +769,16 @@
    "evidence_ids": [],
    "round": 2,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.691227Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.547419Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "model",
    "actor": "nvidia/nemotron-3-ultra-550b-a55b",
    "decision": "reviewed the brief",
-   "rationale": "Raised 3 checkable challenges and 3 notes for the engineer; notes cannot block a cited brief (recorded Nemotron response (captured 2026-10-26)).",
+   "rationale": "Raised 3 checkable challenges and 2 notes for the engineer; notes cannot block a cited brief; code dropped 1 note it showed false or repeating a refuted challenge (kept in the trace) (recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [
     "EV-PRG-02",
     "EV-MNT-04",
@@ -775,55 +786,62 @@
     "EV-MNT-01",
     "EV-MNT-06",
     "EV-MNT-03",
-    "EV-MNT-08",
-    "EV-MNT-07"
+    "EV-MNT-08"
    ],
    "round": 2,
+   "recorded": true,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.691227Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.547419Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 3.",
+   "rationale": "Unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 3 (from the recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [
     "EV-PRG-01",
     "EV-PRG-02"
    ],
    "round": 2,
+   "recorded": true,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.691227Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.547419Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
-   "rationale": "Part not in evidence challenge refuted by code: every part is in the evidence it cites.",
+   "rationale": "Part not in evidence challenge refuted by code: every part is in the evidence it cites (from the recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [],
    "round": 2,
+   "recorded": true,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.691227Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.547419Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
-   "rationale": "Missing mandate challenge refuted by code: every mandated task is in the plan.",
+   "rationale": "Missing mandate challenge refuted by code: every mandated task is in the plan (from the recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [],
    "round": 2,
+   "recorded": true,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.691227Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.547419Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "accepted",
@@ -831,11 +849,12 @@
    "evidence_ids": [],
    "round": 2,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   },
   {
-   "timestamp": "2026-10-26T00:37:17.692226Z",
-   "run_id": "20261026T003717Z-ef2e32",
+   "timestamp": "2026-10-26T07:15:15.548452Z",
+   "run_id": "20261026T071515Z-4d9b06",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -848,7 +867,8 @@
    ],
    "round": 2,
    "case_feedback": {},
-   "acknowledged": []
+   "acknowledged": [],
+   "noted": []
   }
  ],
  "agents": [
@@ -866,7 +886,7 @@
   },
   {
    "name": "data",
-   "role": "Telemetry, input plausibility, history, schedule, slots; inspection history and targeted re-queries",
+   "role": "Telemetry, input plausibility, history, schedule, slots, entered inspection findings; inspection history and targeted re-queries",
    "uses_model": false,
    "can_block_or_send_back": false
   },
@@ -878,13 +898,13 @@
   },
   {
    "name": "diagnostics",
-   "role": "Fault-mode match and similar past cases; checks both candidates when unclear",
+   "role": "Fault-mode match and similar past cases; checks both candidates when unclear; checks an inspection finding against the fault mode",
    "uses_model": false,
    "can_block_or_send_back": false
   },
   {
    "name": "knowledge",
-   "role": "Applicable documents in precedence order, mandates decided in code; binds a missing mandate",
+   "role": "Applicable documents in precedence order, mandates decided in code; the limit section for each inspection finding, compared in code; binds a missing mandate",
    "uses_model": false,
    "can_block_or_send_back": false
   },
@@ -918,10 +938,11 @@
    "agent": "critic",
    "round": 2,
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "recorded": true,
    "source": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
- "trace_file": "logs\\trace-20261026T003717Z-ef2e32.jsonl",
+ "trace_file": "logs\\trace-20261026T071515Z-4d9b06.jsonl",
  "duration_s": 0.31,
  "execution_time_seconds": 0.313
 }

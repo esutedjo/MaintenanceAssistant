@@ -1,6 +1,7 @@
 """Diagnostics: fault-mode signature match and similar past cases from case memory (H-MEM). Also runs the tasks the
-planner delegates: a check of both candidates when the fault mode is unclear, and a wider case-memory search when the
-critic finds degradation without similar past cases."""
+planner delegates: a check of both candidates when the fault mode is unclear, a check of each inspection finding
+against the fault mode (after Knowledge compared it with its limit), and a wider case-memory search when the critic
+finds degradation without similar past cases."""
 
 import re
 
@@ -8,9 +9,11 @@ import numpy as np
 
 from agents.runtime import NodeResult, RunContext, node, run_tasks
 from casefile.schemas import CaseFile, Claim, EvidenceLedger, Findings, Task
+from casefile.wear import only_mode
 from models.fault_mode import discriminating
 from models.features import normalise
 from models.rul import relative_to_own_start
+from tools.inspections import RESULT_TEXT, mode_for_module
 from tools.model_tools import ModelTools
 
 SIMILAR_CASES = 3
@@ -29,7 +32,8 @@ def diagnostics(state: CaseFile, ctx: RunContext) -> NodeResult:
     modes = tools.fault_modes(asset.asset_id, cycles, asset.variant)
     top = modes[0]
     similar = []
-    if tools.degradation_detected(cycles):
+    degraded = tools.degradation_detected(cycles)
+    if degraded:
         mode = ctx.pack["failure_modes"][top.failure_mode]
         hits = ctx.store.search_memory(f"{mode['label']} {mode['component']} removal", top_n=SIMILAR_CASES,
                                        tags=["case", asset.asset_type, top.failure_mode], threshold=0.0)
@@ -56,8 +60,11 @@ def diagnostics(state: CaseFile, ctx: RunContext) -> NodeResult:
                        degraded=ctx.store.degraded_reason)
     findings = Findings(fault_modes=modes, similar_cases=similar)
     note = f"; {len(similar)} similar past cases" if similar else "; no degradation, similar-case search skipped"
-    return NodeResult({"findings": findings, "evidence": ledger.records},
-                      f"{top.failure_mode} p={top.probability:.2f}{note}", confidence=top.probability)
+    head = f"{top.failure_mode} p={top.probability:.2f}"
+    if not degraded and only_mode(ctx.pack, asset.variant):       # one-mode fleet: 1.00 is by construction
+        head = (f"no wear detected; {top.failure_mode} is this fleet's only known mode "
+                f"(p={top.probability:.2f} by construction)")
+    return NodeResult({"findings": findings, "evidence": ledger.records}, f"{head}{note}", confidence=top.probability)
 
 
 def _search_cases(ctx: RunContext, ledger: EvidenceLedger, asset_type: str, mode: str, tags: list[str]) -> list[str]:
@@ -130,6 +137,52 @@ def research_cases(state: CaseFile, ctx: RunContext, task: Task, ledger: Evidenc
     return f"found {len(cases)} past cases ({', '.join(cases)})", Findings(similar_cases=cases, claims=[claim])
 
 
+def inspection_check(state: CaseFile, ctx: RunContext, task: Task, ledger: EvidenceLedger):
+    """Follow-up once Knowledge has compared each finding with its limit: does the finding corroborate the fault mode
+    or weaken it? At or beyond its limit on the module a candidate mode wears, it corroborates that mode (or, on the
+    runner-up's module, points to the runner-up); within limits on the top mode's module it weakens the reading that
+    the wear has gone far; on a module no modelled mode wears (oil system, HPT) it changes neither, and the plan still
+    acts on its result. The probabilities are not rewritten: the finding is evidence beside them."""
+    pack, asset = ctx.pack, state.asset
+    modes = state.findings.fault_modes
+    top = modes[0] if modes else None
+    lines, claims = [], []
+    for a in [i for i in state.findings.inspections if i.current]:
+        mode = mode_for_module(pack, a.module, asset.variant)
+        result = RESULT_TEXT[a.result]
+        module = (pack.get("inspections") or {}).get("modules", {}).get(a.module, a.module)
+        if mode is None or top is None:
+            effect = "neutral"
+            text = (f"Inspection finding {a.evidence_id} on the {module} is {result}; no fault mode of this fleet "
+                    "wears that module, so it neither corroborates nor weakens the fault-mode reading, and the plan "
+                    "acts on its result.")
+        elif a.result in ("at_limit", "beyond"):
+            effect = "corroborates" if mode == top.failure_mode else "points_to_runner_up"
+            text = (f"Inspection finding {a.evidence_id} on the {module} is {result}, physical wear on the module "
+                    f"{pack['failure_modes'][mode]['label']} wears: it "
+                    + ("corroborates the primary fault mode." if effect == "corroborates" else
+                       f"points to {pack['failure_modes'][mode]['label']} rather than the primary "
+                       f"{pack['failure_modes'][top.failure_mode]['label']}."))
+        elif mode == top.failure_mode:
+            effect = "weakens"
+            text = (f"Inspection finding {a.evidence_id} on the {module} is {result}: the wear the sensors attribute "
+                    f"to {pack['failure_modes'][mode]['label']} has not reached the manual's limits there, which "
+                    "weakens the case for removal on the sensor reading alone.")
+        else:
+            effect = "neutral"
+            text = (f"Inspection finding {a.evidence_id} on the {module} is {result}; it rules out wear beyond limits "
+                    f"from {pack['failure_modes'][mode]['label']}, the runner-up, and leaves the primary fault mode "
+                    "as it was.")
+        evidence = ledger.add("rule", f"inspection:{a.evidence_id}", text, {
+            "inspection": a.evidence_id, "result": a.result, "module": a.module, "failure_mode": mode,
+            "primary_mode": top.failure_mode if top else None, "effect": effect, "from": a.limit_evidence_id})
+        claims.append(Claim(text=text, evidence_ids=[evidence.id, a.evidence_id, *([top.evidence_id] if top else [])],
+                            confidence="high" if effect == "corroborates" else "medium"))
+        lines.append(f"{evidence.id}: {a.evidence_id} {effect.replace('_', ' ')}")
+    return "; ".join(lines) or "no current inspection finding", Findings(claims=claims) if claims else None
+
+
 @node("diagnostics", "follow_up", lambda s: f"tasks={[t.kind for t in s.pending('diagnostics')]}")
 def diagnostics_task(state: CaseFile, ctx: RunContext) -> NodeResult:
-    return run_tasks(state, ctx, "diagnostics", {"check_candidates": check_candidates, "repair": research_cases})
+    return run_tasks(state, ctx, "diagnostics", {"check_candidates": check_candidates,
+                                                 "inspection_check": inspection_check, "repair": research_cases})
