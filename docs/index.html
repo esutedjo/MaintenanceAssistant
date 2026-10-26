@@ -128,7 +128,7 @@ const critic = l => { const m = /(\d+) challenge\(s\): (\d+) confirmed by code, 
 document.getElementById("links").innerHTML =
   `<a href="${esc(D.repo)}">Source on GitHub</a><a href="${esc(D.video)}">Demo video (3:52)</a>` +
   `<a href="${esc(D.repo)}#check-the-live-path-without-credentials">Check the live path without credentials</a>` +
-  `<a href="replay/data/">Raw run files</a>`;
+  `<a href="${esc(D.repo)}/tree/main/docs/replay/data">Raw run files</a>`;
 
 if (D.health) {
   const h = D.health.health;
