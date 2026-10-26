@@ -18,7 +18,7 @@ All maintenance, spares and document data in this project is **synthetic**. Tele
 >
 > **Intended use:** advisory decision support for the engineer. Never the sole source of an airworthiness determination or a change to maintenance intervals. "Clearance" in the product line means the engineer's decision to keep, inspect or remove an engine; the release to service stays with certifying staff in the organisation's own system. See [`docs/regulatory-requirements.md`](docs/regulatory-requirements.md).
 
-**Judges / clean clone:** set `SAMPLE_MODE=true` and run. That path uses only committed Parquet snapshots and SQLite case memory. It does not need Zetaris, Nightshift, Docker, Node, or any credentials. If a live service is down during judging, the same snapshot path is used automatically and the brief is flagged `degraded`.
+**Judges / clean clone:** set `SAMPLE_MODE=true` and run. That path uses only committed Parquet snapshots and SQLite case memory. It does not need Zetaris, Nightshift, Docker, Node, or any credentials. If a live service is down during judging, the same snapshot path is used automatically and the brief is flagged `degraded`. To see what the live path did (Zetaris on RDS and S3, the Meterless services, Nemotron through Nightshift) without credentials, run `uv run task live-evidence` ([Check the live path without credentials](#check-the-live-path-without-credentials)).
 
 ```powershell
 uv sync
@@ -230,6 +230,20 @@ Writes `evaluation/report.md` and `report.json`. Results from the committed snap
 
 The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up in the cloud through judging (28 Oct–6 Nov). Live mode needs credentials, which are not in this repo; sample mode needs none.
 
+### Check the live path without credentials
+
+Live mode needs our Zetaris, AWS and Nightshift credentials, so a judge cannot run it. What it did is committed in `trace_examples/`, and one command reads it back with no credentials and no network:
+
+```bash
+uv run task live-evidence
+```
+
+- **Five live briefs** (`trace-live-*.jsonl`, 26 Oct 2026): the four golden cases and the beyond-limits inspection case. For each run it lists the Zetaris reads (39 in all: live SQL on `telemetry_pg`, `cmms_pg` and `knowledge_pg` in RDS Postgres and `s3_files` on S3, with tables, rows and timing), the 49 World Model and H-MEM calls to the Meterless context service, and the model that answered the critic through Nightshift (`nvidia/nemotron-3-ultra-550b-a55b`, a live call, not a replay) with how many of its challenges code confirmed or refuted. It checks that every trace reads as a live run: no snapshot fallback, no SQLite stand-in, no replayed or non-Nemotron critic reply.
+- **A live `/health` snapshot** (`health-live.json`, 26 Oct 2026 15:39 UTC): `GET /health` read right after one more live brief on FD001-A031 in the same process. Every component is green: Zetaris and each of its four sources (0.6–1.3 s), the context service (World Model 112 edges, H-MEM 202 memories), Nightshift serving Nemotron 3 Ultra 550B A55B, and the CMMS write path. That brief took 25.9 s, with nothing degraded. The file holds component states only, no hosts, URLs, tokens or keys; the capture refuses to write one. `uv run python -m tools.live_evidence --capture-health` retakes it in live mode.
+- **The demo video:** the live run on FD001-A031 with the services strip at 1:44; the Zetaris reads, H-MEM and the Nemotron model in the trace at 2:48.
+
+These files show what the services answered on the day; they do not replace a run. To run the same path on your own stack, see below.
+
 1. Start Nightshift. Put the Console runtime token in `METERLESS_RUNTIME_TOKEN`. Add provider keys (including NVIDIA) in Nightshift **Setup → Providers**, not in this repo. After the first live run, the app `turbofan-maintenance-critic` appears in Nightshift; give it a Judge lane with a Nemotron model.
 2. Start the context service: `uv run task context-service` (port 8710). Load once with `uv run task load-context` (idempotent).
 3. Set `SAMPLE_MODE=false` and `ZETARIS_MODE=live` in `.env.local`.
@@ -304,6 +318,7 @@ In AWS itself, an RDS snapshot and S3 versioning are the faster way back. This b
 | `uv run task fleet-triage` | Run the agent graph on all active engines and rank them by decision and deadline (`data/snapshot/fleet_triage.parquet`) |
 | `uv run task eval-llm` | Nemotron critic on its own against the seeded faults (needs Nightshift; `evaluation/llm_critic_report.md`) |
 | `uv run task preflight` | Read-only check of every live dependency plus one live brief, before recording a demo |
+| `uv run task live-evidence` | Summarise and check the committed live traces and the live `/health` snapshot; no credentials or network |
 | `uv run task backup --verify` | Portable backup of the live data (RDS dumps, FMEA from S3, manifest) outside the repository, checked by a local restore |
 | `uv run task calibrate-rul` | Calibrate RUL A's 10th–90th range on the held-out engines (stored in `rul_a.json`) |
 | `uv run task sensor-ranges` | Plausible sensor ranges and steps from the training engines (`asset_packs/.../sensor_ranges.json`) |
@@ -336,7 +351,7 @@ In AWS itself, an RDS snapshot and S3 versioning are the faster way back. This b
 - **Not certified, not for operational use.** Cleris drafts a work order; it never issues a release to service. The signer's name is typed, not authenticated, and records are local files with a hash chain but no backup or retention policy (see `docs/regulatory-requirements.md`).
 - **Caution has a cost:** of the 102 engines with more than 40 days left, 41 are sent for an inspection and 1 is pulled early. The inspection-findings loop resolves inspections; it does not avoid them.
 - **Models:** RUL B's range is not calibrated (45% coverage); fault-mode accuracy (97%) is against a proxy label from one sensor; the seeded-fault results (357 of 357) are a self-test of the failure classes the gates were built to catch.
-- **Live mode** needs the team's cloud: a Hobby-tier Zetaris cluster with random 15–170 s stalls (the run then falls back to the snapshot and says so), AWS RDS and S3, and the Nightshift app. Judges run sample mode, where Nemotron's part is the recorded replies.
+- **Live mode** needs the team's cloud: a Hobby-tier Zetaris cluster with random 15–170 s stalls (the run then falls back to the snapshot and says so), AWS RDS and S3, and the Nightshift app. Judges run sample mode, where Nemotron's part is the recorded replies; `uv run task live-evidence` reads back the committed live runs and a live `/health` snapshot.
 - **Integration:** no connector to a real M&E system (AMOS, TRAX, SAP PM, Maximo); the SQL names the team's own tables.
 
 ## Pre-existing components
@@ -354,6 +369,7 @@ Each run writes `logs/trace-<run_id>.jsonl` (timestamp, run_id, agent_name, acti
 Committed examples in `trace_examples/`:
 - `trace-sample-*`: the four golden cases in sample mode, plus FD001-A031 with a corrupted T30 reading (serious: `data_quality` escalation, confidence low) and with a gap in the cycles (minor: flagged only), regenerated on 26 Oct. The critic lines replay recorded Nemotron replies where the prompt matches, marked `recorded: true`.
 - `trace-live-*`: the four golden cases and the beyond-limits inspection case in live mode, recorded on 26 Oct with the current graph: one `zetaris_query` line per read (purpose, source tables, rows, latency, "live Zetaris SQL"), one `context_call` line per World Model or H-MEM call (backend `meterless`), the planner's follow-ups and routing, and the critic answered through Nightshift by Nemotron 3 Ultra 550B (`model` on the critic line, `recorded: false`). Each run took 6–31 s.
+- `health-live.json`: `GET /health` in live mode right after one more live brief, all components green (26 Oct). `uv run task live-evidence` summarises and checks these files.
 
 ## Licence
 

@@ -12,10 +12,11 @@ The GitHub branch `claude/magical-cannon-jlrs9d` was a parallel line from a Clau
 
 The sections after this one are the 25 Oct handoff and keep their dates. What changed on 26 Oct is in `AGENTS.md` (follow-ups and gap routing, recorded Nemotron replay, decision log, inspection-findings loop, help panel, services strip, hardening, and the "MRO engineer review" changes). Current numbers, all sample mode:
 
-- `uv run pytest -q`: 414 passed (26 Oct, after the OpenMP install-hint test).
+- `uv run pytest -q`: 418 passed (26 Oct, after the live-evidence tests).
 - `uv run task eval`: 357 of 357 seeded faulty briefs caught (19 types), 0 false alarms; 3,401 claims, all resolvable and number-supported; 45 of 45 engines failing within 15 days sent for removal, swap or repair; RUL A range coverage 80%; planning bound at or below true RUL for 92%; 116 of 116 corrupted inputs graded as expected; `sb_adoption` on 134 of 200 engines.
 - FD001-A031: RUL A 9.8 (5–11), RUL B 6.7, planning bound 0, "Do not dispatch; swap in lease engine at the first free slot (2026-10-23)", AD-2026-17-04 (g) complied with by removal before the limit, work package 58.5 manhours with 4 RII.
 - Use the corrected competitor line: Maximo Assistant, Senseye and Cognite Atlas answer from data held in, or copied into, their own platforms; Cleris is built to query the shop's existing systems where the data lives (`docs/competitive-landscape.md`).
+- `uv run task live-evidence` (`tools/live_evidence.py`) summarises and checks the committed live traces and `trace_examples/health-live.json`, a live `GET /health` read right after one live brief on 26 Oct 15:39 UTC (every component green). Judges need no credentials for it. Retake with `uv run python -m tools.live_evidence --capture-health` in live mode; it refuses to write a setting's value, a URL or an AWS host.
 - A portable backup of the live data (RDS dumps, FMEA from S3, manifest) is made with `uv run task backup --verify`, outside the repository (README, "Back up and restore the live data").
 
 ## What Cleris is
