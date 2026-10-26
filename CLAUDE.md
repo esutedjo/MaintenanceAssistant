@@ -8,9 +8,19 @@ This session's work was committed and pushed to `main` on 25 Oct. Do not commit 
 
 The GitHub branch `claude/magical-cannon-jlrs9d` was a parallel line from a Claude Code web session, built on the 23 Oct `main`: a separate sign-off write service and runner streaming. Its `merge_evidence` fix (keep the first record of an ID) was ported to `main`; the rest was not merged. The branch was deleted from GitHub on 25 Oct. Its two commits are kept in the developer's local clone as `refs/backup/claude-magical-cannon-jlrs9d` (not a branch, not pushed).
 
+## State on 26 Oct 2026 (supersedes the 25 Oct numbers below)
+
+The sections after this one are the 25 Oct handoff and keep their dates. What changed on 26 Oct is in `AGENTS.md` (follow-ups and gap routing, recorded Nemotron replay, decision log, inspection-findings loop, help panel, services strip, hardening, and the "MRO engineer review" changes). Current numbers, all sample mode:
+
+- `uv run pytest -q`: 413 passed.
+- `uv run task eval`: 357 of 357 seeded faulty briefs caught (19 types), 0 false alarms; 3,401 claims, all resolvable and number-supported; 45 of 45 engines failing within 15 days sent for removal, swap or repair; RUL A range coverage 80%; planning bound at or below true RUL for 92%; 116 of 116 corrupted inputs graded as expected; `sb_adoption` on 134 of 200 engines.
+- FD001-A031: RUL A 9.8 (5–11), RUL B 6.7, planning bound 0, "Do not dispatch; swap in lease engine at the first free slot (2026-10-23)", AD-2026-17-04 (g) complied with by removal before the limit, work package 58.5 manhours with 4 RII.
+- Use the corrected competitor line: Maximo Assistant, Senseye and Cognite Atlas answer from data held in, or copied into, their own platforms; Cleris is built to query the shop's existing systems where the data lives (`docs/competitive-landscape.md`).
+- A portable backup of the live data (RDS dumps, FMEA from S3, manifest) is made with `uv run task backup --verify`, outside the repository (README, "Back up and restore the live data").
+
 ## What Cleris is
 
-An MRO clearance is the stay-or-remove decision an engineer can sign: the condition, the remaining-life limit, the eligible work, and the signature. Cleris writes that clearance. It does not replace Siemens Senseye, IBM Maximo Assistant, or Cognite Atlas. It sits on the systems the shop already has.
+An MRO clearance is the stay-or-remove decision an engineer can sign: the condition, the remaining-life limit, the eligible work, and the signature. Cleris writes that clearance. It does not replace Siemens Senseye, IBM Maximo Assistant, or Cognite Atlas: those answer from data held in, or copied into, their own platforms, while Cleris is built to query the shop's existing systems where the data lives.
 
 Say "maintenance release", not an air-traffic clearance, the first time the name meets a general audience.
 

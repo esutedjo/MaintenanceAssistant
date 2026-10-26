@@ -76,7 +76,7 @@ What a reviewer can check in the UI, without reading code:
 - **Services strip**: chips under the ask bar show whether Zetaris (with its RDS Postgres and S3 sources), the Meterless context service (World Model, H-MEM), Nightshift (and the Nemotron model it served) and the CMMS write path are active, green, amber or grey, with latency and the last successful query; "Services" opens the details. Checks are read-only, time out at 2.5 s, run in the background and are reused for 45 s. In sample mode the strip says "Sample mode: snapshot · SQLite · recorded Nemotron" and makes no network call.
 - **How the brief was checked**: chips under the verdict give the rule-check result, critic rounds and the model that answered. The Trace tab shows every step as a timeline.
 - **Why this plan and not another**: each rule the planner applied (severity band, swap against parts lead time plus the first free slot, method disagreement, mandates), this engine's value, and the value at which the plan would change. Computed from the planner's decision record and the asset pack thresholds.
-- **Stress test**: inject any of the 17 seeded mistakes (tampered remaining life, fabricated part, dropped mandate, and others) into the brief on screen and see which gate stops it. The same faults and gates as the evaluation.
+- **Stress test**: inject any of the 19 seeded mistakes (tampered remaining life, fabricated part, dropped mandate, and others) into the brief on screen and see which gate stops it. The same faults and gates as the evaluation.
 - **Fleet triage**: "Which engines need attention this week?" is answered from `data/snapshot/fleet_triage.parquet`, which `uv run task fleet-triage` builds by running the full agent graph on all 200 active engines (sample mode, about 75 s). The Fleet tab shows when it was computed and can recompute it.
 
 ## Agents and how they coordinate
@@ -115,8 +115,8 @@ flowchart LR
 | Data | Telemetry, history, stock, slots through Zetaris; input plausibility gate | No | Raises a data-quality escalation |
 | Prognostics | RUL A (LightGBM quantiles, calibrated) and RUL B (health-index trend), SHAP drivers, back-test at the last inspection | No | No |
 | Diagnostics | Fault mode, discriminating sensors, similar past cases from H-MEM | No | No |
-| Knowledge | Documents in effect, in precedence order; mandates decided in code | No | Mandate escalation |
-| Maintenance planner | Task from the World Model, parts, slot, deadline, every claim with evidence | No | No |
+| Knowledge | Documents in effect, in precedence order, grouped mandatory, recommended or reference; mandates decided in code; the fleet's engineering orders | No | Mandate escalation |
+| Maintenance planner | Task from the World Model, parts, slot, deadline, method of compliance, work package, every claim with evidence | No | No |
 | Rule checks | Deterministic checks on every claim and number | No | Sends back |
 | Critic | Deterministic checks, then Nemotron tries to disprove the brief; code verifies each challenge | Nemotron (live; recorded replies in sample mode) | Sends back only on a challenge code confirms |
 | Escalation rules | Fixed rules from the asset pack | No | Escalates |
@@ -130,7 +130,15 @@ flowchart LR
 
 **Inspection findings close the loop.** When the brief asks for a borescope, the result comes back in: the engineer (UI "Add inspection finding") or the API (`"inspections"` with the question) enters borescope, visual, oil-analysis, chip-detector or material-test findings. Each becomes evidence (`EV-INS-nn`, "entered by <inspector>"); Knowledge cites the manual's limit table (synthetic `AMM-TF-R3 …-601` sections, revision in effect only); code classifies the finding as within, at or beyond the limit; diagnostics says whether it corroborates or weakens the fault mode; and the planner acts: beyond the limit, remove before further flight (urgent escalation and a "potentially reportable" note); at the limit, re-inspect within the manual's interval; within the limit on every suspected module, no removal. A finding never relaxes a plan driven by remaining life or a mandate, and a rule check (`inspections_acted_on`) plus a seeded fault (`inspection_ignored`, 30 of 30 caught) keep it that way. Example inputs: `input_examples/inspection_within_limits.json` and `inspection_beyond_limits.json` (FD001-A070); the UI has "Load example finding" buttons, labelled as example data.
 
-**Help for non-experts.** A Help button and "What is this?" links open one panel: what each part of the screen means for the open engine, a searchable glossary of 105 terms and abbreviations, an engine diagram with the sensors and fault modes, credited photos, and "Ask Cleris": Nemotron explains the brief from the fields on screen, and code flags any number in its answer that the brief does not contain.
+**What an engine engineer asked for (26 Oct).** A certified-engineer review of the brief led to five additions. All of them use the same evidence rules as the rest of the brief:
+
+- **Documents by what they mean for compliance.** Mandatory now (a mandate whose conditions hold), Recommended (a service bulletin, which needs engineering approval to adopt) and Reference (manuals, procedures, a declined bulletin, and a mandate whose conditions are not met, with the reason, for example "RUL lower bound 115 ≥ 30 cycles").
+- **Method of compliance.** Each mandatory document gets a compliance line on the plan and the draft work order, for example "AD-2026-17-04 (g): complied with by engine removal before the 10-cycle limit (removal at the first free slot 2026-10-23, limit 2026-10-27); FM-HPC-01 (borescope inspection HPC stages 1-9) at shop induction; record in the AD compliance record". A rule check sends back a plan that has no line, or a line that ends after the limit. Two seeded faults test this check (`compliance_dropped`, `compliance_late`).
+- **Work package.** Asset-pack templates (`work_packages.yaml`) turn the plan into tasks with synthetic task references, required inspection items (RII), tooling, manhours and skill. A lease-engine swap adds the items to verify before installation, which Cleris has no data on: configuration and SB/AD status, release certificate, LLP cycles for the lease term.
+- **What the shop found.** Similar past removals now say what the shop found and replaced (from the CMMS record), not only that the engine was removed.
+- **Engineering orders.** A recommended bulletin is decided once per fleet, not on every brief. In the UI, the sb_adoption note has "Record fleet decision": adopt or decline, with a name. The decision is stored with a SHA-256 hash chain in `.state/engineering_orders.jsonl`. Later briefs for that fleet cite it, and the note stops. Until then, the plan follows the manual section that covers the task.
+
+**Help for non-experts.** A Help button and "What is this?" links open one panel: what each part of the screen means for the open engine, a searchable glossary of 105 terms and abbreviations plus the asset pack's 21 sensors, an engine diagram with the sensors and fault modes, credited photos, and "Ask Cleris": Nemotron explains the brief from the fields on screen, and code flags any number in its answer that the brief does not contain.
 
 ## Documents (Knowledge agent)
 
@@ -162,9 +170,9 @@ Inputs and outputs: `input_examples/*.json`, `output_examples/*.json`.
 Advisory agents propose; the gates can only send work back or stop it.
 
 0. **Input plausibility** (`tools/data_quality.py`, run by the Data agent before any model output is used, no LLM): telemetry outside the range seen on any C-MAPSS engine (plus a margin), jumps between cycles larger than any engine showed, a model sensor frozen for 30 cycles, missing values, duplicate, backward or missing cycles, telemetry ending at a different cycle from the asset registry, future timestamps, work orders after the last cycle, a removal recorded on an active engine, negative stock or lead time. Limits are in the asset pack (`data_quality` in `manifest.yaml`, ranges in `sensor_ranges.json` built by `uv run task sensor-ranges`). A serious issue (anything a model reads, or the stock) sets confidence low, puts "Confirm the input data first" in front of the action and raises a `data_quality` escalation; a minor one (a sensor the models ignore, a gap, a stray date) is flagged in the brief. Impossible stock counts as none available.
-1. **Rule checks** (`assurance/rules.py`, no LLM): every claim cites evidence IDs that resolve; RUL values in 0..125 with the estimate inside its interval; RUL and fault-mode numbers equal the model output they cite; asset matches the question; every part is listed in the evidence it cites, with the same stock and lead time; the slot is in the free-slot list; the deadline is not later than the RUL lower bound allows; mandated document tasks are present, cited and on time; every task is on the World Model's list for the fault; every number a claim states is in its cited evidence (or a pack threshold, a sum or difference of two headline values, or a cycles-to-days conversion). On the 200-engine fleet, 0 of 2,984 clean claims fail the number check.
+1. **Rule checks** (`assurance/rules.py`, no LLM): every claim cites evidence IDs that resolve; RUL values in 0..125 with the estimate inside its interval; RUL and fault-mode numbers equal the model output they cite; asset matches the question; every part is listed in the evidence it cites, with the same stock and lead time; the slot is in the free-slot list; the deadline is not later than the RUL lower bound allows; mandated document tasks are present, cited and on time, each with a method of compliance that completes within the document's limit; every task is on the World Model's list for the fault; every number a claim states is in its cited evidence (or a pack threshold, a sum or difference of two headline values, or a cycles-to-days conversion). On the 200-engine fleet, 0 of 3,401 clean claims fail the number check.
 2. **Evidence critic** (`agents/critic.py`): deterministic checks always run (SHAP drivers must not be passed off as the fault-mode signature; a degraded engine needs similar past cases). When Nightshift is up and `SAMPLE_MODE` is off, Nemotron tries to disprove the brief; in sample mode the critic replays a recorded Nemotron reply when the prompt matches one exactly, labelled "recorded", and code checks it the same way. Its free-text gaps are shown to the engineer. Its checkable challenges (`assurance/challenges.py`: unsupported number, missing mandate, part not in evidence, deadline after the bound, wrong engine) are verified by code: a confirmed challenge sends the brief back, a refuted one is shown as refuted. It never produces a number. Max 3 rounds; round 3 without acceptance closes the case as `insufficient_evidence`.
-3. **Escalation rules** (`assurance/escalation.py`, thresholds from the asset pack): input data failed a serious plausibility check; RUL lower bound shorter than short-part lead time plus next free slot; RUL A vs B differ by more than 20 cycles; two fault modes within 0.15; an applicable document mandates an action; an inspection finding is beyond or at the manual limit; the live FMEA lists tasks the World Model does not link to the fault (`knowledge_drift`); a recommended service bulletin would replace a manual limit on a planned task (`sb_adoption`, info: engineering decides, the plan keeps the manual meanwhile); and a note when a condition may be reportable under the operator's occurrence-reporting scheme (`potentially_reportable`, info: the decision to report stays with people). Urgent escalations and mandatory documents must be ticked as read before Approve, urgent ones with a reason.
+3. **Escalation rules** (`assurance/escalation.py`, thresholds from the asset pack): input data failed a serious plausibility check; RUL lower bound shorter than short-part lead time plus next free slot; RUL A vs B differ by more than 20 cycles; two fault modes within 0.15; an applicable document mandates an action; an inspection finding is beyond or at the manual limit; the live FMEA lists tasks the World Model does not link to the fault (`knowledge_drift`); a recommended service bulletin covers a planned task and engineering has not decided on it for the fleet (`sb_adoption`, info: engineering decides once per fleet with an engineering order; the plan follows the manual meanwhile); and a note when a condition may be reportable under the operator's occurrence-reporting scheme (`potentially_reportable`, info: the decision to report stays with people). Urgent escalations and mandatory documents must be ticked as read before Approve, urgent ones with a reason.
 4. **Engineer sign-off** in the UI. Nothing is written before Approve.
 
 The LLM critic runs as its own Nightshift app (`METERLESS_CRITIC_APP=turbofan-maintenance-critic`, sent as the `meterless-app` header) so Nightshift can pin it to a Nemotron lane whatever `meterless/auto` would pick for other apps. In Nightshift, give that app a Judge lane with an NVIDIA Nemotron model. The trace records the model that actually answered and notes `critic lane not pinned to Nemotron` when Claude or GPT answered.
@@ -200,8 +208,8 @@ Writes `evaluation/report.md` and `report.json`. Results from the committed snap
 - **Safety of the planning bound:** at or below the true RUL for 92% of engines (90% before calibration). Of the 45 engines within 15 days of failure, 1 overshoots. The remaining overshoots are mostly on engines with plenty of life left.
 - **Disagreement flag:** 54 engines (27%); RUL A error there is 11.6 vs 7.5 elsewhere.
 - **Fault mode (FD003):** 97% agreement with the proxy label; 100% within 60 cycles of failure.
-- **Evidence:** 2,984 claims, all with resolvable evidence; every claim that states a quantity cites model, query, rule or case-memory evidence.
-- **Seeded faulty briefs:** 17 fault types (uncited claim, tampered or averaged RUL, fabricated part, inflated stock, slot not free, deadline past the RUL bound, mandate dropped, a changed number in a supporting claim, and others) an ignored inspection finding, applied to 30 finished briefs: 341 of 341 caught by the deterministic gates, 0 false alarms on the clean briefs. The first version of the gates missed the tampered RUL, fabricated part and inflated stock faults; the eval found them and two rule checks were added. The changed-number fault got through until the number check was added on 25 Oct; building that check also found a claim citing the wrong evidence, now fixed.
+- **Evidence:** 3,401 claims, all with resolvable evidence; every claim that states a quantity cites model, query, rule or case-memory evidence.
+- **Seeded faulty briefs:** 19 fault types (uncited claim, tampered or averaged RUL, fabricated part, inflated stock, slot not free, deadline past the RUL bound, mandate dropped, a changed number in a supporting claim, an ignored inspection finding, a dropped or late method of compliance, and others), applied to 30 finished briefs: 357 of 357 caught by the deterministic gates, 0 false alarms on the clean briefs. The first version of the gates missed the tampered RUL, fabricated part and inflated stock faults; the eval found them and two rule checks were added. The changed-number fault got through until the number check was added on 25 Oct; building that check also found a claim citing the wrong evidence, now fixed.
 - **Nemotron on its own** (`uv run task eval-llm`, needs Nightshift; `evaluation/llm_critic_report.md`): the four golden briefs, corrupted with every fault that applies, go to the Nemotron critic with the deterministic gates bypassed. It flagged a problem in free text on 34 of 41; code confirmed 3 of its 150 checkable challenges and refuted 147; it blocked no clean brief. That is why code, not the model, decides.
 - **Implausible input data:** 0 of the 200 clean runs raise a data-quality issue. 12 corruptions (a T30 spike, P30 in kPa instead of psia, a frozen Ps30, missing phi readings, duplicate, reversed and truncated cycles, a removal on an active engine, negative stock as serious; a cycle gap, an out-of-range T2 the models ignore and a work order after the last cycle as minor) fed through the full graph on 10 engines: 116 of 116 graded at the expected severity, no crashes. Building these found two crashes, now fixed: missing readings broke the telemetry summary, and two specialists failing in the same step broke the graph state.
 
@@ -223,7 +231,65 @@ The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up 
 3. Set `SAMPLE_MODE=false` and `ZETARIS_MODE=live` in `.env.local`.
 4. `uv run python run.py --question "..."` — Zetaris is queried first; on failure the run switches to the snapshot and every later evidence record is flagged `degraded`.
 
+### Run the live path on your own stack
+
+Our cloud (AWS RDS, S3, the Zetaris cluster) needs our credentials, which are never in this repository. Everything needed to rebuild the same sources on your own machine and your own Zetaris is here:
+
+1. **Data, locally.** `uv run task download` (NASA C-MAPSS; eval answer key included), then `uv run task db-up` (Postgres 17 with pgvector on `127.0.0.1:5433`, databases `telemetry`, `cmms`, `knowledge`). Create the two roles the loaders grant to, with passwords of your choice:
+   `docker compose exec postgres psql -U postgres -c "CREATE ROLE zetaris_ro LOGIN PASSWORD '<read-only password>'; CREATE ROLE app_rw LOGIN PASSWORD '<write password>';"`
+   Then `uv run task seed-telemetry --target local`, `uv run task seed-cmms --target local` and `uv run task ingest-docs --target local`. The answer key (`eval_ground_truth`) is revoked from both roles.
+2. **Failure modes on S3.** `uv run task fmea` writes `data/export/fmea.parquet`; upload it to a bucket of yours under `fmea/`. Zetaris cannot read a file on your laptop.
+3. **Zetaris.** In your Zetaris (Docker or AWS, per the hackathon setup guide), create three JDBC sources named `telemetry_pg`, `cmms_pg` and `knowledge_pg` that point at the local Postgres as `zetaris_ro` (from a Zetaris container, the host is `host.docker.internal:5433`), and a file source `s3_files` with the table `fmea` from your bucket. Put `ZETARIS_BASE_URL`, `ZETARIS_ORG_ID` and `ZETARIS_API_KEY` in `.env.local`, then `uv run task register` imports the tables and checks that each source returns rows.
+4. **Meterless.** `uv run task context-service` (Node 24; port 8710), then once `uv run task load-context`. In Nightshift, put the runtime token in `METERLESS_RUNTIME_TOKEN` and your NVIDIA key in Nightshift's Providers tab; after the first live run, give the app `turbofan-maintenance-critic` a lane with a Nemotron model.
+5. **Run.** In `.env.local`: `SAMPLE_MODE=false`, `ZETARIS_MODE=live`, and for the work-order write `PG_HOST=127.0.0.1`, `PG_PORT=5433`, `PG_SSLMODE=disable`, `PG_APP_USER=app_rw` with its password. `uv run task preflight` checks every service and runs one live brief; the UI's services strip shows each one.
+
+**What we tested on 26 Oct 2026, and what we did not.** Tested on a Windows machine with Docker Desktop: step 1 with the C-MAPSS files already downloaded (the download itself was not re-run for this test), `db-up`, both roles, `seed-telemetry`, `seed-cmms` and `ingest-docs` with `--target local` (75,043 cycle rows for 400 engines; 400 assets and 1,577 work orders; 19 document sections including the 6 limit tables), and `fmea` (16 rows). As `zetaris_ro`, every table Zetaris needs is readable, while the answer key and any write are refused; as `app_rw`, a draft work order inserts (rolled back after the test). Not tested by us: steps 3 to 5 against a local stack, that is, registering a local Postgres and an S3 file in a Zetaris that can reach them and running a live brief end to end on it, because our Zetaris runs in AWS and cannot reach a database on a laptop. The same registration, context-service, Nightshift and preflight steps are the ones our cloud setup runs (`uv run task preflight`: every service passes).
+
 `uv run task check-llm` confirms Nightshift. `uv run task check` confirms RDS and Zetaris. Before recording a demo, `uv run task preflight` checks every live dependency (mode, Zetaris, context service, the Nemotron critic lane) and runs one live brief; it writes nothing.
+
+### Back up and restore the live data
+
+`uv run task backup --verify` makes a portable copy of the cloud data. It needs the loader settings in `.env.local` and Docker. By default it writes outside the repository, to `../backups/cleris-<UTC date>/`, and it refuses a folder inside it. It only dumps and reads; it writes nothing to RDS or S3.
+
+| File | Content |
+| --- | --- |
+| `telemetry.dump`, `cmms.dump`, `knowledge.dump` | `pg_dump` custom-format archives from RDS, made with pg_dump 17 from the image in `docker-compose.yml` |
+| `fmea_from_s3.parquet` | The FMEA table as Zetaris serves it from S3 (`s3_files.fmea`) |
+| `manifest.json` | Per database: tables, row counts, file size, SHA-256 and server version; the repository commit |
+| `RESTORE.txt` | The restore commands and grants below |
+
+No host, password or API key is printed or written, and a failed `pg_dump` reports only its exit code. The archives name object owners by role, as every pg_dump archive does, so restore with `--no-owner`. Grants are left out of the dumps. `--verify` restores each archive into a scratch database on the local Docker Postgres, compares every table's row count with the manifest, and drops the scratch databases.
+
+Restore into the local Postgres (`uv run task db-up` creates the three databases), once per database:
+
+```bash
+docker compose exec -T postgres pg_restore -U postgres -d telemetry --clean --if-exists --no-owner --no-privileges < ../backups/cleris-<date>/telemetry.dump
+```
+
+For a new PostgreSQL 17 with pgvector (a new RDS instance, for example), create the database first, then run `pg_restore -h <host> -U <admin user> -d <db> --no-owner --no-privileges <db>.dump`. In both cases, re-grant to the two roles; the answer key `eval_ground_truth` stays unreadable to both:
+
+```sql
+-- telemetry
+GRANT SELECT ON cycles, signals, telemetry_long TO zetaris_ro;
+-- cmms
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO zetaris_ro;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO app_rw;
+-- knowledge
+GRANT SELECT ON doc_chunks TO zetaris_ro;
+```
+
+Then upload `fmea_from_s3.parquet` to your bucket under `fmea/`, point the Zetaris sources at the restored copies, and run `uv run task register`.
+
+The backup does not include:
+
+- credentials;
+- the Zetaris source definitions;
+- the Nightshift lanes and provider keys;
+- the Meterless store. `uv run task load-context` rebuilds it from the repository, but sign-off memories written since then are not restored.
+
+In AWS itself, an RDS snapshot and S3 versioning are the faster way back. This backup is the copy that runs anywhere.
+
+**Tested on 26 Oct 2026.** We made the backup from our RDS. It holds 3 telemetry tables (75,464 rows), 8 cmms tables (10,314 rows), 1 knowledge table (19 sections) and 16 FMEA rows. `--verify` matched every row count. We also ran the restore command above twice into scratch databases, the second time with `--clean`, and applied the grants. After that, `zetaris_ro` reads `cycles`, `telemetry_long` and `doc_chunks` but is refused the answer key and any write. `app_rw` can update `work_orders` and is refused the answer key. Not tested: a restore into a new RDS instance, and the Zetaris re-registration against a restored copy.
 
 ## Commands
 
@@ -234,6 +300,7 @@ The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up 
 | `uv run task fleet-triage` | Run the agent graph on all active engines and rank them by decision and deadline (`data/snapshot/fleet_triage.parquet`) |
 | `uv run task eval-llm` | Nemotron critic on its own against the seeded faults (needs Nightshift; `evaluation/llm_critic_report.md`) |
 | `uv run task preflight` | Read-only check of every live dependency plus one live brief, before recording a demo |
+| `uv run task backup --verify` | Portable backup of the live data (RDS dumps, FMEA from S3, manifest) outside the repository, checked by a local restore |
 | `uv run task calibrate-rul` | Calibrate RUL A's 10th–90th range on the held-out engines (stored in `rul_a.json`) |
 | `uv run task sensor-ranges` | Plausible sensor ranges and steps from the training engines (`asset_packs/.../sensor_ranges.json`) |
 | `uv run python run.py --question "..."` | One decision brief as JSON |
@@ -264,7 +331,7 @@ The Zetaris cluster, the Postgres databases (AWS RDS) and the S3 bucket stay up 
 - **Scope:** one engine type. The asset pack separates engine-specific data from the agents, but a second machine type has not been built.
 - **Not certified, not for operational use.** Cleris drafts a work order; it never issues a release to service. The signer's name is typed, not authenticated, and records are local files with a hash chain but no backup or retention policy (see `docs/regulatory-requirements.md`).
 - **Caution has a cost:** of the 102 engines with more than 40 days left, 41 are sent for an inspection and 1 is pulled early. The inspection-findings loop resolves inspections; it does not avoid them.
-- **Models:** RUL B's range is not calibrated (45% coverage); fault-mode accuracy (97%) is against a proxy label from one sensor; the seeded-fault results (341 of 341) are a self-test of the failure classes the gates were built to catch.
+- **Models:** RUL B's range is not calibrated (45% coverage); fault-mode accuracy (97%) is against a proxy label from one sensor; the seeded-fault results (357 of 357) are a self-test of the failure classes the gates were built to catch.
 - **Live mode** needs the team's cloud: a Hobby-tier Zetaris cluster with random 15–170 s stalls (the run then falls back to the snapshot and says so), AWS RDS and S3, and the Nightshift app. Judges run sample mode, where Nemotron's part is the recorded replies.
 - **Integration:** no connector to a real M&E system (AMOS, TRAX, SAP PM, Maximo); the SQL names the team's own tables.
 
