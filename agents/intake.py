@@ -147,12 +147,12 @@ def read_engine_with_llm(question: str, ctx: RunContext) -> tuple[str | None, st
     try:
         if not client.configured:
             return None, None, "no Nightshift token", None
-        reply = client.chat([{"role": "user", "content": intake_prompt(question)}],
-                            model=ctx.settings.meterless_critic_model, temperature=0, max_tokens=200,
-                            app=ctx.settings.meterless_critic_app, response_format={"type": "json_object"},
+        app, model = ctx.settings.lane("intake")
+        reply = client.chat([{"role": "user", "content": intake_prompt(question)}], model=model, temperature=0,
+                            max_tokens=200, app=app, response_format={"type": "json_object"},
                             timeout_s=ctx.settings.critic_timeout_s)
         from tools.status import note_model_reply
-        note_model_reply(ctx.settings.meterless_critic_app, reply.model)
+        note_model_reply(app, reply.model)
         engine, reason = grounded_engine(question, _json(reply.text))
         return engine, reply.model, reason, None
     except (LlmUnavailable, LlmRefusal, ValueError, TypeError, KeyError) as error:

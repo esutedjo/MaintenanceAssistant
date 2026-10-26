@@ -35,6 +35,9 @@ class LlmResponse(BaseModel):
     model: str
     duration_s: float
     usage: dict[str, Any] | None = None
+    receipt_id: str | None = None           # Nightshift's receipt for this call (its run details show it)
+    route_provider: str | None = None       # the provider behind the lane that answered: nvidia, anthropic, google
+    cost_usd: float | None = None           # what Nightshift reports the call cost
 
 
 class LlmRefusal(RuntimeError):
@@ -120,9 +123,14 @@ class LlmClient:
     def _result(self, requested: str, data: dict[str, Any], start: float) -> LlmResponse:
         choice = (data.get("choices") or [{}])[0]
         text = (choice.get("message") or {}).get("content") or ""
+        meta = data.get("meterless") if isinstance(data.get("meterless"), dict) else {}
+        route = meta.get("winning_route") if isinstance(meta.get("winning_route"), dict) else {}
         result = LlmResponse(text=text, provider="meterless", requested_model=requested,
                              model=data.get("model") or requested, duration_s=round(time.monotonic() - start, 3),
-                             usage=data.get("usage"))
+                             usage=data.get("usage"), receipt_id=meta.get("receipt_id"),
+                             route_provider=route.get("provider"),
+                             cost_usd=(meta.get("cost") or {}).get("actual_usd") if isinstance(meta.get("cost"), dict)
+                             else None)
         log.info("provider=meterless requested=%s model=%s duration_s=%.2f", requested, result.model, result.duration_s)
         return result
 

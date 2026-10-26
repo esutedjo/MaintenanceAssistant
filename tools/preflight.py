@@ -56,14 +56,17 @@ def main() -> int:
     try:
         state, ids = llm.status()
         report("PASS" if state == "online" else "FAIL", "nightshift", f"{state}, {len(ids)} routing modes")
-        start = time.monotonic()
-        reply = llm.chat([{"role": "user", "content": 'Reply with the JSON {"ok": true} and nothing else.'}],
-                         model=settings.meterless_critic_model, max_tokens=32, app=settings.meterless_critic_app,
-                         response_format={"type": "json_object"}, timeout_s=settings.critic_timeout_s)
-        nemotron = "nemotron" in reply.model.lower()
-        report("PASS" if nemotron else "WARN", "critic lane",
-               f"{settings.meterless_critic_app} answered by {reply.model} in {time.monotonic() - start:.1f} s"
-               + ("" if nemotron else "; pin the lane to a Nemotron model in Nightshift"))
+        for role in ("critic", "intake", "explain"):            # one short call per model role, through its own app
+            app, model = settings.lane(role)
+            start = time.monotonic()
+            reply = llm.chat([{"role": "user", "content": 'Reply with the JSON {"ok": true} and nothing else.'}],
+                             model=model, max_tokens=32, app=app, response_format={"type": "json_object"},
+                             timeout_s=settings.critic_timeout_s)
+            nemotron = role != "critic" or "nemotron" in reply.model.lower()
+            report("PASS" if nemotron else "WARN", f"{role} lane",
+                   f"{app} answered by {reply.model} ({reply.route_provider or 'provider not reported'}) in "
+                   f"{time.monotonic() - start:.1f} s, receipt {reply.receipt_id or 'none'}"
+                   + ("" if nemotron else "; pin the critic's lane to a Nemotron model in Nightshift"))
     except Exception as error:
         report("FAIL", "nightshift", f"{type(error).__name__}: {str(error)[:160]}")
     finally:

@@ -234,6 +234,12 @@ def check_nightshift(settings: Settings, transport: httpx.BaseTransport | None =
     details = [f"Nightshift app {app}, routing {settings.meterless_critic_model}"]
     if seen:
         details.append(f"Critic lane last served by {seen[0]} at {clock(seen[1])}")
+    for role, label in (("intake", "Intake"), ("explain", "Ask Cleris")):
+        role_app, role_mode = settings.lane(role)
+        if role_app != app:
+            role_seen = MODEL_SEEN.get(role_app)
+            details.append(f"{label}: Nightshift app {role_app}, routing {role_mode}"
+                           + (f"; last served by {role_seen[0]} at {clock(role_seen[1])}" if role_seen else ""))
     if state != "online":
         words = {"unauthorized": "token refused", "offline": "not reachable"}[state]
         return Component("nightshift", "Meterless Nightshift", "warn", f"{words} · deterministic critic", details)

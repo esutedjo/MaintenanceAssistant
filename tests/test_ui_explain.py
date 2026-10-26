@@ -86,17 +86,17 @@ def test_orders_modals_and_number_words_are_flagged_too():
     assert unsupported_tokens("Method A estimates about ten flights.", _grounding()) == []
 
 
-def test_model_answer_goes_through_the_critic_lane_and_is_labelled(caplog):
-    settings, seen = _settings(), []
+def test_model_answer_goes_through_its_own_lane_and_is_labelled(caplog):
+    settings, seen = _settings(meterless_explain_app="turbofan-maintenance-explain"), []
     with caplog.at_level(logging.INFO, logger="explain"):
         result = explain("Why are there two numbers?", CASE, PACK, settings, client=_client(settings, requests=seen))
     assert result.source == "model" and result.text == GROUNDED and result.unsupported == [] and result.advice == []
     assert result.label == (f"AI explanation by {MODEL} via Nightshift; it explains, it does not change the "
                             "decision.")
     request = seen[0]
-    assert request.headers["meterless-app"] == settings.meterless_critic_app
+    assert request.headers["meterless-app"] == "turbofan-maintenance-explain"
     body = json.loads(request.content)
-    assert body["model"] == settings.meterless_critic_model and body["temperature"] == 0
+    assert body["model"] == settings.meterless_explain_model and body["temperature"] == 0
     prompt = body["messages"][0]["content"]
     assert "Explain only. Do not recommend actions" in prompt and "Question: Why are there two numbers?" in prompt
     assert "- Engine FD001-A031 (FD001 fleet)." in prompt and "- RUL (remaining useful life): How many" in prompt

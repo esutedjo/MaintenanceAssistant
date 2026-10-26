@@ -56,12 +56,21 @@ class Settings(BaseSettings):
     llm_timeout_s: float = 180.0
     run_timeout_s: float = 120.0
     meterless_critic_model: str = "meterless/auto"
-    # Separate Nightshift app so its routing rule can keep the critic on another model family.
+    # One Nightshift app per model role, so each app's lane rule (Nightshift, Lanes) pins its own model: the critic
+    # on Nemotron, intake and Ask Cleris on whichever lane suits them. The same app for all three is the default.
     meterless_critic_app: str = "turbofan-maintenance-critic"
+    meterless_intake_app: str = "turbofan-maintenance-critic"
+    meterless_intake_model: str = "meterless/auto"
+    meterless_explain_app: str = "turbofan-maintenance-critic"
+    meterless_explain_model: str = "meterless/auto"
     critic_timeout_s: float = 45.0
     # Live status strip and GET /health: per-check timeout and how long a result is reused.
     status_timeout_s: float = 2.5
     status_ttl_s: float = 45.0
+
+    def lane(self, role: Literal["critic", "intake", "explain"]) -> tuple[str, str]:
+        """(Nightshift app, routing mode) for a model role."""
+        return getattr(self, f"meterless_{role}_app"), getattr(self, f"meterless_{role}_model")
 
     def explicit(self, name: str) -> bool:
         """True when the field was set (environment or .env.local), not left at its default."""

@@ -235,9 +235,9 @@ def explain(question: str, case: dict | None, pack: dict, settings: Settings,
     try:
         if not client.configured:
             return _fallback(matches, "AI help needs Nightshift, and no Nightshift runtime token is set.")
+        app, model = settings.lane("explain")
         reply = client.chat([{"role": "user", "content": build_prompt(question, facts, entries)}],
-                            model=settings.meterless_critic_model, temperature=0, max_tokens=600,
-                            app=settings.meterless_critic_app, timeout_s=settings.critic_timeout_s)
+                            model=model, temperature=0, max_tokens=600, app=app, timeout_s=settings.critic_timeout_s)
     except (LlmUnavailable, LlmRefusal, httpx.HTTPError) as error:
         log.warning("explain fell back to the glossary (%s: %s)", type(error).__name__, str(error)[:200])
         return _fallback(matches, f"Nightshift did not answer ({type(error).__name__}).")
@@ -245,7 +245,7 @@ def explain(question: str, case: dict | None, pack: dict, settings: Settings,
         if own:
             client.close()
     from tools.status import note_model_reply
-    note_model_reply(settings.meterless_critic_app, reply.model)      # the status strip names the lane's model
+    note_model_reply(settings.lane("explain")[0], reply.model)       # the status strip names the lane's model
     text = reply.text.strip()
     if not text:
         log.warning("explain fell back to the glossary (empty answer from %s)", reply.model)

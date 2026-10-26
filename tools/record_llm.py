@@ -45,8 +45,9 @@ def main() -> int:
     def call(purpose: str, prompt: str) -> recordings.Recording | None:
         for attempt in (1, 2):                  # one retry: Nightshift's provider answers 502 now and then
             try:
-                reply = client.chat([{"role": "user", "content": prompt}], model=live.meterless_critic_model,
-                                    temperature=0, max_tokens=MAX_TOKENS[purpose], app=live.meterless_critic_app,
+                app, model = live.lane(purpose)
+                reply = client.chat([{"role": "user", "content": prompt}], model=model,
+                                    temperature=0, max_tokens=MAX_TOKENS[purpose], app=app,
                                     response_format={"type": "json_object"},
                                     timeout_s=max(live.critic_timeout_s, 60.0))
                 (_parse if purpose == "critic" else _json)(reply.text)

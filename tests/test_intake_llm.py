@@ -26,11 +26,13 @@ def _settings(tmp_path, **overrides) -> Settings:
     return settings
 
 
-def _nightshift(monkeypatch, intake_reply: str, calls: list | None = None) -> None:
+def _nightshift(monkeypatch, intake_reply: str, calls: list | None = None, apps: list | None = None) -> None:
     def chat(self, messages, **kwargs):
         prompt = messages[0]["content"]
         if calls is not None:
             calls.append(prompt[:20])
+        if apps is not None:
+            apps.append((prompt[:7], kwargs.get("app")))
         text = intake_reply if prompt.startswith("You map") else '{"outcome": "accept", "gaps": []}'
         return LlmResponse(text=text, provider="meterless", requested_model="meterless/auto", model=MODEL,
                            duration_s=0.1)
@@ -102,3 +104,12 @@ def test_parser_hits_and_sample_mode_never_call_the_model(tmp_path, monkeypatch)
     assert not [c for c in calls if c.startswith("You map")]
     run_case("Should we pull the engine with serial 700131?", _settings(tmp_path, sample_mode=True))
     assert not [c for c in calls if c.startswith("You map")]
+
+
+def test_intake_and_critic_each_call_their_own_nightshift_app(tmp_path, monkeypatch):
+    apps: list = []
+    _nightshift(monkeypatch, '{"engine": "ESN-700131", "quote": "serial 700131"}', apps=apps)
+    settings = _settings(tmp_path, meterless_intake_app="turbofan-maintenance-intake")
+    run_case("Should we pull the engine with serial 700131?", settings)
+    assert ("You map", "turbofan-maintenance-intake") in apps
+    assert all(app == settings.meterless_critic_app for prefix, app in apps if prefix != "You map")

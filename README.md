@@ -185,6 +185,8 @@ Advisory agents propose; the gates can only send work back or stop it.
 
 The LLM critic runs as its own Nightshift app (`METERLESS_CRITIC_APP=turbofan-maintenance-critic`, sent as the `meterless-app` header) so Nightshift can pin it to a Nemotron lane whatever `meterless/auto` would pick for other apps. In Nightshift, give that app a Judge lane with an NVIDIA Nemotron model. The trace records the model that actually answered and notes `critic lane not pinned to Nemotron` when Claude or GPT answered.
 
+**One Nightshift app per model role.** The critic, free-text intake and Ask Cleris each call Nightshift through their own setting: `METERLESS_CRITIC_APP`, `METERLESS_INTAKE_APP` and `METERLESS_EXPLAIN_APP`, each with its routing mode (`METERLESS_*_MODEL`, default `meterless/auto`). All three default to `turbofan-maintenance-critic`, pinned to the Nemotron lane, which is what the demo, the replay page and the committed traces use. To serve a role from another model family, point its setting at another app (for example `turbofan-maintenance-explain`) and give that app a lane rule in Nightshift; no code changes. `uv run task check-llm --repeat 3` sends short requests through each role's app and reports the model and provider that answered, the latency, the cost Nightshift reports and its receipt ID; `uv run task preflight` checks each role the same way.
+
 ## Reliability and fallbacks
 
 | Failure | What the run does | What the brief says |
@@ -278,7 +280,7 @@ Our cloud (AWS RDS, S3, the Zetaris cluster) needs our credentials, which are ne
 
 **What we tested on 26 Oct 2026, and what we did not.** Tested on a Windows machine with Docker Desktop: step 1 with the C-MAPSS files already downloaded (the download itself was not re-run for this test), `db-up`, both roles, `seed-telemetry`, `seed-cmms` and `ingest-docs` with `--target local` (75,043 cycle rows for 400 engines; 400 assets and 1,577 work orders; 19 document sections including the 6 limit tables), and `fmea` (16 rows). As `zetaris_ro`, every table Zetaris needs is readable, while the answer key and any write are refused; as `app_rw`, a draft work order inserts (rolled back after the test). Not tested by us: steps 3 to 5 against a local stack, that is, registering a local Postgres and an S3 file in a Zetaris that can reach them and running a live brief end to end on it, because our Zetaris runs in AWS and cannot reach a database on a laptop. The same registration, context-service, Nightshift and preflight steps are the ones our cloud setup runs (`uv run task preflight`: every service passes).
 
-`uv run task check-llm` confirms Nightshift. `uv run task check` confirms RDS and Zetaris. Before recording a demo, `uv run task preflight` checks every live dependency (mode, Zetaris, context service, the Nemotron critic lane) and runs one live brief; it writes nothing.
+`uv run task check-llm` confirms Nightshift. `uv run task check` confirms RDS and Zetaris. Before recording a demo, `uv run task preflight` checks every live dependency (mode, Zetaris, context service, each model role's Nightshift lane with its receipt ID, the critic on Nemotron) and runs one live brief; it writes nothing.
 
 ### Back up and restore the live data
 
@@ -343,7 +345,7 @@ In AWS itself, an RDS snapshot and S3 versioning are the faster way back. This b
 | `uv run python run.py --serve` | `POST /run` on `RUN_HOST:RUN_PORT` (`GET /health` included) |
 | `docker build -t cleris .` then `docker run --rm -p 127.0.0.1:8000:8000 cleris` | Sample-mode API, no credentials; runs as a non-root user |
 | `uv run task check` | Read-only connectivity check (live credentials) |
-| `uv run task check-llm` | Nightshift `GET /v1/models` plus one chat request |
+| `uv run task check-llm` | Nightshift `GET /v1/models`, then a short request through each model role's app: model, provider, latency, cost and receipt ID (`--repeat N` for more) |
 | `uv run task context-service` | Meterless World Model + H-MEM on 127.0.0.1:8710 (once before: `npm ci --prefix context-service`) |
 | `uv run task load-context` | Load asset pack + 200 past cases into the context store |
 | `uv run task snapshot` | Rebuild `data/snapshot/*.parquet` (`--verify` compares with Zetaris) |
