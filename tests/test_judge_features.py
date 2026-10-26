@@ -1,10 +1,14 @@
 """Stress test, decision boundaries and fleet triage: the features a skeptical judge uses to check the brief."""
 
+import json
+from collections import Counter
+
 import pytest
 
 from data.db import load_pack
+from evaluation.faults import FAULTS
 from graph.runner import execute_run
-from settings import Settings
+from settings import ROOT, Settings
 from tools.triage import decision_kind, triage_row
 from ui.brief import decision_boundaries
 from ui.stress import gate_result, stress_rows
@@ -30,6 +34,21 @@ def test_stress_test_catches_every_applicable_mistake_and_passes_the_clean_brief
     applied = [r for r in rows if r["applies"]]
     assert len(rows) == 19 and len(applied) >= 13          # 17 faults plus the two AD compliance-line faults
     assert all(r["caught_by"] in {"rule checks", "critic"} and r["gaps"] for r in applied)
+
+
+def test_gates_catch_every_brief_nemotron_alone_was_given(settings):
+    """README, "Gates against Nemotron alone": the golden-brief and fault pairs in evaluation/llm_critic_report.json,
+    rebuilt the way uv run task eval-llm builds them, all stopped by the gates; the clean briefs pass."""
+    rows = json.loads((ROOT / "evaluation" / "llm_critic_report.json").read_text(encoding="utf-8"))["rows"]
+    reference = settings.reference_time.date()
+    caught = Counter()
+    for asset in sorted({r["asset"] for r in rows}):
+        case = execute_run(f"What is wrong with {asset}, how long do I have, and what should I do?", settings).case
+        assert gate_result(case, PACK, reference)["caught_by"] is None
+        for row in rows:
+            if row["asset"] == asset and row["fault"] != "clean":
+                caught[gate_result(FAULTS[row["fault"]](case, PACK), PACK, reference)["caught_by"]] += 1
+    assert caught == {"rule checks": 38, "critic": 4}
 
 
 def test_decision_boundaries_explain_the_swap_and_the_mandate(hpc):
