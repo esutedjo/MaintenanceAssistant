@@ -332,6 +332,45 @@
   aliases: [manual, maintenance manual]
   abbr: [AMM]
 
+- term: Mandatory now
+  full: document group
+  meaning: A document section whose mandate's conditions hold for this engine (for the demo AD, HPC wear and a planning
+    bound under 30 cycles), so compliance is due and the plan must say how it complies.
+  where: Plan and documents tab (first group), the brief's "Mandatory now" claim, the compliance line on the plan card.
+  aliases: [mandatory, mandatory document, compliance due]
+
+- term: Recommended
+  full: document group
+  meaning: A service bulletin's action that the manufacturer recommends; adopting it needs engineering approval, which
+    engineering records once for the whole fleet (an engineering order).
+  where: Plan and documents tab (second group), the "Service bulletin needs engineering approval" note.
+  aliases: [recommended document, compliance recommended, needs engineering approval]
+
+- term: Reference
+  full: document group
+  meaning: Manuals, procedures and background sections, plus a bulletin engineering declined and a mandate whose
+    conditions are not met for this engine, shown with why (for example "conditions not met, RUL lower bound 115 ≥ 30
+    cycles"). No compliance is due from these.
+  where: Plan and documents tab (third group), the brief's "Reference" claim.
+  aliases: [reference document, conditions not met]
+
+- term: Method of compliance
+  meaning: How the plan complies with a mandatory document, written on the plan card for the operator's AD compliance
+    record (US operators must keep it under 14 CFR 121.380), for example engine removal before the 10-cycle limit with
+    the borescope at shop induction. A plan with a mandatory document and no such line, or one that ends after the
+    limit, is sent back by the rule checks.
+  where: Plan card ("AD compliance"), the plan's claims, the draft work-order record.
+  aliases: [compliance line, AD compliance record, compliance record, complied with]
+
+- term: Engineering order
+  full: EO, fleet decision on a service bulletin
+  meaning: Engineering's signed decision to adopt or decline a recommended bulletin for a whole fleet, stored
+    append-only with a hash chain, so later briefs for that fleet cite it instead of asking again.
+  where: The "Record fleet decision" form on the service bulletin note; documents and plan claims ("declined for fleet
+    FD001 … (EO-FD001-001)").
+  aliases: [EO, fleet decision, engineering orders]
+  abbr: [EO]
+
 - term: Document precedence
   meaning: 'When documents disagree, the higher one wins: airworthiness directive, then service bulletin, then
     manual, then internal procedure, then past cases.'
@@ -347,6 +386,28 @@
   meaning: Sending an engine (or one module of it) to an engine shop to be taken apart and repaired.
   where: Verdict ("module shop visit on the removed engine").
   aliases: [module shop visit, overhaul]
+
+- term: Work package
+  meaning: The plan as the hangar works it, from the asset pack's templates per kind of work (engine change, module
+    shop visit induction, borescope inspection), with task references, required inspection items, tooling, manhours
+    and skills. The task references in this demo are synthetic (prefix SYN-); a lease-engine swap also lists what to
+    verify before installation.
+  where: The "Work package" expander under the plan card, the draft work-order record.
+  aliases: [work packages, task cards, job cards]
+
+- term: RII
+  full: required inspection item
+  meaning: A step whose work must be inspected by a qualified person who did not do it, such as engine mounts and
+    the engine control and fuel connections after an engine change.
+  where: Work package (red RII chips).
+  aliases: [required inspection item, required inspection items, duplicate inspection]
+  abbr: [RII]
+
+- term: Shop finding
+  meaning: What the engine shop found when a past engine was taken apart after removal, from the removal work order
+    in case memory, for example HPC stage 1-3 blades eroded and tip clearance beyond limits.
+  where: The brief's similar-cases claim, Similar past cases (History tab), In plain words.
+  aliases: [shop findings, what the shop found]
 
 - term: On wing
   meaning: Work done with the engine still fitted to the aircraft. The opposite is removing the engine for a shop

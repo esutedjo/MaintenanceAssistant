@@ -41,15 +41,18 @@ from casefile.schemas import CaseFile, InspectionFinding, Measurement
 from data.db import load_pack
 from graph.runner import execute_run
 from settings import get_settings
+from tools.engineering_orders import (
+    describe as describe_order, read_orders, record_order, store_path as orders_path, verify_orders,
+)
 from tools.inspections import EXAMPLES, limit_catalog, record_finding, store_dir
 from tools.writeback import approve_case, cited_cases, reject_case, signoff_anchors
 from tools import status as live_status
 from ui.brief import (
-    CSS, approval_gate, asks_for_inspection, asset_context, check_summary, decision_boundaries, decision_log_rows,
-    decision_rows, driving_sensor_figure, escalation_ack_label, escalation_view, fault_display, fault_label, fmt_rul,
-    inspection_rows, load_trace_file, md_lines, md_text, needs_tick, needs_urgent_reason, rul_context,
-    sensor_trend_rows, signature_sensors, similar_case_summaries, status_chips, strip_links, trace_chips, trace_rows,
-    verdict_headline, verdict_meta, verdict_tone, world_eligibility,
+    CSS, GROUP_NOTES, approval_gate, asks_for_inspection, asset_context, check_summary, decision_boundaries,
+    decision_log_rows, decision_rows, document_groups, driving_sensor_figure, escalation_ack_label, escalation_view,
+    fault_display, fault_label, fleet_decision_targets, fmt_rul, inspection_rows, load_trace_file, md_lines, md_text,
+    needs_tick, needs_urgent_reason, rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries,
+    status_chips, strip_links, trace_chips, trace_rows, verdict_headline, verdict_meta, verdict_tone, world_eligibility,
 )
 from ui.engine import component_probabilities, credit, engine_figure, engine_svg, photos
 from ui.explain import explain
@@ -276,6 +279,11 @@ def _brief_page(settings, pack: dict) -> None:
                     f'{html.escape(view["label"])}</span>{tip(view["title"])}</div>'
                     f'<div class="esc-msg">{tip(view["message"])}</div>{extra}</div>',
                     unsafe_allow_html=True)
+        if esc.get("rule") == "sb_adoption":
+            _fleet_decision_form(settings, case, pack, esc)
+    note = st.session_state.pop("eo_note", None)
+    if note:
+        st.success(md_text(note))                       # carries the typed signer name: a Markdown sink
 
     _explain("metrics")
     _overview_cards(case, pack)
@@ -371,7 +379,7 @@ def _overview_cards(case: dict, pack: dict) -> None:
         similar = findings.get("similar_cases") or []
         st.metric("Similar past cases", str(len(similar)))
         with st.popover("Why?", width="stretch"):
-            st.write("Past engines removed with the same fault, from case memory.")
+            st.write("Past engines removed with the same fault, from case memory, and what the shop found on each.")
             for line in similar_case_summaries(case) or ["None found (engine still in the healthy range)."]:
                 st.caption(md_text(line))
 
@@ -411,13 +419,83 @@ def _plan_summary(case: dict, tip=None) -> None:
                 f'<span class="ev-tag">{esc(graph["evidence_id"])}</span>')
         if graph["degraded"]:
             line += f" · {esc(graph['degraded'])}"
+    comply = "".join(
+        f'<div class="plan-comply"><b>{"AD compliance" if c.get("doc_type") == "airworthiness_directive" else "Compliance"}'
+        f'</b> · {esc(c.get("text") or "")}. <span class="ev-tag">{esc((c.get("evidence_ids") or [""])[0])}</span></div>'
+        for c in rec.get("compliance") or [])
     st.markdown(
         f'<div class="plan-card"><div class="plan-label">Plan</div>'
         f'<div class="plan-action">{esc(rec.get("action") or "")}</div>'
         f'<div class="plan-facts">{"".join(f"<span>{f}</span>" for f in facts)}</div>'
-        + (f'<div class="plan-graph">{line}</div>' if line else "") + "</div>",
+        + (f'<div class="plan-graph">{line}</div>' if line else "") + comply + "</div>",
         unsafe_allow_html=True,
     )
+    _work_package(rec.get("work_package"))
+
+
+def _work_package(package: dict | None) -> None:
+    """The plan on the hangar floor, folded under the plan card: one block per part of the work (engine change, shop
+    visit induction, borescope), its steps with RII flags, tooling, manhours and skill, and for a lease engine what to
+    verify before installation. Rows wrap on a tablet. Task references are synthetic."""
+    if not package:
+        return
+    esc = html.escape
+    sections = package.get("sections") or []
+    with st.expander(f"Work package · {len(sections)} part{'s' if len(sections) != 1 else ''} · "
+                     f"{package.get('manhours', 0):g} manhours · {package.get('rii', 0)} RII"):
+        st.caption(md_text(package.get("note") or "Task references are synthetic."))
+        for section in sections:
+            st.markdown(f"**{md_text(section['title'])}** · {md_text(section['when'])}")
+            meta = [f"Skill: {section['skill']}", f"{section['manhours']:g} manhours",
+                    f"for {', '.join(section['for_tasks'])}"]
+            if section.get("governed_by"):
+                meta.append(f"limits and intervals per {section['governed_by']}")
+            st.markdown(f'<div class="wp-meta">{esc(" · ".join(meta))}</div>' + "".join(
+                f'<div class="wp-row"><span class="wp-ref">{esc(t["ref"])}</span><span>{esc(t["title"])}</span>'
+                + ('<span class="wp-rii" title="Required inspection item: inspected by someone who did not do the '
+                   'work">RII</span>' if t.get("rii") else "")
+                + f'<span class="wp-h">{t["manhours"]:g} h</span></div>' for t in section.get("tasks") or []),
+                unsafe_allow_html=True)
+            if section.get("tooling"):
+                st.caption("Tooling: " + md_text("; ".join(section["tooling"])))
+            if section.get("verify_before_installation"):
+                st.markdown("**To verify before installation** (Cleris has no data on these)")
+                st.markdown("\n".join(f"- {md_text(item)}" for item in section["verify_before_installation"]))
+
+
+DECISIONS = {"decline": "Decline: the plan follows the manual", "adopt": "Adopt: the plan follows the service bulletin"}
+
+
+def _fleet_decision_form(settings, case: dict, pack: dict, esc: dict) -> None:
+    """On the sb_adoption note: engineering records adopt or decline once for the whole fleet (an engineering order,
+    signed, append-only and hash-chained in engineering_orders.jsonl); later briefs for every engine of that fleet
+    cite it instead of raising the note. Not exposed through the API."""
+    for target in fleet_decision_targets({**case, "escalations": [esc]}):
+        doc_id, fleet = target["doc_id"], target["fleet"]
+        key = f"eo_{fleet}_{doc_id}"
+        with st.expander(f"Record fleet decision on {md_text(doc_id)} for {md_text(fleet)} (engineering order)"):
+            st.caption(f"Engineering decides once for fleet {fleet}: later briefs for every {fleet} engine cite this "
+                       "engineering order instead of raising this note. Stored signed, append-only and hash-chained "
+                       f"in {orders_path(settings).name}; a later order for the same bulletin supersedes it.")
+            choice = st.radio("Decision", list(DECISIONS), format_func=DECISIONS.get, key=f"{key}_decision")
+            with st.container(key=f"grid2-{key}"):
+                c1, c2 = st.columns(2)
+            name = c1.text_input("Signed by", key=f"{key}_name", placeholder="Your name (required)", max_chars=120)
+            reference = c2.text_input("Reference (optional)", key=f"{key}_ref", max_chars=120,
+                                      placeholder="e.g. your EO number or meeting minute")
+            if st.button("Record fleet decision", key=f"{key}_record", disabled=not (name or "").strip(),
+                         width="stretch"):
+                try:
+                    row = record_order(settings, fleet=fleet, doc_id=doc_id, decision=choice,
+                                       signer=Signer(name=name), pack=pack, reference=reference)
+                except ValueError as error:
+                    st.error(f"Not recorded: {md_text(error)}")
+                    return
+                _, chain = verify_orders(read_orders(settings))
+                st.session_state.eo_note = (f"Recorded engineering order {describe_order(row)} ({chain}). Re-ran "
+                                            "the brief.")
+                st.session_state.run_now = True
+                st.rerun()
 
 
 def _inspection_card(case: dict, pack: dict, tip=None) -> None:
@@ -642,30 +720,37 @@ def _tab_documents(case: dict, pack: dict) -> None:
     docs = (case.get("findings") or {}).get("documents") or []
     evidence = case.get("evidence") or {}
     order = " > ".join(DOC_TYPE.get(t, t) for t in (pack.get("documents") or {}).get("precedence") or [])
-    st.caption(f"Sections that apply to this engine and finding, highest precedence first ({order}). "
-               "Only revisions in effect on the reference date are used. All documents are SYNTHETIC.")
+    st.caption(f"Sections that apply to this engine and finding, grouped by what they mean for compliance; highest "
+               f"precedence first within a group ({order}). Only revisions in effect on the reference date are used. "
+               "All documents are SYNTHETIC.")
     if not docs:
         st.info("No document applies to this case.")
         return
-    for d in docs:
-        ev = evidence.get(d["evidence_id"]) or {}
-        content = ev.get("content") or {}
-        kind = DOC_TYPE.get(d["doc_type"], d["doc_type"])
-        with st.container(border=True):
-            badge = ("**MANDATORY** · " if d.get("mandatory") else
-                     "overridden · " if d.get("overridden_by") else "")
-            st.markdown(f"{badge}**{md_text(d['doc_id'])} {md_text(d['section'])}: {md_text(d['heading'])}**  \n"
-                        f"{kind} · revision {md_text(d['revision'])} · effective {md_text(d['effective_date'])} · "
-                        f"`{d['evidence_id']}`")
-            if d.get("mandatory"):
-                st.error(md_text(f"Required: {d.get('action')} (FMEA task {d.get('required_task')}, within "
-                                 f"{d.get('within_cycles')} cycles). Applies because {content.get('mandate_reason')}."))
-            elif d.get("overridden_by"):
-                st.warning(md_text(f"On this topic, {d['overridden_by']} takes precedence (higher document type)."))
-            elif content.get("mandate"):
-                st.caption(md_text(ev.get("summary", "").split("]: ", 1)[-1]))
-            st.markdown(md_lines(content.get("text", "")))
-            st.caption(md_text(f"Relevance to this finding {d['relevance']:.2f} · source {ev.get('source', '')}"))
+    for key, title, group in document_groups(case):
+        st.markdown(f"##### {title} ({len(group)})")
+        st.caption(GROUP_NOTES[key])
+        for d in group:
+            _document_card(d, evidence)
+
+
+def _document_card(d: dict, evidence: dict) -> None:
+    ev = evidence.get(d["evidence_id"]) or {}
+    content = ev.get("content") or {}
+    kind = DOC_TYPE.get(d["doc_type"], d["doc_type"])
+    with st.container(border=True):
+        badge = ("**MANDATORY NOW** · " if d.get("mandatory") else
+                 "**RECOMMENDED** · " if d.get("group") == "recommended" else "")
+        tags = " ".join(f"`{i}`" for i in (d["evidence_id"], d.get("decision_evidence_id")) if i)
+        st.markdown(f"{badge}**{md_text(d['doc_id'])} {md_text(d['section'])}: {md_text(d['heading'])}**  \n"
+                    f"{kind} · revision {md_text(d['revision'])} · effective {md_text(d['effective_date'])} · {tags}")
+        if d.get("mandatory"):
+            st.error(md_text(f"Required: {d.get('action')} (FMEA task {d.get('required_task')}, within "
+                             f"{d.get('within_cycles')} cycles). Applies because {content.get('mandate_reason')}."))
+        elif d.get("group_reason"):
+            show = st.info if d.get("group") == "recommended" or d.get("fleet_decision") else st.caption
+            show(md_text(d["group_reason"][:1].upper() + d["group_reason"][1:] + "."))
+        st.markdown(md_lines(content.get("text", "")))
+        st.caption(md_text(f"Relevance to this finding {d['relevance']:.2f} · source {ev.get('source', '')}"))
     retrieval = next((e for e in evidence.values()
                       if e.get("produced_by") == "knowledge" and e.get("kind") == "query"), None)
     if retrieval and retrieval["content"].get("excluded"):
@@ -863,9 +948,11 @@ def _tab_history(case: dict, ctx: dict) -> None:
                  f"({slots['days_to_first_free']} days out).")
     similar = similar_case_summaries(case)
     if similar:
-        st.markdown("**Similar past cases**")
+        st.markdown("**Similar past cases: what the shop found**")
         for line in similar:
-            st.caption(md_text(line))
+            st.markdown(f"- {md_text(line)}")
+        st.caption("From the removal work orders in case memory (synthetic CMMS records); the shop's own words, in "
+                   "sentence case.")
     ids = [x["id"] for x in (history, schedule, slots) if x]
     _evidence_list(case, ids + ((case.get("findings") or {}).get("similar_cases") or []))
 

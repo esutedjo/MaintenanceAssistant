@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from agents.close import close_case
 from agents.critic import critic
 from agents.data import data_agent, data_task
-from agents.diagnostics import diagnostics, diagnostics_task
+from agents.diagnostics import diagnostics, diagnostics_task, similar_cases_claim
 from agents.escalation import escalation
 from agents.intake import intake
 from agents.knowledge import knowledge, knowledge_task
@@ -141,7 +141,10 @@ def brief(state: CaseFile, ctx: RunContext) -> NodeResult:
                                  f"at cycle {findings.anomaly.cycle}.",
                             evidence_ids=[findings.anomaly.evidence_id], confidence="medium"))
     if findings.similar_cases:
-        claims.append(Claim(text=f"{len(findings.similar_cases)} similar past removals found in case memory.",
+        # What the shop found on each cited past removal, not only how many there were (casefile/shop_findings.py).
+        claims.append(Claim(text=similar_cases_claim(state.evidence, findings.similar_cases,
+                                                     f"{len(findings.similar_cases)} similar past removals found in "
+                                                     "case memory."),
                             evidence_ids=findings.similar_cases, confidence="medium"))
     unresolved = state.unresolved([i for c in claims for i in c.evidence_ids])
     if unresolved:

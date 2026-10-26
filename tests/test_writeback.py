@@ -167,7 +167,8 @@ def test_approve_needs_every_escalation_acknowledged_and_reject_does_not(setting
 
 def test_approve_despite_an_urgent_escalation_needs_a_reason_and_reject_does_not(settings, tmp_path):
     case = execute_run("How long can FD003-A100 keep flying and what is wrong with it?", settings).case
-    assert [(e.rule, e.severity) for e in case.escalations] == [("rul_below_lead_time", "urgent")]
+    assert [(e.rule, e.severity) for e in case.escalations] == [("rul_below_lead_time", "urgent"),
+                                                                ("sb_adoption", "info")]
     with pytest.raises(ValueError, match="needs a reason; urgent: rul_below_lead_time"):
         approve_case(case, settings, path=tmp_path / "wo.jsonl", signer=SIGNER, acknowledged=[0], reason="  ")
     assert not (tmp_path / "wo.jsonl").exists() and not (tmp_path / "decision_logs").exists()

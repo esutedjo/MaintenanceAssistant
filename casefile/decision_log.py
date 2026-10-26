@@ -12,14 +12,23 @@ import hashlib
 import json
 import re
 from collections import Counter
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from casefile.calls import CALL_ACTIONS
-from casefile.schemas import MAX_ROUNDS, CaseFile, Escalation, TraceEvent, Verdict, as_utc, utcnow
+from casefile.schemas import (
+    MAX_ROUNDS,
+    CaseFile,
+    Escalation,
+    TraceEvent,
+    Verdict,
+    as_utc,
+    utcnow,
+)
 
 ActorType = Literal["agent", "gate", "model", "human"]
 # Trace lines that record a call or an audit detail, not a decision: Zetaris queries, context-store calls and the
@@ -118,7 +127,8 @@ def derive_log(case: CaseFile) -> list[DecisionEntry]:
     """Agent, gate and model decisions in trace order. Each gate trace line is paired with that gate's next verdict.
     Inspection findings an inspector entered come first: they were recorded before this run read them."""
     verdicts = {gate: iter([v for v in case.verdicts if v.gate == gate]) for gate in ("rule_checks", "critic")}
-    entries, plans, round_no = _inspectors(case), 0, None
+    entries = sorted([*_engineering_orders(case), *_inspectors(case)], key=lambda e: e.timestamp)
+    plans, round_no = 0, None
     for event in case.trace:
         if event.action in NOT_DECISIONS:
             continue
@@ -352,6 +362,23 @@ def _inspectors(case: CaseFile) -> list[DecisionEntry]:
                                 + evidence.summary.split(": ", 1)[-1]),
             evidence_ids=[evidence.id]))
     return sorted(entries, key=lambda e: e.timestamp)
+
+
+def _engineering_orders(case: CaseFile) -> list[DecisionEntry]:
+    """Engineering's fleet decisions on service bulletins that the brief cites (engineering orders): one human entry
+    each, by the engineer who signed it, at the time it was signed (UTC)."""
+    entries = []
+    for evidence in [e for e in case.evidence.values() if e.source.startswith("engineering_orders:")]:
+        row = evidence.content
+        verb = "Adopted" if row.get("decision") == "adopt" else "Declined"
+        entries.append(DecisionEntry(
+            timestamp=as_utc(datetime.fromisoformat(str(row["decided_at"]).replace("Z", "+00:00"))),
+            run_id=run_id_of(case), actor_type="human", actor=(row.get("signer") or {}).get("name") or "engineering",
+            decision="recorded fleet decision",
+            rationale=_sentence(f"{verb} {row.get('doc_id')} for fleet {row.get('fleet')} ({row.get('eo_id')}); the "
+                                "brief cites it instead of asking engineering again"),
+            evidence_ids=[evidence.id]))
+    return entries
 
 
 def _comparisons(case: CaseFile, event: TraceEvent) -> Iterator[DecisionEntry]:

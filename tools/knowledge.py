@@ -140,6 +140,27 @@ def mandate_applies(mandate: dict, fault_modes: list[tuple[str, float]], rul_low
     return "; ".join(parts)
 
 
+def mandate_unmet(mandate: dict, fault_modes: list[tuple[str, float]], rul_lower: float | None) -> str:
+    """Which of the mandate's conditions do not hold for this case, worded for the engineer (the reference group)."""
+    wanted = set(mandate.get("failure_modes") or [])
+    p_min = mandate.get("min_probability", 0.0)
+    out = []
+    if wanted:
+        present = [(m, p) for m, p in fault_modes if m in wanted]
+        if not present:
+            out.append(f"no {' or '.join(sorted(wanted))} finding")
+        elif all(p < p_min for _, p in present):
+            mode, p = max(present, key=lambda x: x[1])
+            out.append(f"{mode} p={p:.2f} < {p_min}")
+    below = mandate.get("rul_lower_below")
+    if below is not None:
+        if rul_lower is None:
+            out.append("no remaining-life lower bound")
+        elif rul_lower >= below:
+            out.append(f"RUL lower bound {rul_lower:.0f} ≥ {below} cycles")
+    return " and ".join(out) or "its conditions do not hold"
+
+
 def mandate_conditions(mandate: dict) -> str:
     parts = []
     if mandate.get("failure_modes"):

@@ -1,6 +1,6 @@
 {
- "run_id": "20261026T071517Z-77e592",
- "trace_id": "trace-20261026T071517Z-77e592",
+ "run_id": "20261026T082952Z-c02828",
+ "trace_id": "trace-20261026T082952Z-c02828",
  "status": "needs_review",
  "question": "What is the status of FD001-A001?",
  "mode": {
@@ -85,7 +85,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-02"
+    "evidence_id": "EV-KNW-02",
+    "group": "reference",
+    "group_reason": "conditions not met: RUL lower bound 115 \u2265 30 cycles",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "SB-TF-72-0142",
@@ -104,7 +108,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-03"
+    "evidence_id": "EV-KNW-03",
+    "group": "recommended",
+    "group_reason": "compliance recommended, no fleet decision yet",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "AMM-TF-R3",
@@ -123,7 +131,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": "SB-TF-72-0142 3.B",
-    "evidence_id": "EV-KNW-04"
+    "evidence_id": "EV-KNW-04",
+    "group": "reference",
+    "group_reason": "the plan follows it until engineering decides on SB-TF-72-0142 3.B, which would replace it on this topic",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "AMM-TF-R3",
@@ -143,7 +155,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-05"
+    "evidence_id": "EV-KNW-05",
+    "group": "reference",
+    "group_reason": null,
+    "fleet_decision": null,
+    "decision_evidence_id": null
    }
   ],
   "inspections": [],
@@ -181,12 +197,21 @@
     "confidence": "high"
    },
    {
-    "text": "Applicable documents, highest precedence first: AD-2026-17-04 (g), SB-TF-72-0142 3.B, AMM-TF-R3 72-31-00, AMM-TF-R3 05-20-00.",
+    "text": "Recommended, needs engineering approval: SB-TF-72-0142 3.B (service bulletin, compliance recommended, no fleet decision yet).",
+    "evidence_ids": [
+     "EV-KNW-03"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "Reference: AD-2026-17-04 (g) (airworthiness directive, conditions not met: RUL lower bound 115 \u2265 30 cycles); AMM-TF-R3 72-31-00 (manual, the plan follows it until engineering decides on SB-TF-72-0142 3.B, which would replace it on this topic); AMM-TF-R3 05-20-00 (manual).",
     "evidence_ids": [
      "EV-KNW-02",
-     "EV-KNW-03",
      "EV-KNW-04",
-     "EV-KNW-05"
+     "EV-KNW-05",
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-DIA-01"
     ],
     "confidence": "medium"
    }
@@ -240,7 +265,9 @@
     "confidence": "high"
    }
   ],
-  "confidence": "high"
+  "confidence": "high",
+  "compliance": [],
+  "work_package": null
  },
  "escalations": [],
  "verdicts": [
@@ -325,7 +352,7 @@
   "EV-KNW-02": {
    "kind": "document",
    "source": "snapshot:doc_chunks.parquet#AD-2026-17-04#(g)",
-   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: mandatory only when hpc_degradation with p >= 0.5 and RUL lower bound < 30 cycles; not met here (RUL lower bound 115)",
+   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: mandatory only when hpc_degradation with p >= 0.5 and RUL lower bound < 30 cycles; not met here: RUL lower bound 115 \u2265 30 cycles",
    "produced_by": "knowledge",
    "degraded": null
   },
@@ -402,8 +429,8 @@
  },
  "decision_log": [
   {
-   "timestamp": "2026-10-26T07:15:17.982942Z",
-   "run_id": "20261026T071517Z-77e592",
+   "timestamp": "2026-10-26T08:29:52.190694Z",
+   "run_id": "20261026T082952Z-c02828",
    "actor_type": "agent",
    "actor": "intake",
    "decision": "resolved engine",
@@ -416,8 +443,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:18.181083Z",
-   "run_id": "20261026T071517Z-77e592",
+   "timestamp": "2026-10-26T08:29:52.398355Z",
+   "run_id": "20261026T082952Z-c02828",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "no follow-up needed",
@@ -428,8 +455,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:18.208930Z",
-   "run_id": "20261026T071517Z-77e592",
+   "timestamp": "2026-10-26T08:29:52.434890Z",
+   "run_id": "20261026T082952Z-c02828",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "proposed plan",
@@ -445,8 +472,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:18.212930Z",
-   "run_id": "20261026T071517Z-77e592",
+   "timestamp": "2026-10-26T08:29:52.438890Z",
+   "run_id": "20261026T082952Z-c02828",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -458,8 +485,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:18.214931Z",
-   "run_id": "20261026T071517Z-77e592",
+   "timestamp": "2026-10-26T08:29:52.440890Z",
+   "run_id": "20261026T082952Z-c02828",
    "actor_type": "model",
    "actor": "nvidia/nemotron-3-ultra-550b-a55b",
    "decision": "reviewed the brief",
@@ -472,8 +499,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:18.214931Z",
-   "run_id": "20261026T071517Z-77e592",
+   "timestamp": "2026-10-26T08:29:52.440890Z",
+   "run_id": "20261026T082952Z-c02828",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "accepted",
@@ -485,8 +512,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:18.215931Z",
-   "run_id": "20261026T071517Z-77e592",
+   "timestamp": "2026-10-26T08:29:52.441890Z",
+   "run_id": "20261026T082952Z-c02828",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "no escalation",
@@ -569,7 +596,7 @@
    "source": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
- "trace_file": "logs\\trace-20261026T071517Z-77e592.jsonl",
- "duration_s": 0.25,
- "execution_time_seconds": 0.25
+ "trace_file": "logs\\trace-20261026T082952Z-c02828.jsonl",
+ "duration_s": 0.26,
+ "execution_time_seconds": 0.265
 }

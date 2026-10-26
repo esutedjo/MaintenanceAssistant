@@ -3,9 +3,10 @@ from datetime import date
 import pytest
 
 from assurance.escalation import run_escalations
+from assurance.routing import ROUTES, gap_kind
 from assurance.rules import mandates_honoured
 from casefile.schemas import (
-    AssetRef, CaseFile, Claim, DocumentFinding, Evidence, Intent, Recommendation,
+    AssetRef, CaseFile, Claim, ComplianceLine, DocumentFinding, Evidence, Intent, Recommendation,
 )
 from data.db import load_pack
 from graph.runner import run_case
@@ -66,14 +67,19 @@ def test_fan_retrieval_skips_fd001_only_documents_and_hpc_mandate(chunks):
     assert all("fan" in r.chunk["components"] or "engine" in r.chunk["components"] for r in found.applicable)
 
 
-def _mandate_case(task_ids: list[str], cite: bool, deadline: date) -> CaseFile:
+def _mandate_case(task_ids: list[str], cite: bool, deadline: date, comply_by: date | None = date(2026, 10, 25)
+                  ) -> CaseFile:
     doc = DocumentFinding(doc_id="AD-2026-17-04", doc_type="airworthiness_directive", section="(g)", heading="h",
                           revision="0", effective_date="2026-09-01", precedence=0, relevance=0.2, mandatory=True,
                           required_task="FM-HPC-01", within_cycles=10, action="Borescope", evidence_id="EV-KNW-02")
     ev = Evidence(id="EV-KNW-02", kind="document", source="t", summary="s", content={}, produced_by="knowledge")
+    lines = [ComplianceLine(doc_id="AD-2026-17-04", section="(g)", doc_type="airworthiness_directive",
+                            task_id="FM-HPC-01", method="on_wing", comply_by=comply_by, limit=date(2026, 10, 27),
+                            within_cycles=10, text="AD-2026-17-04 (g): complied with by FM-HPC-01 by the date",
+                            evidence_ids=["EV-KNW-02"])] if comply_by else []
     rec = Recommendation(action="Swap", task_ids=task_ids, deadline=deadline,
                          rationale=[Claim(text="x", evidence_ids=["EV-KNW-02" if cite else "EV-PRG-01"],
-                                          confidence="high")], confidence="high")
+                                          confidence="high")], confidence="high", compliance=lines)
     return CaseFile(case_id="c", question="q", asset=AssetRef(asset_id="FD001-A031", asset_type="turbofan_cmapss",
                                                              pack_version="0.1.0", variant="FD001"),
                     intent=Intent(goal="full_assessment", asset_id="FD001-A031"), evidence={"EV-KNW-02": ev},
@@ -85,6 +91,19 @@ def test_rule_check_blocks_dropping_or_deferring_a_mandate():
     assert mandates_honoured(_mandate_case(["FM-HPC-06"], True, date(2026, 10, 25)), PACK, ON)
     assert mandates_honoured(_mandate_case(["FM-HPC-01"], False, date(2026, 10, 25)), PACK, ON)
     assert mandates_honoured(_mandate_case(["FM-HPC-01"], True, date(2026, 11, 30)), PACK, ON)
+
+
+def test_rule_check_needs_the_method_of_compliance_within_the_limit():
+    """14 CFR 121.380-style compliance record: a mandatory document needs a compliance line in the plan, ending by
+    the document's limit (10 cycles = 2026-10-27 at 2 cycles a day)."""
+    missing = mandates_honoured(_mandate_case(["FM-HPC-01"], True, date(2026, 10, 25), comply_by=None), PACK, ON)
+    assert len(missing) == 1 and missing[0].startswith("compliance line for AD-2026-17-04 (g) is missing")
+    late = mandates_honoured(_mandate_case(["FM-HPC-01"], True, date(2026, 10, 25), comply_by=date(2026, 10, 30)),
+                             PACK, ON)
+    assert late == ["compliance line for AD-2026-17-04 (g) completes on 2026-10-30, after the 10-cycle limit "
+                    "(2026-10-27)"]
+    assert [gap_kind(g) for g in missing + late] == ["missing_compliance", "compliance_late"]
+    assert {ROUTES[k][0] for k in ("missing_compliance", "compliance_late")} == {"maint_planner"}
 
 
 def test_mandate_escalation_is_listed_first():

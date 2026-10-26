@@ -8,13 +8,16 @@ targeted fix for each gap kind the planner routed to it."""
 from datetime import date as date_cls, timedelta
 
 from agents.runtime import NodeResult, RunContext, node
-from assurance.escalation import needs_approval, parts_wait_days, pending_adoptions, remaining_shorter_than_wait
+from assurance.escalation import (manual_for_task, needs_approval, parts_wait_days, pending_adoptions,
+                                  remaining_shorter_than_wait)
 from casefile.schemas import (
-    RESULT_RANK, CaseFile, Claim, Confidence, EvidenceLedger, Findings, PartNeed, Recommendation,
+    RESULT_RANK, CaseFile, Claim, ComplianceLine, Confidence, EvidenceLedger, Findings, PartNeed, Recommendation,
 )
 from casefile.wear import no_wear_label, no_wear_text
 from casefile.world import asset_state, fmea_extra, mandated_for_mode, tasks_addressing
+from tools import work_packages
 from tools.data_tools import DataTools
+from tools.engineering_orders import describe as describe_order
 from tools.inspections import RESULT_TEXT, mode_for_module, where
 
 SEVERITY_RANK = {"none": 0, "minor": 1, "moderate": 2, "severe": 3}
@@ -370,16 +373,51 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     for task in chosen:
         rationale.append(Claim(text=f"World Model task {task['fmea_id']}: {task['task']}.",
                                evidence_ids=world_ids or rul_ids, confidence=confidence))
+    governed: dict[str, str] = {}          # task -> the document whose limits and intervals the work follows
     for task_id, doc in _governing_documents(state, [t["fmea_id"] for t in chosen]).items():
         replaced = next((d for sb, d in pending_adoptions(state) if sb.evidence_id == doc.evidence_id), None)
         if replaced is not None and needs_approval(doc):
             # A recommended SB is not adopted silently: the plan keeps the manual until engineering approves it.
+            governed[task_id] = f"{replaced.doc_id} {replaced.section}"
             rationale.append(Claim(
                 text=(f"Limits and intervals for {task_id} follow {replaced.doc_id} {replaced.section} "
                       f"({replaced.doc_type.replace('_', ' ')}); {doc.doc_id} {doc.section} "
                       f"({doc.doc_type.replace('_', ' ')}) would replace it on that topic: SB recommended; adopting "
                       "it needs engineering approval."),
                 evidence_ids=[replaced.evidence_id, doc.evidence_id], confidence="high"))
+            continue
+        if needs_approval(doc):
+            # The bulletin shares no topic with a manual section, so it replaces nothing by precedence; it is still
+            # not approved data until engineering adopts it, so the work follows the manual section for the task.
+            manual = manual_for_task(state, task_id)
+            if manual is None:
+                rationale.append(Claim(
+                    text=(f"{doc.doc_id} {doc.section} ({doc.doc_type.replace('_', ' ')}) is the only document found "
+                          f"on the limits and intervals for {task_id}: SB recommended; the work follows it only once "
+                          "engineering adopts it for the fleet."),
+                    evidence_ids=[doc.evidence_id], confidence="high"))
+                continue
+            governed[task_id] = f"{manual.doc_id} {manual.section}"
+            rationale.append(Claim(
+                text=(f"Limits and intervals for {task_id} follow {manual.doc_id} {manual.section} "
+                      f"({manual.doc_type.replace('_', ' ')}); {doc.doc_id} {doc.section} "
+                      f"({doc.doc_type.replace('_', ' ')}) also covers it: SB recommended; adopting it needs "
+                      "engineering approval."),
+                evidence_ids=[manual.evidence_id, doc.evidence_id], confidence="high"))
+            continue
+        governed[task_id] = f"{doc.doc_id} {doc.section}"
+        # Engineering's fleet decision on the bulletin for this topic: adopted (the plan follows the bulletin) or
+        # declined (the plan follows the section it would have replaced). Cited, not asked again.
+        decided = next((d for d in findings.documents if d.decision_evidence_id and (
+            d.evidence_id == doc.evidence_id if d.fleet_decision == "adopt"
+            else f"{d.doc_id} {d.section}" == doc.overridden_by)), None)
+        if decided is not None:
+            order = state.evidence[decided.decision_evidence_id].content
+            rationale.append(Claim(
+                text=(f"Limits and intervals for {task_id} follow {doc.doc_id} {doc.section} "
+                      f"({doc.doc_type.replace('_', ' ')}): {describe_order(order)}."),
+                evidence_ids=list(dict.fromkeys([doc.evidence_id, decided.evidence_id, decided.decision_evidence_id])),
+                confidence="high"))
             continue
         rationale.append(Claim(
             text=(f"Limits and intervals for {task_id} follow {doc.doc_id} {doc.section} "
@@ -390,6 +428,26 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
             text=(f"{doc.doc_id} {doc.section} mandates {doc.required_task} within {doc.within_cycles} cycles; "
                   "it stays in the plan whatever else is chosen."),
             evidence_ids=[doc.evidence_id, *(world_ids or [])], confidence="high"))
+    # How each mandate is complied with, for the operator's compliance record (method of compliance).
+    removal = bool(swap) or gate == "beyond" or any(str(t["task"]).lower().startswith("remove engine") for t in chosen)
+    work_by = slot_date if grounded and slot_date else deadline
+    compliance = [_compliance(doc, chosen + catalogue, removal, work_by, grounded and slot_date is not None,
+                              reference, cycles_per_day, [planning.id, *([slots_ev.id] if slots_ev else [])])
+                  for doc in mandates]
+    rationale += [Claim(text=f"{c.text}.", evidence_ids=c.evidence_ids, confidence="high") for c in compliance]
+    # What the plan means on the hangar floor: the asset pack's work-package templates for the planned tasks.
+    package = None
+    data = work_packages.build(pack, [t["fmea_id"] for t in chosen], slot=slot_date, deadline=deadline,
+                               removal=removal, governed_by=governed)
+    if data is not None:
+        said = work_packages.summary(data)
+        evidence = ledger.add("rule", f"asset_pack:{pack['asset_type']}/work_packages",
+                              f"Work package from the asset pack's templates (synthetic task references): {said}; "
+                              f"{data['manhours']:g} manhours, {data['rii']} RII in all", data)
+        package = work_packages.typed(data, evidence.id)
+        rationale.append(Claim(text=(f"Work package (asset-pack templates, synthetic task references): {said}; "
+                                     f"{data['manhours']:g} manhours in all."),
+                               evidence_ids=[evidence.id], confidence="medium"))
     if findings.fault_modes:
         top = findings.fault_modes[0]
         quiet = no_wear_label(findings.model_dump(), pack, variant)
@@ -456,7 +514,8 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
                        {"withdrawn": withdrawn})
 
     rec = Recommendation(action=action, task_ids=[t["fmea_id"] for t in chosen], parts=parts,
-                         slot=slot_date, deadline=deadline, rationale=rationale, confidence=confidence)
+                         slot=slot_date, deadline=deadline, rationale=rationale, confidence=confidence,
+                         compliance=compliance, work_package=package)
     update = {"recommendation": rec, "evidence": ledger.records, "round": max(state.round, 1)}
     done = [t.model_copy(update={"status": "done"}) for t in state.pending("maint_planner")]
     if done:
@@ -473,6 +532,30 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
 
 def _lower_first(text: str) -> str:
     return text[:1].lower() + text[1:]
+
+
+def _compliance(doc, tasks: list[dict], removal: bool, work_by, at_slot: bool, reference, cycles_per_day: float,
+                cited: list[str]) -> ComplianceLine:
+    """The method of compliance with one mandatory document: the engine comes off before the limit and the required
+    task is done at shop induction, or the required task is done on wing by the plan's date. The rule checks send the
+    plan back when this line is missing or ends after the document's limit."""
+    label = f"{doc.doc_id} {doc.section}"
+    task = next((t for t in tasks if t["fmea_id"] == doc.required_task), None)
+    what = (f"{doc.required_task} ({_lower_first(str(task['task']).split(';')[0].strip())})" if task
+            else doc.required_task or "the required action")
+    record = "AD compliance record" if doc.doc_type == "airworthiness_directive" else "compliance record"
+    limit = (reference + timedelta(days=int(doc.within_cycles / cycles_per_day)) if doc.within_cycles is not None
+             else work_by)
+    if removal:
+        when = f"removal at the first free slot {work_by}" if at_slot else f"removal by {work_by}"
+        text = (f"{label}: complied with by engine removal before the {doc.within_cycles}-cycle limit ({when}, limit "
+                f"{limit}); {what} at shop induction; record in the {record}")
+    else:
+        text = (f"{label}: complied with by {what} by {work_by} (within {doc.within_cycles} cycles, limit {limit}); "
+                f"record in the {record}")
+    return ComplianceLine(doc_id=doc.doc_id, section=doc.section, doc_type=doc.doc_type, task_id=doc.required_task,
+                          method="engine_removal" if removal else "on_wing", comply_by=work_by, limit=limit,
+                          within_cycles=doc.within_cycles, text=text, evidence_ids=[doc.evidence_id, *cited])
 
 
 def _inspection_deadline_text(item, deadline, rul_deadline, cycles_per_day: float) -> str:
@@ -567,11 +650,14 @@ def _cycles_since_moderate(state: CaseFile) -> tuple[int | None, int | None, int
 
 
 def _governing_documents(state: CaseFile, task_ids: list[str]) -> dict:
-    """Task → the applicable, non-overridden document section that sets its limits (sections with a topic)."""
+    """Task → the applicable, non-overridden document section that sets its limits (sections with a topic). A bulletin
+    engineering declined for the fleet does not govern; the section it would have replaced does."""
+    declined = {f"{d.doc_id} {d.section}" for d in state.findings.documents if d.fleet_decision == "decline"}
     out = {}
     for doc in state.findings.documents:
         content = state.evidence[doc.evidence_id].content
-        if doc.overridden_by or not content.get("topic"):
+        if (doc.fleet_decision == "decline" or (doc.overridden_by and doc.overridden_by not in declined)
+                or not content.get("topic")):
             continue
         for task_id in str(content.get("tasks") or "").split(","):
             if task_id in task_ids and task_id not in out:

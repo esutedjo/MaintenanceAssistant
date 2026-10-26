@@ -28,7 +28,8 @@ OWNER = {"uncited_claim": "maint_planner", "evidence_deleted": "prognostics", "r
          "wrong_asset": None, "fabricated_part": "data", "stock_inflated": "data", "slot_not_free": "data",
          "deadline_past_rul": "maint_planner", "mandate_dropped": "knowledge", "mandate_uncited": "knowledge",
          "drivers_as_signature": "maint_planner", "similar_cases_dropped": "diagnostics",
-         "claim_number_altered": "maint_planner", "inspection_ignored": "maint_planner"}
+         "claim_number_altered": "maint_planner", "inspection_ignored": "maint_planner",
+         "compliance_dropped": "maint_planner", "compliance_late": "maint_planner"}
 
 
 @pytest.fixture

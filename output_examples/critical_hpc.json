@@ -1,6 +1,6 @@
 {
- "run_id": "20261026T071512Z-0a4c01",
- "trace_id": "trace-20261026T071512Z-0a4c01",
+ "run_id": "20261026T082946Z-91f934",
+ "trace_id": "trace-20261026T082946Z-91f934",
  "status": "needs_review",
  "question": "What should I do about FD001-A031?",
  "mode": {
@@ -113,7 +113,11 @@
     "within_cycles": 10,
     "action": "Borescope HPC stages 1-3 within 10 cycles; remove the engine if any blade is beyond limits",
     "overridden_by": null,
-    "evidence_id": "EV-KNW-02"
+    "evidence_id": "EV-KNW-02",
+    "group": "mandatory",
+    "group_reason": "conditions hold: hpc_degradation p=1.00 >= 0.5 and RUL lower bound 0 < 30 cycles",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "SB-TF-72-0142",
@@ -132,7 +136,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-03"
+    "evidence_id": "EV-KNW-03",
+    "group": "recommended",
+    "group_reason": "compliance recommended, no fleet decision yet",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "AMM-TF-R3",
@@ -151,7 +159,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": "SB-TF-72-0142 3.B",
-    "evidence_id": "EV-KNW-04"
+    "evidence_id": "EV-KNW-04",
+    "group": "reference",
+    "group_reason": "the plan follows it until engineering decides on SB-TF-72-0142 3.B, which would replace it on this topic",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "AMM-TF-R3",
@@ -171,7 +183,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-05"
+    "evidence_id": "EV-KNW-05",
+    "group": "reference",
+    "group_reason": null,
+    "fleet_decision": null,
+    "decision_evidence_id": null
    }
   ],
   "inspections": [],
@@ -206,7 +222,7 @@
     "confidence": "medium"
    },
    {
-    "text": "3 similar past removals found in case memory.",
+    "text": "3 similar past removals in case memory (FD001-H011 at cycle 240, FD003-H012 at cycle 170, FD003-H026 at cycle 243); the shop found HPC stage 1-3 blades eroded, tip clearance beyond limits on all 3, after removal for performance deterioration, EGT margin exhausted.",
     "evidence_ids": [
      "EV-DIA-02",
      "EV-DIA-03",
@@ -233,10 +249,25 @@
     "confidence": "high"
    },
    {
-    "text": "Applicable documents, highest precedence first: AD-2026-17-04 (g), SB-TF-72-0142 3.B, AMM-TF-R3 72-31-00, AMM-TF-R3 05-20-00.",
+    "text": "Mandatory now: AD-2026-17-04 (g) (airworthiness directive, conditions hold: hpc_degradation p=1.00 >= 0.5 and RUL lower bound 0 < 30 cycles).",
     "evidence_ids": [
      "EV-KNW-02",
-     "EV-KNW-03",
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-DIA-01"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Recommended, needs engineering approval: SB-TF-72-0142 3.B (service bulletin, compliance recommended, no fleet decision yet).",
+    "evidence_ids": [
+     "EV-KNW-03"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "Reference: AMM-TF-R3 72-31-00 (manual, the plan follows it until engineering decides on SB-TF-72-0142 3.B, which would replace it on this topic); AMM-TF-R3 05-20-00 (manual).",
+    "evidence_ids": [
      "EV-KNW-04",
      "EV-KNW-05"
     ],
@@ -385,6 +416,22 @@
     "confidence": "high"
    },
    {
+    "text": "AD-2026-17-04 (g): complied with by engine removal before the 10-cycle limit (removal at the first free slot 2026-10-23, limit 2026-10-27); FM-HPC-01 (borescope inspection HPC stages 1-9) at shop induction; record in the AD compliance record.",
+    "evidence_ids": [
+     "EV-KNW-02",
+     "EV-MNT-04",
+     "EV-DAT-05"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Work package (asset-pack templates, synthetic task references): engine change at the first free slot 2026-10-23 (9 tasks, 3 RII, 30 manhours); module shop visit induction on the removed engine, in the shop (4 tasks, 0 RII, 24 manhours); borescope inspection at shop induction, on the removed engine (4 tasks, 1 RII, 4.5 manhours); before installing the lease engine, verify 5 items Cleris has no data on; 58.5 manhours in all.",
+    "evidence_ids": [
+     "EV-MNT-05"
+    ],
+    "confidence": "medium"
+   },
+   {
     "text": "Primary fault mode HPC degradation (p=1.00).",
     "evidence_ids": [
      "EV-DIA-01"
@@ -409,12 +456,210 @@
     "text": "Similar past removals in case memory gave a median of 27 cycles of warning (127 cases). This engine is 16 cycles past its first moderate finding.",
     "evidence_ids": [
      "EV-DIA-05",
-     "EV-MNT-05"
+     "EV-MNT-06"
     ],
     "confidence": "medium"
    }
   ],
-  "confidence": "high"
+  "confidence": "high",
+  "compliance": [
+   {
+    "doc_id": "AD-2026-17-04",
+    "section": "(g)",
+    "doc_type": "airworthiness_directive",
+    "task_id": "FM-HPC-01",
+    "method": "engine_removal",
+    "comply_by": "2026-10-23",
+    "limit": "2026-10-27",
+    "within_cycles": 10,
+    "text": "AD-2026-17-04 (g): complied with by engine removal before the 10-cycle limit (removal at the first free slot 2026-10-23, limit 2026-10-27); FM-HPC-01 (borescope inspection HPC stages 1-9) at shop induction; record in the AD compliance record",
+    "evidence_ids": [
+     "EV-KNW-02",
+     "EV-MNT-04",
+     "EV-DAT-05"
+    ]
+   }
+  ],
+  "work_package": {
+   "sections": [
+    {
+     "template": "engine_change",
+     "title": "Engine change",
+     "for_tasks": [
+      "FM-HPC-06",
+      "FM-HPC-04"
+     ],
+     "when": "at the first free slot 2026-10-23",
+     "skill": "B1 type-rated certifying staff (engine type), with mechanics for the lift",
+     "tasks": [
+      {
+       "ref": "SYN-71-00-00-000-801",
+       "title": "Engine removal: disconnect, sling and lower onto the transport stand",
+       "rii": false,
+       "manhours": 8.0
+      },
+      {
+       "ref": "SYN-71-00-00-400-801",
+       "title": "Engine installation: lift, align and connect",
+       "rii": false,
+       "manhours": 10.0
+      },
+      {
+       "ref": "SYN-71-21-00-400-801",
+       "title": "Engine mounts installed and torqued",
+       "rii": true,
+       "manhours": 2.0
+      },
+      {
+       "ref": "SYN-76-11-00-400-801",
+       "title": "Engine control connections (thrust lever and fuel shut-off) connected and rigged",
+       "rii": true,
+       "manhours": 2.0
+      },
+      {
+       "ref": "SYN-73-11-00-400-801",
+       "title": "Fuel supply and fuel manifold connections made and safetied",
+       "rii": true,
+       "manhours": 1.5
+      },
+      {
+       "ref": "SYN-71-00-00-700-801",
+       "title": "Post-installation ground run (idle, then power assurance)",
+       "rii": false,
+       "manhours": 3.0
+      },
+      {
+       "ref": "SYN-71-00-00-790-801",
+       "title": "Leak check (fuel, oil, hydraulic) after the ground run",
+       "rii": false,
+       "manhours": 1.0
+      },
+      {
+       "ref": "SYN-77-31-00-700-801",
+       "title": "Vibration check (fan and core), trim balance if needed",
+       "rii": false,
+       "manhours": 1.5
+      },
+      {
+       "ref": "SYN-05-00-00-210-801",
+       "title": "Records: engine change entry, configuration and life-limited parts update",
+       "rii": false,
+       "manhours": 1.0
+      }
+     ],
+     "tooling": [
+      "Engine sling and hoist (bootstrap kit)",
+      "Engine transport stands: one for each engine",
+      "Calibrated torque wrenches",
+      "Blanking caps and covers",
+      "Leak-check equipment",
+      "Vibration survey kit"
+     ],
+     "manhours": 30.0,
+     "governed_by": null,
+     "verify_before_installation": [
+      "Lease engine configuration matches the aircraft: thrust rating, modification status and SB/AD status",
+      "QEC (quick engine change) kit present and complete, or transferred from the removed engine",
+      "Release certificate with the engine: EASA Form 1 or FAA 8130-3",
+      "Life-limited parts: remaining cycles cover the lease term",
+      "Transport booked: stands and carrier for the lease engine in and the removed engine out"
+     ]
+    },
+    {
+     "template": "shop_visit_induction",
+     "title": "Module shop visit induction",
+     "for_tasks": [
+      "FM-HPC-06",
+      "FM-HPC-04"
+     ],
+     "when": "on the removed engine, in the shop",
+     "skill": "Engine shop B1 certifying staff (engine type) and a shop inspector",
+     "tasks": [
+      {
+       "ref": "SYN-72-00-00-200-801",
+       "title": "Induction inspection and workscope from the removal finding (the brief's evidence)",
+       "rii": false,
+       "manhours": 4.0
+      },
+      {
+       "ref": "SYN-72-00-00-600-801",
+       "title": "Preservation and transport preparation of the removed engine",
+       "rii": false,
+       "manhours": 2.0
+      },
+      {
+       "ref": "SYN-05-00-00-210-802",
+       "title": "Records package: removal reason, life-limited parts back-to-birth, AD and SB status",
+       "rii": false,
+       "manhours": 2.0
+      },
+      {
+       "ref": "SYN-72-00-00-210-801",
+       "title": "Module disassembly to the workscope and findings report",
+       "rii": false,
+       "manhours": 16.0
+      }
+     ],
+     "tooling": [
+      "Engine transport stand",
+      "Module build-up stand",
+      "Preservation kit"
+     ],
+     "manhours": 24.0,
+     "governed_by": null,
+     "verify_before_installation": []
+    },
+    {
+     "template": "borescope_inspection",
+     "title": "Borescope inspection",
+     "for_tasks": [
+      "FM-HPC-01"
+     ],
+     "when": "at shop induction, on the removed engine",
+     "skill": "B1 type-rated certifying staff with borescope authorisation",
+     "tasks": [
+      {
+       "ref": "SYN-72-00-00-200-802",
+       "title": "Open the HPC borescope ports (stages 1-9)",
+       "rii": false,
+       "manhours": 0.5
+      },
+      {
+       "ref": "SYN-72-31-00-200-801",
+       "title": "Borescope HPC stages 1-9; measure against the limit table in effect",
+       "rii": false,
+       "manhours": 3.0
+      },
+      {
+       "ref": "SYN-72-00-00-400-802",
+       "title": "Borescope plugs installed and torqued",
+       "rii": true,
+       "manhours": 0.5
+      },
+      {
+       "ref": "SYN-72-31-00-210-801",
+       "title": "Record the result in Cleris (Add inspection finding) and the CMMS",
+       "rii": false,
+       "manhours": 0.5
+      }
+     ],
+     "tooling": [
+      "Borescope kit (video borescope with measurement tip)",
+      "Borescope plug kit TF-GEN-8101",
+      "Engine hand-cranking tool"
+     ],
+     "manhours": 4.5,
+     "governed_by": "AMM-TF-R3 72-31-00",
+     "verify_before_installation": []
+    }
+   ],
+   "manhours": 58.5,
+   "rii": 4,
+   "note": "Task references are SYNTHETIC (prefix SYN-) and manhours are planning estimates for the demo; they are not from any OEM manual. Plan the work from the operator's approved maintenance data.",
+   "evidence_ids": [
+    "EV-MNT-05"
+   ]
+  }
  },
  "escalations": [
   {
@@ -475,15 +720,17 @@
    "gaps": [
     "unsupported number challenge refuted by code (2 challenges): claim [0] does not state 5 or 11",
     "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
-    "unsupported number challenge refuted by code: EV-MNT-03, EV-MNT-04 supports 1"
+    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 5",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
    ],
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
    "routes": [],
    "recorded": "recorded Nemotron response (captured 2026-10-26)",
    "dropped_notes": [
     "says EV-PRG-01 is missing, but EV-PRG-01 is in the case file: Claim 0 cites EV-PRG-01 for RUL A 10th-90th percentile 5-11, but EV-PRG-01 is not listed in the evidence; only EV-PRG-02 is available, so the ML model percentile range cannot be verified.",
-    "repeats the deadline after bound challenge code refuted: Claim 8 derives deadline 2026-10-22 from RUL lower bound 0 cycles at 2 cycles/day, but EV-INT-01 shows last observed cycle 196 at 2026-10-22T00:00:00+00:00, meaning the deadline equals the current date, not a future bound; the calculation appears to use the observation date as the deadline.",
-    "repeats the unsupported number challenge code refuted: Claim 11 states all parts are on hand but the next free slot is 1 day away; EV-MNT-03 shows TF-HPC-1101 lead time 35 d and TF-HPC-1104 lead time 21 d, so those parts are not immediately available for on-wing repair, contradicting the statement that all parts are on hand."
+    "repeats the deadline after bound challenge code refuted: Claim 10 derives deadline 2026-10-22 from RUL lower bound 0 cycles at 2 cycles/day, but EV-INT-01 shows last observed cycle 196 at 2026-10-22T00:00:00+00:00, meaning the deadline equals the current date, not a future bound; the calculation appears to use the observation date as the deadline.",
+    "repeats the unsupported number challenge code refuted: Claim 11 states planning lower bound 0 cycles (min(A 10th percentile 5, B lower 0)), but EV-PRG-01 is not in evidence to confirm A 10th percentile 5; only EV-PRG-02 provides B lower 0.",
+    "repeats the unsupported number challenge code refuted: Claim 14 states all parts are on hand but the next free slot is 1 d away; EV-MNT-03 shows TF-HPC-1101 lead time 35 d and TF-HPC-1104 lead time 21 d, so those parts are not immediately available for on-wing repair, contradicting the statement that all parts are on hand."
    ]
   }
  ],
@@ -630,6 +877,13 @@
   },
   "EV-MNT-05": {
    "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/work_packages",
+   "summary": "Work package from the asset pack's templates (synthetic task references): engine change at the first free slot 2026-10-23 (9 tasks, 3 RII, 30 manhours); module shop visit induction on the removed engine, in the shop (4 tasks, 0 RII, 24 manhours); borescope inspection at shop induction, on the removed engine (4 tasks, 1 RII, 4.5 manhours); before installing the lease engine, verify 5 items Cleris has no data on; 58.5 manhours, 4 RII in all",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-06": {
+   "kind": "rule",
    "source": "case_file:history",
    "summary": "First moderate or severe finding at cycle 180; last observed cycle 196; 16 cycles since.",
    "produced_by": "maint_planner",
@@ -666,8 +920,8 @@
  },
  "decision_log": [
   {
-   "timestamp": "2026-10-26T07:15:12.552358Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.554808Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "agent",
    "actor": "intake",
    "decision": "resolved engine",
@@ -680,8 +934,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.771888Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.780921Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "no follow-up needed",
@@ -692,8 +946,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.789240Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.797426Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "agent",
    "actor": "knowledge",
    "decision": "applied mandate",
@@ -706,8 +960,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.805391Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.821044Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "proposed plan",
@@ -717,7 +971,8 @@
     "EV-MNT-02",
     "EV-MNT-03",
     "EV-MNT-04",
-    "EV-MNT-05"
+    "EV-MNT-05",
+    "EV-MNT-06"
    ],
    "round": 1,
    "case_feedback": {},
@@ -725,8 +980,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.811389Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.831837Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -738,12 +993,12 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.815404Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.835843Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "model",
    "actor": "nvidia/nemotron-3-ultra-550b-a55b",
    "decision": "reviewed the brief",
-   "rationale": "Raised 4 checkable challenges and 0 notes for the engineer; notes cannot block a cited brief; code dropped 3 notes it showed false or repeating a refuted challenge (kept in the trace) (recorded Nemotron response (captured 2026-10-26)).",
+   "rationale": "Raised 5 checkable challenges and 0 notes for the engineer; notes cannot block a cited brief; code dropped 4 notes it showed false or repeating a refuted challenge (kept in the trace) (recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [],
    "round": 1,
    "recorded": true,
@@ -752,8 +1007,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.815404Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.835843Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
@@ -766,8 +1021,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.815404Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.835843Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
@@ -780,15 +1035,16 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.815404Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.835843Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: EV-MNT-03, EV-MNT-04 supports 1 (from the recorded Nemotron response (captured 2026-10-26)).",
+   "rationale": "Unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 5 (from the recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [
-    "EV-MNT-03",
-    "EV-MNT-04"
+    "EV-MNT-04",
+    "EV-PRG-01",
+    "EV-PRG-02"
    ],
    "round": 1,
    "recorded": true,
@@ -797,8 +1053,28 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.815404Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.835843Z",
+   "run_id": "20261026T082946Z-91f934",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1 (from the recorded Nemotron response (captured 2026-10-26)).",
+   "evidence_ids": [
+    "EV-PRG-01",
+    "EV-PRG-02",
+    "EV-MNT-04",
+    "EV-DAT-05",
+    "EV-MNT-03"
+   ],
+   "round": 1,
+   "recorded": true,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T08:29:46.835843Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "accepted",
@@ -810,8 +1086,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.816403Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.836846Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -825,8 +1101,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.816403Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.836846Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -843,8 +1119,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:12.816403Z",
-   "run_id": "20261026T071512Z-0a4c01",
+   "timestamp": "2026-10-26T08:29:46.836846Z",
+   "run_id": "20261026T082946Z-91f934",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -930,7 +1206,7 @@
    "source": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
- "trace_file": "logs\\trace-20261026T071512Z-0a4c01.jsonl",
- "duration_s": 0.28,
- "execution_time_seconds": 0.281
+ "trace_file": "logs\\trace-20261026T082946Z-91f934.jsonl",
+ "duration_s": 0.31,
+ "execution_time_seconds": 0.313
 }

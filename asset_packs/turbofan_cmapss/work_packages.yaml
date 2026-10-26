@@ -1,0 +1,64 @@
+# SYNTHETIC work-package templates for the hackathon demo, one per kind of work the planner can propose. Task
+# references (prefix SYN-) are invented, not taken from any OEM manual; manhours are planning estimates, not standards.
+# `for_tasks` lists the FMEA tasks (fmea.csv) a template carries out; the planner attaches every template whose tasks
+# are in the plan, in this order. rii: true marks a required inspection item (inspected by someone who did not do the
+# work). `verify_before_installation` applies when the plan swaps in a lease engine (`verify_for_tasks`): what Cleris
+# has no data on and someone must check before the engine goes on the wing. `follows_documents`: the section names the
+# document whose limits and intervals the work follows (the knowledge agent's governing section for the task).
+note: >-
+  Task references are SYNTHETIC (prefix SYN-) and manhours are planning estimates for the demo; they are not from any
+  OEM manual. Plan the work from the operator's approved maintenance data.
+templates:
+  engine_change:
+    title: Engine change
+    for_tasks: [FM-HPC-06, FM-FAN-04, FM-HPC-04, FM-FAN-03]
+    skill: B1 type-rated certifying staff (engine type), with mechanics for the lift
+    tooling:
+      - Engine sling and hoist (bootstrap kit)
+      - "Engine transport stands: one for each engine"
+      - Calibrated torque wrenches
+      - Blanking caps and covers
+      - Leak-check equipment
+      - Vibration survey kit
+    tasks:
+      - {ref: SYN-71-00-00-000-801, title: "Engine removal: disconnect, sling and lower onto the transport stand", manhours: 8}
+      - {ref: SYN-71-00-00-400-801, title: "Engine installation: lift, align and connect", manhours: 10}
+      - {ref: SYN-71-21-00-400-801, title: Engine mounts installed and torqued, rii: true, manhours: 2}
+      - {ref: SYN-76-11-00-400-801, title: "Engine control connections (thrust lever and fuel shut-off) connected and rigged", rii: true, manhours: 2}
+      - {ref: SYN-73-11-00-400-801, title: "Fuel supply and fuel manifold connections made and safetied", rii: true, manhours: 1.5}
+      - {ref: SYN-71-00-00-700-801, title: "Post-installation ground run (idle, then power assurance)", manhours: 3}
+      - {ref: SYN-71-00-00-790-801, title: "Leak check (fuel, oil, hydraulic) after the ground run", manhours: 1}
+      - {ref: SYN-77-31-00-700-801, title: "Vibration check (fan and core), trim balance if needed", manhours: 1.5}
+      - {ref: SYN-05-00-00-210-801, title: "Records: engine change entry, configuration and life-limited parts update", manhours: 1}
+    verify_for_tasks: [FM-HPC-06, FM-FAN-04]
+    verify_before_installation:
+      - "Lease engine configuration matches the aircraft: thrust rating, modification status and SB/AD status"
+      - QEC (quick engine change) kit present and complete, or transferred from the removed engine
+      - "Release certificate with the engine: EASA Form 1 or FAA 8130-3"
+      - "Life-limited parts: remaining cycles cover the lease term"
+      - "Transport booked: stands and carrier for the lease engine in and the removed engine out"
+  shop_visit_induction:
+    title: Module shop visit induction
+    for_tasks: [FM-HPC-06, FM-FAN-04, FM-HPC-04, FM-HPC-05, FM-FAN-03]
+    follows_documents: true
+    skill: Engine shop B1 certifying staff (engine type) and a shop inspector
+    tooling: [Engine transport stand, Module build-up stand, Preservation kit]
+    tasks:
+      - {ref: SYN-72-00-00-200-801, title: "Induction inspection and workscope from the removal finding (the brief's evidence)", manhours: 4}
+      - {ref: SYN-72-00-00-600-801, title: Preservation and transport preparation of the removed engine, manhours: 2}
+      - {ref: SYN-05-00-00-210-802, title: "Records package: removal reason, life-limited parts back-to-birth, AD and SB status", manhours: 2}
+      - {ref: SYN-72-00-00-210-801, title: Module disassembly to the workscope and findings report, manhours: 16}
+  borescope_inspection:
+    title: Borescope inspection
+    for_tasks: [FM-HPC-01, FM-HPC-03]
+    follows_documents: true
+    skill: B1 type-rated certifying staff with borescope authorisation
+    tooling:
+      - Borescope kit (video borescope with measurement tip)
+      - Borescope plug kit TF-GEN-8101
+      - Engine hand-cranking tool
+    tasks:
+      - {ref: SYN-72-00-00-200-802, title: "Open the HPC borescope ports (stages 1-9)", manhours: 0.5}
+      - {ref: SYN-72-31-00-200-801, title: "Borescope HPC stages 1-9; measure against the limit table in effect", manhours: 3}
+      - {ref: SYN-72-00-00-400-802, title: Borescope plugs installed and torqued, rii: true, manhours: 0.5}
+      - {ref: SYN-72-31-00-210-801, title: "Record the result in Cleris (Add inspection finding) and the CMMS", manhours: 0.5}

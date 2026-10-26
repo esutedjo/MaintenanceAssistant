@@ -1,6 +1,6 @@
 {
- "run_id": "20261026T071515Z-4d9b06",
- "trace_id": "trace-20261026T071515Z-4d9b06",
+ "run_id": "20261026T082949Z-aae70b",
+ "trace_id": "trace-20261026T082949Z-aae70b",
  "status": "needs_review",
  "question": "How long can FD003-A100 keep flying and what is wrong with it?",
  "mode": {
@@ -118,7 +118,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-02"
+    "evidence_id": "EV-KNW-02",
+    "group": "recommended",
+    "group_reason": "compliance recommended, no fleet decision yet",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "SB-TF-72-0157",
@@ -137,7 +141,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-03"
+    "evidence_id": "EV-KNW-03",
+    "group": "reference",
+    "group_reason": "background to the bulletin, no action in this section",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "AMM-TF-R3",
@@ -156,7 +164,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-04"
+    "evidence_id": "EV-KNW-04",
+    "group": "reference",
+    "group_reason": null,
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "AMM-TF-R3",
@@ -176,7 +188,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-05"
+    "evidence_id": "EV-KNW-05",
+    "group": "reference",
+    "group_reason": null,
+    "fleet_decision": null,
+    "decision_evidence_id": null
    }
   ],
   "inspections": [],
@@ -204,7 +220,7 @@
     "confidence": "medium"
    },
    {
-    "text": "3 similar past removals found in case memory.",
+    "text": "3 similar past removals in case memory (FD003-H072 at cycle 232, FD003-H002 at cycle 253, FD003-H007 at cycle 424); the shop found fan blade leading edges eroded and case liner rub on all 3, after removal for performance deterioration.",
     "evidence_ids": [
      "EV-DIA-02",
      "EV-DIA-03",
@@ -213,9 +229,15 @@
     "confidence": "medium"
    },
    {
-    "text": "Applicable documents, highest precedence first: SB-TF-72-0157 3.B, SB-TF-72-0157 1.A, AMM-TF-R3 72-21-00, AMM-TF-R3 05-20-00.",
+    "text": "Recommended, needs engineering approval: SB-TF-72-0157 3.B (service bulletin, compliance recommended, no fleet decision yet).",
     "evidence_ids": [
-     "EV-KNW-02",
+     "EV-KNW-02"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "Reference: SB-TF-72-0157 1.A (service bulletin, background to the bulletin, no action in this section); AMM-TF-R3 72-21-00 (manual); AMM-TF-R3 05-20-00 (manual).",
+    "evidence_ids": [
      "EV-KNW-03",
      "EV-KNW-04",
      "EV-KNW-05"
@@ -244,7 +266,7 @@
     "available": 0,
     "lead_time_days": 75,
     "evidence_ids": [
-     "EV-MNT-08"
+     "EV-MNT-09"
     ]
    },
    {
@@ -253,7 +275,7 @@
     "available": 2,
     "lead_time_days": 28,
     "evidence_ids": [
-     "EV-MNT-08"
+     "EV-MNT-09"
     ]
    },
    {
@@ -262,7 +284,7 @@
     "available": 30,
     "lead_time_days": 5,
     "evidence_ids": [
-     "EV-MNT-08"
+     "EV-MNT-09"
     ]
    },
    {
@@ -271,7 +293,7 @@
     "available": 1,
     "lead_time_days": 21,
     "evidence_ids": [
-     "EV-MNT-08"
+     "EV-MNT-09"
     ]
    }
   ],
@@ -289,7 +311,7 @@
    {
     "text": "Trigger severity severe: planning lower bound 3 cycles (min(A 10th percentile 20, B lower 3); severe < 25, moderate < 80).",
     "evidence_ids": [
-     "EV-MNT-09",
+     "EV-MNT-10",
      "EV-PRG-01",
      "EV-PRG-02"
     ],
@@ -298,8 +320,8 @@
    {
     "text": "Selected tasks need TF-FAN-2101 (need 1, 0 on hand, 75 d lead), TF-FAN-2103 (need 1, 2 on hand, 28 d lead), TF-GEN-8102 (need 1, 30 on hand, 5 d lead), TF-ENG-9001 (need 1, 1 on hand, 21 d lead). Short: TF-FAN-2101. In-stock substitutes do not replace a short required part.",
     "evidence_ids": [
-     "EV-MNT-08",
-     "EV-MNT-09"
+     "EV-MNT-09",
+     "EV-MNT-10"
     ],
     "confidence": "high"
    },
@@ -308,32 +330,40 @@
     "evidence_ids": [
      "EV-PRG-01",
      "EV-PRG-02",
-     "EV-MNT-09",
+     "EV-MNT-10",
      "EV-DAT-05",
-     "EV-MNT-08"
+     "EV-MNT-09"
     ],
     "confidence": "high"
    },
    {
     "text": "World Model task FM-FAN-04: Swap in lease engine; module shop visit on the removed engine.",
     "evidence_ids": [
-     "EV-MNT-07"
+     "EV-MNT-08"
     ],
     "confidence": "high"
    },
    {
     "text": "World Model task FM-FAN-03: Remove engine; replace fan blade set and case abradable liner.",
     "evidence_ids": [
-     "EV-MNT-07"
+     "EV-MNT-08"
     ],
     "confidence": "high"
    },
    {
-    "text": "Limits and intervals for FM-FAN-03 follow SB-TF-72-0157 3.B (service bulletin), the highest-precedence document on that topic.",
+    "text": "Limits and intervals for FM-FAN-03 follow AMM-TF-R3 72-21-00 (manual); SB-TF-72-0157 3.B (service bulletin) also covers it: SB recommended; adopting it needs engineering approval.",
     "evidence_ids": [
+     "EV-KNW-04",
      "EV-KNW-02"
     ],
     "confidence": "high"
+   },
+   {
+    "text": "Work package (asset-pack templates, synthetic task references): engine change at the first free slot 2026-10-23 (9 tasks, 3 RII, 30 manhours); module shop visit induction on the removed engine, in the shop (4 tasks, 0 RII, 24 manhours); before installing the lease engine, verify 5 items Cleris has no data on; 54 manhours in all.",
+    "evidence_ids": [
+     "EV-MNT-11"
+    ],
+    "confidence": "medium"
    },
    {
     "text": "Primary fault mode Fan degradation (p=1.00).",
@@ -345,14 +375,14 @@
    {
     "text": "World Model lists tasks for this fault (FM-FAN-01, FM-FAN-02, FM-FAN-03, FM-FAN-04); the plan uses FM-FAN-04, FM-FAN-03.",
     "evidence_ids": [
-     "EV-MNT-07"
+     "EV-MNT-08"
     ],
     "confidence": "high"
    },
    {
     "text": "World Model links these document sections to tasks for this fault: AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-21-00\u2192FM-FAN-01, SB-TF-72-0157 3.B\u2192FM-FAN-01; which apply now and which are mandatory is decided by the knowledge agent.",
     "evidence_ids": [
-     "EV-MNT-07"
+     "EV-MNT-08"
     ],
     "confidence": "high"
    },
@@ -360,12 +390,150 @@
     "text": "Similar past removals in case memory gave a median of 45 cycles of warning (43 cases). This engine is 7 cycles past its first moderate finding.",
     "evidence_ids": [
      "EV-DIA-05",
-     "EV-MNT-10"
+     "EV-MNT-12"
     ],
     "confidence": "medium"
    }
   ],
-  "confidence": "high"
+  "confidence": "high",
+  "compliance": [],
+  "work_package": {
+   "sections": [
+    {
+     "template": "engine_change",
+     "title": "Engine change",
+     "for_tasks": [
+      "FM-FAN-04",
+      "FM-FAN-03"
+     ],
+     "when": "at the first free slot 2026-10-23",
+     "skill": "B1 type-rated certifying staff (engine type), with mechanics for the lift",
+     "tasks": [
+      {
+       "ref": "SYN-71-00-00-000-801",
+       "title": "Engine removal: disconnect, sling and lower onto the transport stand",
+       "rii": false,
+       "manhours": 8.0
+      },
+      {
+       "ref": "SYN-71-00-00-400-801",
+       "title": "Engine installation: lift, align and connect",
+       "rii": false,
+       "manhours": 10.0
+      },
+      {
+       "ref": "SYN-71-21-00-400-801",
+       "title": "Engine mounts installed and torqued",
+       "rii": true,
+       "manhours": 2.0
+      },
+      {
+       "ref": "SYN-76-11-00-400-801",
+       "title": "Engine control connections (thrust lever and fuel shut-off) connected and rigged",
+       "rii": true,
+       "manhours": 2.0
+      },
+      {
+       "ref": "SYN-73-11-00-400-801",
+       "title": "Fuel supply and fuel manifold connections made and safetied",
+       "rii": true,
+       "manhours": 1.5
+      },
+      {
+       "ref": "SYN-71-00-00-700-801",
+       "title": "Post-installation ground run (idle, then power assurance)",
+       "rii": false,
+       "manhours": 3.0
+      },
+      {
+       "ref": "SYN-71-00-00-790-801",
+       "title": "Leak check (fuel, oil, hydraulic) after the ground run",
+       "rii": false,
+       "manhours": 1.0
+      },
+      {
+       "ref": "SYN-77-31-00-700-801",
+       "title": "Vibration check (fan and core), trim balance if needed",
+       "rii": false,
+       "manhours": 1.5
+      },
+      {
+       "ref": "SYN-05-00-00-210-801",
+       "title": "Records: engine change entry, configuration and life-limited parts update",
+       "rii": false,
+       "manhours": 1.0
+      }
+     ],
+     "tooling": [
+      "Engine sling and hoist (bootstrap kit)",
+      "Engine transport stands: one for each engine",
+      "Calibrated torque wrenches",
+      "Blanking caps and covers",
+      "Leak-check equipment",
+      "Vibration survey kit"
+     ],
+     "manhours": 30.0,
+     "governed_by": null,
+     "verify_before_installation": [
+      "Lease engine configuration matches the aircraft: thrust rating, modification status and SB/AD status",
+      "QEC (quick engine change) kit present and complete, or transferred from the removed engine",
+      "Release certificate with the engine: EASA Form 1 or FAA 8130-3",
+      "Life-limited parts: remaining cycles cover the lease term",
+      "Transport booked: stands and carrier for the lease engine in and the removed engine out"
+     ]
+    },
+    {
+     "template": "shop_visit_induction",
+     "title": "Module shop visit induction",
+     "for_tasks": [
+      "FM-FAN-04",
+      "FM-FAN-03"
+     ],
+     "when": "on the removed engine, in the shop",
+     "skill": "Engine shop B1 certifying staff (engine type) and a shop inspector",
+     "tasks": [
+      {
+       "ref": "SYN-72-00-00-200-801",
+       "title": "Induction inspection and workscope from the removal finding (the brief's evidence)",
+       "rii": false,
+       "manhours": 4.0
+      },
+      {
+       "ref": "SYN-72-00-00-600-801",
+       "title": "Preservation and transport preparation of the removed engine",
+       "rii": false,
+       "manhours": 2.0
+      },
+      {
+       "ref": "SYN-05-00-00-210-802",
+       "title": "Records package: removal reason, life-limited parts back-to-birth, AD and SB status",
+       "rii": false,
+       "manhours": 2.0
+      },
+      {
+       "ref": "SYN-72-00-00-210-801",
+       "title": "Module disassembly to the workscope and findings report",
+       "rii": false,
+       "manhours": 16.0
+      }
+     ],
+     "tooling": [
+      "Engine transport stand",
+      "Module build-up stand",
+      "Preservation kit"
+     ],
+     "manhours": 24.0,
+     "governed_by": "AMM-TF-R3 72-21-00",
+     "verify_before_installation": []
+    }
+   ],
+   "manhours": 54.0,
+   "rii": 3,
+   "note": "Task references are SYNTHETIC (prefix SYN-) and manhours are planning estimates for the demo; they are not from any OEM manual. Plan the work from the operator's approved maintenance data.",
+   "evidence_ids": [
+    "EV-MNT-11"
+   ]
+  }
  },
  "escalations": [
   {
@@ -381,7 +549,20 @@
     "EV-PRG-01",
     "EV-PRG-02",
     "EV-DAT-05",
-    "EV-MNT-08"
+    "EV-MNT-09"
+   ]
+  },
+  {
+   "rule": "sb_adoption",
+   "severity": "info",
+   "message": "SB-TF-72-0157 3.B (service bulletin, compliance recommended) covers FM-FAN-03 in the plan (fan_inspection_interval); SB recommended; adopting it needs engineering approval.",
+   "actions": [
+    "Engineering to approve or decline adopting the service bulletin",
+    "Until it is approved, the plan follows AMM-TF-R3 72-21-00 for FM-FAN-03"
+   ],
+   "evidence_ids": [
+    "EV-KNW-02",
+    "EV-KNW-04"
    ]
   }
  ],
@@ -429,9 +610,9 @@
    "gate": "critic",
    "outcome": "accept",
    "gaps": [
-    "RUL B lower bound of 3 cycles is not evidenced: EV-PRG-02 reports RUL B point estimate 10 cycles with lower 3 and upper 15, but the evidence does not show the derivation or confidence interval for the lower bound of 3 cycles. The planning lower bound calculation in EV-MNT-04 and EV-MNT-09 uses min(A 10th percentile 20, B lower 3) = 3 cycles, yet the source of the B lower value is not documented in the cited evidence items.",
-    "Part shortage rationale for engine swap not fully substantiated: The brief claims the removed engine waits for parts (TF-FAN-2101) while the lease engine is swapped in. However, EV-MNT-01 and EV-MNT-06 show FM-FAN-03 (severe on-wing replace) lists TF-FAN-2101 as short, while FM-FAN-04 (engine_change) has no parts-short annotation. EV-MNT-03 and EV-MNT-08 show TF-FAN-2101 has 0 available (75-day lead) but TF-FAN-2103 has 2 available (28-day lead). No evidence establishes that fan_degradation repair definitively requires the unavailable TF-FAN-2101 rather than the available TF-FAN-2103, leaving the engine-swap-plus-parts-wait rationale unsubstantiated versus a 28-day on-wing repair under FM-FAN-03.",
-    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 3",
+    "RUL B lower bound of 3 cycles is not evidenced: EV-PRG-02 reports RUL B point estimate 10 cycles with lower 3 and upper 15, but the evidence does not show the derivation or confidence interval for the lower bound of 3 cycles. The planning lower bound calculation in EV-MNT-04 and EV-MNT-10 uses min(A 10th percentile 20, B lower 3) = 3 cycles, yet the source of the B lower value is not documented in the cited evidence items.",
+    "Part shortage rationale for engine swap not fully substantiated: The brief claims the removed engine waits for parts (TF-FAN-2101) while the lease engine is swapped in. However, EV-MNT-01 and EV-MNT-07 show FM-FAN-03 (severe on-wing replace) lists TF-FAN-2101 as short, while FM-FAN-04 (engine_change) has no parts-short annotation. EV-MNT-03 and EV-MNT-09 show TF-FAN-2101 has 0 available (75-day lead) but TF-FAN-2103 has 2 available (28-day lead). No evidence establishes that fan_degradation repair definitively requires the unavailable TF-FAN-2101 rather than the available TF-FAN-2103, leaving the engine-swap-plus-parts-wait rationale unsubstantiated versus a 28-day on-wing repair under FM-FAN-03.",
+    "unsupported number challenge refuted by code: claim [6] does not state 3",
     "part not in evidence challenge refuted by code: every part is in the evidence it cites",
     "missing mandate challenge refuted by code: every mandated task is in the plan"
    ],
@@ -439,7 +620,7 @@
    "routes": [],
    "recorded": "recorded Nemotron response (captured 2026-10-26)",
    "dropped_notes": [
-    "repeats the missing mandate challenge code refuted: Mandatory document actions missing from plan: EV-MNT-07 lists mandatory document actions for fan_degradation: AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-21-00\u2192FM-FAN-01, SB-TF-72-0157 3.B\u2192FM-FAN-01. The plan uses FM-FAN-04 and FM-FAN-03 but does not include FM-FAN-01 (inspect) or FM-HPC-06, which are linked to mandatory documents. Per precedence rules, mandatory document actions stay in the plan even next to an engine swap; their absence is a gap."
+    "repeats the missing mandate challenge code refuted: Mandatory document actions missing from plan: EV-MNT-08 lists mandatory document actions for fan_degradation: AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-21-00\u2192FM-FAN-01, SB-TF-72-0157 3.B\u2192FM-FAN-01. The plan uses FM-FAN-04 and FM-FAN-03 but does not include FM-FAN-01 (inspect) or FM-HPC-06, which are linked to mandatory documents. Per precedence rules, mandatory document actions stay in the plan even next to an engine swap; their absence is a gap."
    ]
   }
  ],
@@ -586,40 +767,54 @@
   },
   "EV-MNT-05": {
    "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/work_packages",
+   "summary": "Work package from the asset pack's templates (synthetic task references): engine change at the first free slot 2026-10-23 (9 tasks, 3 RII, 30 manhours); module shop visit induction on the removed engine, in the shop (4 tasks, 0 RII, 24 manhours); before installing the lease engine, verify 5 items Cleris has no data on; 54 manhours, 3 RII in all",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-06": {
+   "kind": "rule",
    "source": "case_file:history",
    "summary": "First moderate or severe finding at cycle 240; last observed cycle 247; 7 cycles since.",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-06": {
+  "EV-MNT-07": {
    "kind": "query",
    "source": "snapshot:fmea_tasks.parquet",
    "summary": "fan_degradation: 4 FMEA tasks; FM-FAN-01 inspect (minor); FM-FAN-02 replace (moderate); FM-FAN-03 replace (severe), short: TF-FAN-2101; FM-FAN-04 engine_change (severe)",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-07": {
+  "EV-MNT-08": {
    "kind": "rule",
    "source": "sqlite:world/fan_degradation",
    "summary": "World Model: 4 tasks address fan_degradation",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-08": {
+  "EV-MNT-09": {
    "kind": "query",
    "source": "snapshot:parts.parquet",
    "summary": "TF-ENG-9001 (Spare engine lease (per month)): 1 available, lead time 21 d; TF-FAN-2101 (Fan blade set (24 blades)): 0 available, lead time 75 d; TF-FAN-2103 (Fan case abradable liner): 2 available, lead time 28 d; TF-GEN-8102 (Engine gasket and O-ring kit): 30 available, lead time 5 d",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-09": {
+  "EV-MNT-10": {
    "kind": "rule",
    "source": "asset_pack:turbofan_cmapss/thresholds",
    "summary": "Trigger severity severe: planning lower bound 3 cycles (min(A 10th percentile 20, B lower 3); severe < 25, moderate < 80).",
    "produced_by": "maint_planner",
    "degraded": null
   },
-  "EV-MNT-10": {
+  "EV-MNT-11": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/work_packages",
+   "summary": "Work package from the asset pack's templates (synthetic task references): engine change at the first free slot 2026-10-23 (9 tasks, 3 RII, 30 manhours); module shop visit induction on the removed engine, in the shop (4 tasks, 0 RII, 24 manhours); before installing the lease engine, verify 5 items Cleris has no data on; 54 manhours, 3 RII in all",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-12": {
    "kind": "rule",
    "source": "case_file:history",
    "summary": "First moderate or severe finding at cycle 240; last observed cycle 247; 7 cycles since.",
@@ -657,8 +852,8 @@
  },
  "decision_log": [
   {
-   "timestamp": "2026-10-26T07:15:15.260142Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.386348Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "agent",
    "actor": "intake",
    "decision": "resolved engine",
@@ -671,8 +866,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.492129Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.626080Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "no follow-up needed",
@@ -683,8 +878,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.524674Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.667767Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "proposed plan",
@@ -694,7 +889,8 @@
     "EV-MNT-02",
     "EV-MNT-03",
     "EV-MNT-04",
-    "EV-MNT-05"
+    "EV-MNT-05",
+    "EV-MNT-06"
    ],
    "round": 1,
    "case_feedback": {},
@@ -702,8 +898,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.529674Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.672767Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -715,8 +911,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.531674Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.675269Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "sent back for revision",
@@ -728,8 +924,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.534676Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.677272Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "routed gap",
@@ -741,18 +937,19 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.539057Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.681776Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "revised plan",
    "rationale": "Swap in lease engine; module shop visit on the removed engine; deadline 2026-10-23; 4 parts; fixed for: driver_signature, confidence high.",
    "evidence_ids": [
-    "EV-MNT-06",
     "EV-MNT-07",
     "EV-MNT-08",
     "EV-MNT-09",
-    "EV-MNT-10"
+    "EV-MNT-10",
+    "EV-MNT-11",
+    "EV-MNT-12"
    ],
    "round": 2,
    "case_feedback": {},
@@ -760,8 +957,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.544220Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.686284Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -773,8 +970,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.547419Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.690284Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "model",
    "actor": "nvidia/nemotron-3-ultra-550b-a55b",
    "decision": "reviewed the brief",
@@ -782,11 +979,11 @@
    "evidence_ids": [
     "EV-PRG-02",
     "EV-MNT-04",
-    "EV-MNT-09",
+    "EV-MNT-10",
     "EV-MNT-01",
-    "EV-MNT-06",
+    "EV-MNT-07",
     "EV-MNT-03",
-    "EV-MNT-08"
+    "EV-MNT-09"
    ],
    "round": 2,
    "recorded": true,
@@ -795,16 +992,13 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.547419Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.690284Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02 supports 3 (from the recorded Nemotron response (captured 2026-10-26)).",
-   "evidence_ids": [
-    "EV-PRG-01",
-    "EV-PRG-02"
-   ],
+   "rationale": "Unsupported number challenge refuted by code: claim [6] does not state 3 (from the recorded Nemotron response (captured 2026-10-26)).",
+   "evidence_ids": [],
    "round": 2,
    "recorded": true,
    "case_feedback": {},
@@ -812,8 +1006,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.547419Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.690284Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
@@ -826,8 +1020,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.547419Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.690284Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
@@ -840,8 +1034,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.547419Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.690284Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "accepted",
@@ -853,8 +1047,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:15.548452Z",
-   "run_id": "20261026T071515Z-4d9b06",
+   "timestamp": "2026-10-26T08:29:49.691284Z",
+   "run_id": "20261026T082949Z-aae70b",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -863,7 +1057,23 @@
     "EV-PRG-01",
     "EV-PRG-02",
     "EV-DAT-05",
-    "EV-MNT-08"
+    "EV-MNT-09"
+   ],
+   "round": 2,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T08:29:49.691284Z",
+   "run_id": "20261026T082949Z-aae70b",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "escalated",
+   "rationale": "SB-TF-72-0157 3.B (service bulletin, compliance recommended) covers FM-FAN-03 in the plan (fan_inspection_interval); SB recommended; adopting it needs engineering approval (info, rule sb_adoption).",
+   "evidence_ids": [
+    "EV-KNW-02",
+    "EV-KNW-04"
    ],
    "round": 2,
    "case_feedback": {},
@@ -942,7 +1152,7 @@
    "source": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
- "trace_file": "logs\\trace-20261026T071515Z-4d9b06.jsonl",
- "duration_s": 0.31,
- "execution_time_seconds": 0.313
+ "trace_file": "logs\\trace-20261026T082949Z-aae70b.jsonl",
+ "duration_s": 0.33,
+ "execution_time_seconds": 0.328
 }

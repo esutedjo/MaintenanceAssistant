@@ -8,20 +8,84 @@ When a gate finds a mandate missing, uncited or late, the planner routes it back
 from datetime import timedelta
 
 from agents.runtime import NodeResult, RunContext, node, run_tasks
-from assurance.escalation import needs_approval
+from assurance.escalation import RECOMMENDED_TYPES, needs_approval
 from casefile.context_store import entity_id
 from casefile.schemas import (
     AFTER_KNOWLEDGE, CaseFile, Claim, DocumentFinding, EvidenceLedger, Findings, InspectionFinding, Task,
 )
 from casefile.world import _task_from_entity, mandated_for_mode, query_graph
 from tools.data_access import SnapshotSource
+from tools.engineering_orders import decided, describe as describe_order, fleet_decisions
 from tools.inspections import (
     RESULT_TEXT, assess, is_limit_section, label, limit_section, mark_current, parse_limits, where,
 )
-from tools.knowledge import mandate_conditions, retrieve
+from tools.knowledge import Retrieved, mandate_conditions, mandate_unmet, retrieve
 
 # Fault modes below this probability do not pull in their documents (the top mode always does).
 MIN_MODE_PROBABILITY = 0.1
+# What each document group means for compliance; the brief, the claims and the UI use these titles.
+GROUP_TITLES = {"mandatory": "Mandatory now", "recommended": "Recommended, needs engineering approval",
+                "reference": "Reference"}
+
+
+def _recommends(chunk: dict) -> bool:
+    """A section of a recommended document type that names work (a bulletin's action, not its background)."""
+    return chunk["doc_type"] in RECOMMENDED_TYPES and bool(str(chunk.get("tasks") or "").strip())
+
+
+# What the brief keeps of an engineering order: no hashes or commit IDs, whose hex digits would read as numbers a claim
+# citing it may state (numbers_supported); the file itself carries the chain.
+ORDER_FIELDS = ("eo_id", "fleet", "doc_id", "decision", "signer", "reference", "decided_at", "asset_type", "seq")
+
+
+def _group(r: Retrieved, mandate: dict | None, unmet: str | None, order: dict | None, orders: dict,
+           retrieved: dict[str, Retrieved]) -> tuple[str, str | None]:
+    """(group, reason): mandatory now when the mandate's conditions hold; recommended for a bulletin's action
+    (adopted or not yet decided for the fleet); reference for everything else, with why where it matters."""
+    chunk = r.chunk
+    if mandate:
+        return "mandatory", f"conditions hold: {r.mandate_reason.replace('; ', ' and ')}"
+    if r.mandate:
+        return "reference", f"conditions not met: {unmet}"
+    if chunk["doc_type"] in RECOMMENDED_TYPES:
+        if not _recommends(chunk):
+            return "reference", "background to the bulletin, no action in this section"
+        if order is None:
+            return "recommended", "compliance recommended, no fleet decision yet"
+        return ("recommended" if order["decision"] == "adopt" else "reference"), decided(order)
+    winner = retrieved.get(r.overridden_by or "")
+    if winner is not None:
+        pending = orders.get(winner.chunk["doc_id"]) if _recommends(winner.chunk) else None
+        if _recommends(winner.chunk) and not winner.mandate_reason:
+            if pending is None:
+                return "reference", (f"the plan follows it until engineering decides on {winner.label}, which "
+                                     "would replace it on this topic")
+            if pending["decision"] == "decline":
+                return "reference", f"the plan follows it: {winner.label} declined for the fleet ({pending['eo_id']})"
+            return "reference", f"replaced on this topic by {winner.label}, adopted for the fleet ({pending['eo_id']})"
+        return "reference", f"overridden by {winner.label} on this topic"
+    return "reference", None
+
+
+def group_claims(documents: list[DocumentFinding], rul_ids: list[str], fault_ids: list[str]) -> list[Claim]:
+    """One claim per group, so "applicable" never reads as "compliance due": what is mandatory now, what engineering
+    may adopt, and what is reference only (with the reason, e.g. a mandate whose conditions are not met)."""
+    claims = []
+    for group, title in GROUP_TITLES.items():
+        docs = [d for d in documents if d.group == group]
+        if not docs:
+            continue
+        items = "; ".join(f"{d.doc_id} {d.section} ({d.doc_type.replace('_', ' ')}"
+                          + (f", {d.group_reason}" if d.group_reason else "") + ")" for d in docs)
+        conditions = any(d.mandatory or (d.group_reason or "").startswith("conditions not met") for d in docs)
+        if group == "recommended" and all(d.fleet_decision == "adopt" for d in docs):
+            title = "Recommended, adopted by engineering order"
+        claims.append(Claim(text=f"{title}: {items}.",
+                            evidence_ids=list(dict.fromkeys([
+                                *(i for d in docs for i in (d.evidence_id, d.decision_evidence_id) if i),
+                                *((rul_ids + fault_ids) if conditions else [])])),
+                            confidence={"mandatory": "high", "recommended": "medium", "reference": "medium"}[group]))
+    return claims
 
 
 
@@ -69,15 +133,21 @@ def knowledge(state: CaseFile, ctx: RunContext) -> NodeResult:
                 "excluded": excluded, "rul_lower_cycles": lower, "fault_modes": modes},
                degraded=result.degraded)
 
-    documents, claims = [], []
+    # Engineering's fleet decisions on recommended bulletins (engineering orders): cited instead of asking again.
+    orders, orders_note = fleet_decisions(ctx.settings, asset.variant)
+    by_retrieved = {r.label: r for r in found.applicable}
+    documents, claims, order_ids = [], [], {}
     for r in found.applicable:
         c = r.chunk
         mandate = r.mandate if r.mandate_reason else None
+        order = orders.get(c["doc_id"]) if _recommends(c) and not mandate else None
+        unmet = mandate_unmet(r.mandate, modes, lower) if r.mandate and not mandate else None
         if mandate:
             status = f"MANDATORY: {mandate['action']} (applies: {r.mandate_reason})"
         elif r.mandate:
-            status = (f"mandatory only when {mandate_conditions(r.mandate)}; not met here"
-                      + (f" (RUL lower bound {lower:.0f})" if lower is not None else ""))
+            status = f"mandatory only when {mandate_conditions(r.mandate)}; not met here: {unmet}"
+        elif order:
+            status = f"engineering order: {describe_order(order)}"
         elif r.overridden_by:
             status = f"overridden by {r.overridden_by} on {c['topic']}"
         else:
@@ -92,13 +162,23 @@ def knowledge(state: CaseFile, ctx: RunContext) -> NodeResult:
              "relevance": r.relevance, "precedence": r.precedence, "mandate": mandate,
              "mandate_reason": r.mandate_reason, "overridden_by": r.overridden_by},
             degraded=result.degraded)
+        if order and order["eo_id"] not in order_ids:
+            order_ids[order["eo_id"]] = ledger.add(
+                "document", f"engineering_orders:{order['eo_id']}",
+                f"Engineering order {describe_order(order)}"
+                + (f", reference {order['reference']}" if order.get("reference") else "")
+                + "; signed fleet decision, hash-chained record",
+                {k: order.get(k) for k in ORDER_FIELDS}).id
+        group, reason = _group(r, mandate, unmet, order, orders, by_retrieved)
         documents.append(DocumentFinding(
             doc_id=c["doc_id"], doc_type=c["doc_type"], section=c["section"], heading=c["heading"],
             revision=str(c["revision"]), effective_date=str(c["effective_date"])[:10], precedence=r.precedence,
             relevance=r.relevance, failure_modes=(mandate or {}).get("failure_modes")
             or [m for m in str(c["failure_modes"]).split(",") if m], mandatory=bool(mandate), required_task=(mandate or {}).get("task"),
             within_cycles=(mandate or {}).get("within_cycles"), action=(mandate or {}).get("action"),
-            overridden_by=r.overridden_by, evidence_id=evidence.id))
+            overridden_by=r.overridden_by, evidence_id=evidence.id, group=group, group_reason=reason,
+            fleet_decision=order["decision"] if order else None,
+            decision_evidence_id=order_ids[order["eo_id"]] if order else None))
         if mandate:
             claims.append(Claim(
                 text=(f"{c['doc_id']} {c['section']} ({doc_type}) requires FMEA task {mandate['task']} within "
@@ -109,21 +189,30 @@ def knowledge(state: CaseFile, ctx: RunContext) -> NodeResult:
     for d in documents:
         winner = by_label.get(d.overridden_by or "")
         if winner:
-            approval = "; SB recommended; adopting it needs engineering approval" if needs_approval(winner) else ""
+            approval, cited = "", []
+            if needs_approval(winner):
+                approval = "; SB recommended; adopting it needs engineering approval"
+            elif winner.fleet_decision:
+                follows = f"{winner.doc_id} {winner.section}" if winner.fleet_decision == "adopt" else \
+                    f"{d.doc_id} {d.section}"
+                approval = f"; {describe_order(orders[winner.doc_id])}, so the plan follows {follows}"
+                cited = [winner.decision_evidence_id]
             claims.append(Claim(
                 text=(f"{winner.doc_id} {winner.section} ({winner.doc_type.replace('_', ' ')}) takes precedence over "
                       f"{d.doc_id} {d.section} ({d.doc_type.replace('_', ' ')}) on the same topic{approval}."),
-                evidence_ids=[winner.evidence_id, d.evidence_id], confidence="high"))
-    if documents:
-        claims.append(Claim(text="Applicable documents, highest precedence first: "
-                                 + ", ".join(f"{d.doc_id} {d.section}" for d in documents) + ".",
-                            evidence_ids=[d.evidence_id for d in documents], confidence="medium"))
+                evidence_ids=[winner.evidence_id, d.evidence_id, *cited], confidence="high"))
+    claims += group_claims(documents, rul_ids, fault_ids)
 
     mandates = [d for d in documents if d.mandatory]
-    summary = (f"{len(documents)} sections apply; {len(mandates)} mandatory"
+    count = {g: sum(d.group == g for d in documents) for g in GROUP_TITLES}
+    summary = (f"{len(documents)} sections apply: {count['mandatory']} mandatory now"
                + (f" ({', '.join(d.doc_id for d in mandates)})" if mandates else "")
+               + f", {count['recommended']} recommended, {count['reference']} reference"
+               + (f"; fleet decisions cited: {', '.join(order_ids)}" if order_ids else "")
                + (f"; {len(found.excluded)} excluded" if found.excluded else ""))
     assessments, limit_docs, limit_claims, degraded = compare_inspections(state, ctx, ledger, all_chunks, result)
+    if orders_note:
+        degraded = [*degraded, orders_note]
     if assessments:
         documents += limit_docs
         claims += limit_claims
@@ -182,7 +271,8 @@ def compare_inspections(state: CaseFile, ctx: RunContext, ledger: EvidenceLedger
                 doc_id=chunk["doc_id"], doc_type=chunk["doc_type"], section=chunk["section"],
                 heading=chunk["heading"], revision=str(chunk["revision"]),
                 effective_date=str(chunk["effective_date"])[:10],
-                precedence=order.get(chunk["doc_type"], len(order)), relevance=1.0, evidence_id=evidence.id))
+                precedence=order.get(chunk["doc_type"], len(order)), relevance=1.0, evidence_id=evidence.id,
+                group_reason=f"limit table for inspection finding {item.id}"))
         if chunk is not None:
             limit_id, table = cited[chunk["chunk_id"]]
         else:

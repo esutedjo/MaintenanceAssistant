@@ -17,8 +17,8 @@ from assurance.challenges import IDENTIFIER, claim_numbers
 from settings import Settings
 from tools.llm import LlmClient, LlmRefusal, LlmUnavailable
 from casefile.wear import NOT_DETECTED
-from ui.brief import (check_summary, decision_boundaries, escalation_view, fault_display, fault_label, fmt_rul,
-                      rul_context, verdict_headline, verdict_meta, verdict_tone, world_eligibility)
+from ui.brief import (check_summary, decision_boundaries, document_groups, escalation_view, fault_display, fault_label,
+                      fmt_rul, rul_context, verdict_headline, verdict_meta, verdict_tone, world_eligibility)
 from ui.help import entry_line, glossary, plain_summary, search_glossary
 
 log = logging.getLogger("explain")
@@ -143,6 +143,17 @@ def brief_facts(case: dict | None, pack: dict) -> list[str]:
         if doc.get("mandatory"):
             facts.append(f"Mandatory document {doc['doc_id']} {doc['section']} requires {doc.get('required_task')} "
                          f"within {doc.get('within_cycles')} cycles.")
+    for key, title, docs in document_groups(case):
+        facts.append(f"Documents, {title.lower()}: " + "; ".join(
+            f"{d['doc_id']} {d['section']}" + (f" ({d['group_reason']})" if d.get("group_reason") else "")
+            for d in docs) + ".")
+    facts += [f"Method of compliance: {c['text']}." for c in rec.get("compliance") or []]
+    package = rec.get("work_package") or {}
+    if package:
+        facts.append("Work package (synthetic task references): " + "; ".join(
+            f"{s['title']} {s['when']}, {len(s['tasks'])} tasks, {s['manhours']:g} manhours"
+            for s in package.get("sections") or []) + f"; {package['manhours']:g} manhours and {package['rii']} RII "
+            "in all.")
     facts.append("Checks: " + "; ".join(text for text, _ in check_summary(case)) + ".")
     facts += [f"Why this plan: {_plain(line)}" for line in decision_boundaries(case, pack)]
     facts += [f"In plain words: {_plain(line)}" for line in plain_summary(case, pack)]

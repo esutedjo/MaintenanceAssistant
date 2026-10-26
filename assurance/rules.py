@@ -101,23 +101,32 @@ def slot_exists(case: CaseFile) -> list[str]:
 
 
 def mandates_honoured(case: CaseFile, pack: dict, reference: date | None = None) -> list[str]:
-    """A mandatory document action may not be dropped, cited away or pushed past its compliance time."""
+    """A mandatory document action may not be dropped, cited away or pushed past its compliance time, and the plan must
+    state how it complies (the method of compliance for the compliance record), completing within the limit."""
     mandates = [d for d in case.findings.documents if d.mandatory]
     rec = case.recommendation
     if not mandates or rec is None:
         return []
     gaps = []
     cited = {i for c in rec.rationale for i in c.evidence_ids}
+    lines = {(c.doc_id, c.section): c for c in rec.compliance}
     for doc in mandates:
         label = f"{doc.doc_id} {doc.section}"
         if doc.required_task and doc.required_task not in rec.task_ids:
             gaps.append(f"mandatory task {doc.required_task} from {label} is missing from the plan")
         if doc.evidence_id not in cited:
             gaps.append(f"recommendation does not cite mandatory document {label} ({doc.evidence_id})")
-        if reference and doc.within_cycles is not None and rec.deadline:
-            limit = reference + timedelta(days=int(doc.within_cycles / pack["thresholds"]["cycles_per_day"]))
-            if rec.deadline > limit:
-                gaps.append(f"deadline {rec.deadline} is later than {label} allows ({limit})")
+        limit = (reference + timedelta(days=int(doc.within_cycles / pack["thresholds"]["cycles_per_day"]))
+                 if reference and doc.within_cycles is not None else None)
+        if limit and rec.deadline and rec.deadline > limit:
+            gaps.append(f"deadline {rec.deadline} is later than {label} allows ({limit})")
+        line = lines.get((doc.doc_id, doc.section))
+        if line is None:
+            gaps.append(f"compliance line for {label} is missing: the plan must state the method of compliance for "
+                        "the compliance record")
+        elif limit and line.comply_by > limit:
+            gaps.append(f"compliance line for {label} completes on {line.comply_by}, after the {doc.within_cycles}-cycle "
+                        f"limit ({limit})")
     return gaps
 
 
@@ -205,7 +214,7 @@ def inspections_acted_on(case: CaseFile, pack: dict, reference: date | None = No
 
 def numbers_supported(case: CaseFile, pack: dict) -> list[str]:
     """Every number a claim states must be in its cited evidence, a pack threshold, a sum or difference of two
-    cited values, or a cycles-to-days conversion. 0 of 2,907 clean claims fail this on the fleet (25 Oct)."""
+    cited values, or a cycles-to-days conversion. 0 of 3,401 clean claims fail this on the fleet (26 Oct)."""
     from assurance.challenges import all_claims, unsupported_numbers
     gaps = []
     for claim in all_claims(case):

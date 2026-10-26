@@ -29,6 +29,8 @@ FAULT_TEXT = {
     "similar_cases_dropped": "Drop the similar past cases from case memory",
     "claim_number_altered": "Change the warning median that case memory gave by 40 cycles",
     "inspection_ignored": "Keep the old plan after a borescope finding beyond the manual's limit came in",
+    "compliance_dropped": "Keep the mandated task but drop the line that says how the AD is complied with",
+    "compliance_late": "Book the AD's method of compliance a week after the mandate's limit",
 }
 
 

@@ -28,7 +28,7 @@ def test_stress_test_catches_every_applicable_mistake_and_passes_the_clean_brief
     assert gate_result(hpc, PACK, reference)["caught_by"] is None
     rows = stress_rows(hpc, PACK, reference)
     applied = [r for r in rows if r["applies"]]
-    assert len(rows) == 17 and len(applied) >= 11
+    assert len(rows) == 19 and len(applied) >= 13          # 17 faults plus the two AD compliance-line faults
     assert all(r["caught_by"] in {"rule checks", "critic"} and r["gaps"] for r in applied)
 
 

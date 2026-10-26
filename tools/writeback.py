@@ -295,6 +295,10 @@ def _record(case: CaseFile, decision: Decision, comment: str) -> dict[str, Any]:
         "parts": [p.model_dump() for p in (rec.parts if rec else [])],
         "slot": rec.slot.isoformat() if rec and rec.slot else None,
         "deadline": rec.deadline.isoformat() if rec and rec.deadline else None,
+        # The method of compliance per mandatory document (for the AD compliance record) and the work package
+        # (synthetic task references, RII, tooling, manhours, skills; lease-engine checks before installation).
+        "compliance": [c.model_dump(mode="json") for c in (rec.compliance if rec else [])],
+        "work_package": rec.work_package.model_dump(mode="json") if rec and rec.work_package else None,
     }
 
 

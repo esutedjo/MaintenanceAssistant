@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 
 from assurance.escalation import needs_acknowledgement
 from casefile.calls import CALL_ACTIONS
+from casefile.shop_findings import finding_line
 from casefile.wear import NOT_DETECTED, no_wear_label
 
 CSS = """
@@ -42,6 +43,17 @@ CSS = """
 .plan-facts { display: flex; flex-wrap: wrap; gap: .3rem 1.6rem; font-size: .9rem; color: #cbd5e1; }
 .plan-facts b { color: #e8eef5; }
 .plan-graph { margin-top: .55rem; font-size: .88rem; color: #cbd5e1; }
+.plan-comply { margin-top: .55rem; font-size: .9rem; color: #e2e8f0; border-left: 3px solid #e11d48;
+               padding: .1rem 0 .1rem .6rem; }
+.plan-comply b { color: #fda4af; }
+/* Work package: one row per task, wrapping on a tablet; RII chips stand out. */
+.wp-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .6rem; padding: .4rem 0;
+          border-top: 1px solid #1f2b3b; font-size: .92rem; }
+.wp-ref { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #93c5fd; font-size: .8rem; }
+.wp-rii { font-size: .72rem; letter-spacing: .05em; border-radius: 999px; padding: .02rem .5rem;
+          border: 1px solid #e11d48; color: #fda4af; }
+.wp-h { color: #94a3b8; font-size: .85rem; margin-left: auto; white-space: nowrap; }
+.wp-meta { color: #cbd5e1; font-size: .88rem; margin: .1rem 0 .3rem 0; }
 .ins-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .6rem; padding: .45rem 0;
            border-top: 1px solid #1f2b3b; font-size: .92rem; }
 .ins-row:first-of-type { border-top: none; }
@@ -667,6 +679,7 @@ DECISION_TONE = {"accepted": "ok", "approved": "ok", "challenge refuted": "ok", 
                  "no follow-up needed": "ok", "delegated follow-up": "plain", "ran follow-up": "plain",
                  "routed gap": "flag", "ran repair": "plain", "no agent can fix": "bad",
                  "entered inspection finding": "plain", "compared finding with limits": "plain",
+                 "recorded fleet decision": "plain",
                  "sent back for revision": "flag", "challenge confirmed": "flag", "escalated": "flag",
                  "asked back": "flag", "rejected": "bad", "failed": "bad", "not accepted at the round limit": "bad",
                  "closed: insufficient evidence": "bad"}
@@ -691,7 +704,8 @@ def _signoff_details(entry: dict) -> list[str]:
     if entry.get("actor_type") != "human":
         return []
     if not entry.get("signer"):
-        return [f"Entered {_utc_time(entry.get('timestamp'), with_date=True)}"]
+        verb = "Signed engineering order" if entry.get("decision") == "recorded fleet decision" else "Entered"
+        return [f"{verb} {_utc_time(entry.get('timestamp'), with_date=True)}"]
     signer, brief = entry.get("signer") or {}, entry.get("brief") or {}
     who = [signer.get("role"), f"licence {signer['licence_ref']}" if signer.get("licence_ref") else None]
     lines = [f"Signed {_utc_time(entry.get('timestamp'), with_date=True)}" + "".join(f" · {x}" for x in who if x)]
@@ -735,8 +749,10 @@ def decision_log_rows(entries: list[dict]) -> list[dict[str, Any]]:
         kind, actor = entry.get("actor_type") or "agent", entry.get("actor") or "?"
         decision = entry.get("decision") or ""
         inspector = kind == "human" and not entry.get("signer")      # an inspector entered a finding
+        chip = ("engineering" if decision == "recorded fleet decision" else "inspector" if inspector
+                else ACTOR_CHIPS.get(kind, kind))
         rows.append({
-            "step": n, "kind": kind, "chip": "inspector" if inspector else ACTOR_CHIPS.get(kind, kind),
+            "step": n, "kind": kind, "chip": chip,
             "actor": LOG_ACTORS.get(actor, actor) if kind in {"agent", "gate"} else actor,
             "decision": decision, "tone": DECISION_TONE.get(decision, "plain"),
             "round": entry.get("round"), "time": _utc_time(entry.get("timestamp")),
@@ -773,12 +789,60 @@ def trace_chips(trace: list[dict]) -> list[str]:
 
 
 def similar_case_summaries(case: dict) -> list[str]:
+    """One line per cited past removal: what the shop found and replaced (read from the case-memory record), else
+    the record's summary."""
     evidence = case.get("evidence") or {}
     lines = []
     for eid in (case.get("findings") or {}).get("similar_cases") or []:
         item = evidence.get(eid) or {}
-        lines.append(f"{eid}: {item.get('summary') or 'similar case'}")
+        found = (item.get("content") or {}).get("shop_finding")
+        lines.append(f"{eid} · {finding_line(found)}" if found else f"{eid}: {item.get('summary') or 'similar case'}")
     return lines
+
+
+def shop_findings(case: dict) -> list[str]:
+    """What the shop found on the cited past removals, each finding once, in sentence case."""
+    evidence = case.get("evidence") or {}
+    found = [((evidence.get(eid) or {}).get("content") or {}).get("shop_finding")
+             for eid in (case.get("findings") or {}).get("similar_cases") or []]
+    return list(dict.fromkeys(f["found"] for f in found if f and f.get("found")))
+
+
+GROUP_TITLES = {"mandatory": "Mandatory now", "recommended": "Recommended, needs engineering approval",
+                "reference": "Reference"}
+GROUP_NOTES = {
+    "mandatory": "The mandate's conditions hold for this engine: compliance is due, and the plan says how.",
+    "recommended": "Service bulletin actions. Adopting one needs engineering approval, recorded once per fleet.",
+    "reference": "Manuals, procedures and background, plus mandates whose conditions are not met (with why). No "
+                 "compliance is due from these.",
+}
+
+
+def document_groups(case: dict) -> list[tuple[str, str, list[dict]]]:
+    """(key, title, documents) for the groups that have documents, in the order mandatory, recommended, reference."""
+    docs = (case.get("findings") or {}).get("documents") or []
+    out = []
+    for key, title in GROUP_TITLES.items():
+        group = [d for d in docs if (d.get("group") or ("mandatory" if d.get("mandatory") else "reference")) == key]
+        if group:
+            adopted = key == "recommended" and all(d.get("fleet_decision") == "adopt" for d in group)
+            out.append((key, "Recommended, adopted by engineering order" if adopted else title, group))
+    return out
+
+
+def fleet_decision_targets(case: dict) -> list[dict[str, str]]:
+    """The bulletins an sb_adoption note asks engineering to decide on, with the fleet the decision would cover."""
+    fleet = (case.get("asset") or {}).get("variant")
+    by_id = {d["evidence_id"]: d for d in (case.get("findings") or {}).get("documents") or []}
+    out = []
+    for esc in case.get("escalations") or []:
+        if esc.get("rule") != "sb_adoption" or not fleet:
+            continue
+        doc = next((by_id[i] for i in esc.get("evidence_ids") or [] if i in by_id
+                    and by_id[i].get("doc_type") == "service_bulletin"), None)
+        if doc and all(t["doc_id"] != doc["doc_id"] for t in out):
+            out.append({"doc_id": doc["doc_id"], "section": doc["section"], "fleet": fleet})
+    return out
 
 
 def load_trace_file(path) -> list[dict[str, Any]]:

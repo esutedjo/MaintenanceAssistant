@@ -209,8 +209,15 @@ class AnomalyFinding(BaseModel):
     evidence_id: str
 
 
+DocumentGroup = Literal["mandatory", "recommended", "reference"]
+FleetDecision = Literal["adopt", "decline"]
+
+
 class DocumentFinding(BaseModel):
-    """A document section that applies to the case. Mandatory ones must stay in the plan (rule check)."""
+    """A document section that applies to the case. Mandatory ones must stay in the plan (rule check).
+    `group` is what it means for compliance: mandatory now (its mandate's conditions hold), recommended (a service
+    bulletin's action, adopting it needs engineering approval) or reference (manuals, procedures, background sections,
+    a declined bulletin, and a mandate whose conditions are not met, with `group_reason` saying why)."""
     doc_id: str
     doc_type: str
     section: str
@@ -226,6 +233,16 @@ class DocumentFinding(BaseModel):
     action: str | None = None
     overridden_by: str | None = None            # "SB-TF-72-0142 3.B" when a higher document wins the topic
     evidence_id: str
+    group: DocumentGroup = "reference"
+    group_reason: str | None = None             # "conditions not met: RUL lower bound 115 ≥ 30 cycles"
+    fleet_decision: FleetDecision | None = None  # a recommended bulletin engineering adopted or declined for the fleet
+    decision_evidence_id: str | None = None      # EV-KNW-nn: the engineering order behind fleet_decision
+
+    @model_validator(mode="after")
+    def _mandatory_group(self):
+        if self.mandatory:
+            self.group = "mandatory"
+        return self
 
 
 class Findings(BaseModel):
@@ -248,6 +265,52 @@ class PartNeed(BaseModel):
     evidence_ids: list[str] = Field(min_length=1)
 
 
+class ComplianceLine(BaseModel):
+    """How the plan complies with one mandatory document, for the operator's compliance record (the method of
+    compliance, e.g. 14 CFR 121.380). `comply_by` may not be later than `limit`, the latest date the document allows."""
+    doc_id: str
+    section: str
+    doc_type: str
+    task_id: str | None = None                  # the task the document requires
+    method: Literal["on_wing", "engine_removal"]
+    comply_by: date
+    limit: date
+    within_cycles: int | None = None
+    text: str
+    evidence_ids: list[str] = Field(min_length=1)
+
+
+class WorkTask(BaseModel):
+    """One step of a work package, from the asset pack's template. References are synthetic in this demo."""
+    ref: str
+    title: str
+    rii: bool = False                           # required inspection item: inspected by someone who did not do it
+    manhours: float = Field(ge=0)
+
+
+class WorkSection(BaseModel):
+    template: str                               # engine_change | shop_visit_induction | borescope_inspection
+    title: str
+    for_tasks: list[str]                        # the plan's FMEA tasks this section carries out
+    when: str
+    skill: str
+    tasks: list[WorkTask]
+    tooling: list[str] = Field(default_factory=list)
+    manhours: float = Field(ge=0)
+    governed_by: str | None = None              # the document whose limits and intervals the work follows
+    verify_before_installation: list[str] = Field(default_factory=list)   # lease engine: what Cleris has no data on
+
+
+class WorkPackage(BaseModel):
+    """What the plan means on the hangar floor: task references, required inspection items, tooling, manhours and
+    skills, built from the asset pack's templates for the plan's tasks."""
+    sections: list[WorkSection] = Field(min_length=1)
+    manhours: float = Field(ge=0)
+    rii: int = Field(ge=0)
+    note: str
+    evidence_ids: list[str] = Field(min_length=1)
+
+
 class Recommendation(BaseModel):
     action: str
     task_ids: list[str]                         # FMEA task IDs, e.g. FM-HPC-01
@@ -256,6 +319,8 @@ class Recommendation(BaseModel):
     deadline: date | None = None
     rationale: list[Claim] = Field(min_length=1)
     confidence: Confidence
+    compliance: list[ComplianceLine] = Field(default_factory=list)    # one per mandatory document
+    work_package: WorkPackage | None = None
 
 
 class Verdict(BaseModel):

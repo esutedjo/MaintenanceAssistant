@@ -158,6 +158,26 @@ def claim_number_altered(case, pack):
     return None
 
 
+def compliance_dropped(case, pack):
+    """The mandated task stays in the plan but the plan no longer says how the mandate is complied with: no line for
+    the AD compliance record (the method of compliance)."""
+    c = _copy(case)
+    if not c.recommendation.compliance:
+        return None
+    c.recommendation.compliance = []
+    return c
+
+
+def compliance_late(case, pack):
+    """The method of compliance is booked after the mandate's limit (a borescope or removal a week past it)."""
+    c = _copy(case)
+    if not c.recommendation.compliance:
+        return None
+    for line in c.recommendation.compliance:
+        line.comply_by = line.limit + timedelta(days=7)
+    return c
+
+
 def _next_id(case: CaseFile, code: str) -> str:
     taken = [int(k.rsplit("-", 1)[1]) for k in case.evidence if k.startswith(f"EV-{code}-")]
     return f"EV-{code}-{max(taken, default=0) + 1:02d}"
@@ -208,4 +228,5 @@ FAULTS: dict[str, Fault] = {f.__name__: f for f in (
     uncited_claim, evidence_deleted, rul_above_cap, rul_outside_interval, rul_inflated, disagreement_averaged,
     wrong_asset, fabricated_part, stock_inflated, slot_not_free, deadline_past_rul, mandate_dropped,
     mandate_uncited, drivers_as_signature, similar_cases_dropped, claim_number_altered, inspection_ignored,
+    compliance_dropped, compliance_late,
 )}

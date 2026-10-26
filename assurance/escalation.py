@@ -11,7 +11,8 @@ RESULT_WORDS = {"within": "within limits", "at_limit": "at the limit", "beyond":
 
 
 def needs_approval(doc: DocumentFinding) -> bool:
-    return doc.doc_type in RECOMMENDED_TYPES and not doc.mandatory
+    """A recommended bulletin engineering has not yet adopted or declined for the fleet (engineering order)."""
+    return doc.doc_type in RECOMMENDED_TYPES and not doc.mandatory and doc.fleet_decision is None
 
 
 def needs_acknowledgement(severity: str | None, rule: str | None = None) -> bool:
@@ -25,6 +26,18 @@ def pending_adoptions(case: CaseFile) -> list[tuple[DocumentFinding, DocumentFin
     by_label = {f"{d.doc_id} {d.section}": d for d in case.findings.documents}
     return [(by_label[d.overridden_by], d) for d in case.findings.documents
             if d.overridden_by in by_label and needs_approval(by_label[d.overridden_by])]
+
+
+def document_tasks(case: CaseFile, doc: DocumentFinding) -> set[str]:
+    evidence = case.evidence.get(doc.evidence_id)
+    return {t for t in str((evidence.content.get("tasks") if evidence else "") or "").split(",") if t}
+
+
+def manual_for_task(case: CaseFile, task_id: str) -> DocumentFinding | None:
+    """The applicable manual section that covers a task. A bulletin that names the task but shares no topic with a
+    manual section replaces nothing by precedence; until engineering adopts it, the work follows this section."""
+    return next((d for d in case.findings.documents if d.doc_type == "manual" and task_id in document_tasks(case, d)),
+                None)
 
 
 def remaining_shorter_than_wait(rul_days: float, lead_days: float, slot_days: float) -> bool:
@@ -257,7 +270,8 @@ def data_quality(case: CaseFile, pack: dict) -> Escalation | None:
 
 def sb_adoption(case: CaseFile, pack: dict) -> list[Escalation]:
     """A recommended service bulletin that would replace a manual limit on a task in the plan: engineering decides;
-    the plan keeps the manual meanwhile. Mandatory documents are hard constraints instead (document_mandate)."""
+    the plan keeps the manual meanwhile. Mandatory documents are hard constraints instead (document_mandate). Once
+    engineering records a fleet decision (engineering order), the brief cites it and this note no longer fires."""
     out = []
     planned = set(case.recommendation.task_ids) if case.recommendation else set()
     for sb, manual in pending_adoptions(case):
@@ -273,6 +287,26 @@ def sb_adoption(case: CaseFile, pack: dict) -> list[Escalation]:
             actions=["Engineering to approve or decline adopting the service bulletin",
                      f"Until it is approved, the plan follows {manual.doc_id} {manual.section}"],
             evidence_ids=[sb.evidence_id, manual.evidence_id]))
+    # A recommended bulletin that shares no topic with a manual section replaces nothing by precedence, but it is
+    # still not approved data for the fleet: the work follows the manual section that covers the task meanwhile.
+    paired = {sb.evidence_id for sb, _ in pending_adoptions(case)}
+    for sb in case.findings.documents:
+        evidence = case.evidence.get(sb.evidence_id)
+        tasks = sorted(document_tasks(case, sb) & planned)
+        if not needs_approval(sb) or sb.evidence_id in paired or not (evidence and evidence.content.get("topic")) \
+                or not tasks:
+            continue
+        manual = next((m for t in tasks if (m := manual_for_task(case, t))), None)
+        follows = (f"the plan follows {manual.doc_id} {manual.section} for {', '.join(tasks)}" if manual else
+                   f"no approved document sets the limits and intervals for {', '.join(tasks)}")
+        out.append(Escalation(
+            rule="sb_adoption", severity="info",
+            message=(f"{sb.doc_id} {sb.section} ({sb.doc_type.replace('_', ' ')}, compliance recommended) covers "
+                     f"{', '.join(tasks)} in the plan ({evidence.content['topic']}); SB recommended; adopting it needs "
+                     "engineering approval."),
+            actions=["Engineering to approve or decline adopting the service bulletin",
+                     f"Until it is approved, {follows}"],
+            evidence_ids=[sb.evidence_id, *([manual.evidence_id] if manual else [])]))
     return out
 
 

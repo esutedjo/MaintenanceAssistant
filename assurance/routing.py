@@ -11,6 +11,10 @@ ROUTES: dict[str, tuple[str | None, str]] = {
     "missing_mandate": ("knowledge", "re-read the mandatory document and bind the task it requires for the plan"),
     "uncited_mandate": ("knowledge", "re-read the mandatory document and bind its citation for the plan"),
     "mandate_deadline": ("knowledge", "re-read the mandatory document and bind its compliance date for the plan"),
+    "missing_compliance": ("maint_planner", "rebuild the plan with the method of compliance for each mandatory "
+                                            "document"),
+    "compliance_late": ("maint_planner", "rebuild the plan so the method of compliance completes within the "
+                                         "document's limit"),
     "part_not_in_evidence": ("data", "re-query stock and lead time for the named parts, skipping the run's cache"),
     "stock_mismatch": ("data", "re-query stock and lead time for the named parts, skipping the run's cache"),
     "slot_not_free": ("data", "re-query the free hangar slots, skipping the run's cache"),
@@ -46,6 +50,8 @@ PATTERNS: list[tuple[re.Pattern, str]] = [(re.compile(p), k) for p, k in [
     (r"^recommendation does not cite mandatory document", "uncited_mandate"),
     (r"^deadline .* is later than the RUL lower bound allows|^deadline after bound: ", "deadline_after_bound"),
     (r"^deadline .* is later than .* allows", "mandate_deadline"),
+    (r"^compliance line for .* is missing", "missing_compliance"),
+    (r"^compliance line for .* completes on .* after the", "compliance_late"),
     (r"^task .* is not on the World Model", "task_not_eligible"),
     (r"^claim states .* which its cited evidence|^unsupported number: ", "unsupported_number"),
     (r"^RUL drivers listed are", "driver_signature"),

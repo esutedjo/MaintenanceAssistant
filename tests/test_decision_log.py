@@ -59,8 +59,10 @@ def test_revise_loop_and_escalation_are_logged_in_order(fan):
         ("gate", "rule_checks", "accepted", 2),
         ("gate", "critic", "accepted", 2),
         ("gate", "escalation", "escalated", 2),
+        ("gate", "escalation", "escalated", 2),
     ]
-    assert "distinguish" in entries[4].rationale and "rul_below_lead_time" in entries[-1].rationale
+    assert "distinguish" in entries[4].rationale and "rul_below_lead_time" in entries[-2].rationale
+    assert "sb_adoption" in entries[-1].rationale
     assert entries[5].rationale.startswith("To maint_planner: driver_signature from critic round 1")
     assert [e.timestamp for e in entries] == sorted(e.timestamp for e in entries)
     cited = {i for e in entries for i in e.evidence_ids}

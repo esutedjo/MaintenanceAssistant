@@ -1,6 +1,6 @@
 {
- "run_id": "20261026T071520Z-b61cb2",
- "trace_id": "trace-20261026T071520Z-b61cb2",
+ "run_id": "20261026T083000Z-de5add",
+ "trace_id": "trace-20261026T083000Z-de5add",
  "status": "needs_review",
  "question": "The two remaining-life estimates for FD001-A070 look different. What should I do?",
  "mode": {
@@ -107,7 +107,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-02"
+    "evidence_id": "EV-KNW-02",
+    "group": "reference",
+    "group_reason": "conditions not met: RUL lower bound 33 \u2265 30 cycles",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "SB-TF-72-0142",
@@ -126,7 +130,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-03"
+    "evidence_id": "EV-KNW-03",
+    "group": "recommended",
+    "group_reason": "compliance recommended, no fleet decision yet",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "AMM-TF-R3",
@@ -146,7 +154,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": null,
-    "evidence_id": "EV-KNW-04"
+    "evidence_id": "EV-KNW-04",
+    "group": "reference",
+    "group_reason": null,
+    "fleet_decision": null,
+    "decision_evidence_id": null
    },
    {
     "doc_id": "AMM-TF-R3",
@@ -165,7 +177,11 @@
     "within_cycles": null,
     "action": null,
     "overridden_by": "SB-TF-72-0142 3.B",
-    "evidence_id": "EV-KNW-05"
+    "evidence_id": "EV-KNW-05",
+    "group": "reference",
+    "group_reason": "the plan follows it until engineering decides on SB-TF-72-0142 3.B, which would replace it on this topic",
+    "fleet_decision": null,
+    "decision_evidence_id": null
    }
   ],
   "inspections": [],
@@ -201,7 +217,7 @@
     "confidence": "medium"
    },
    {
-    "text": "3 similar past removals found in case memory.",
+    "text": "3 similar past removals in case memory (FD001-H011 at cycle 240, FD003-H012 at cycle 170, FD003-H026 at cycle 243); the shop found HPC stage 1-3 blades eroded, tip clearance beyond limits on all 3, after removal for performance deterioration, EGT margin exhausted.",
     "evidence_ids": [
      "EV-DIA-02",
      "EV-DIA-03",
@@ -218,12 +234,21 @@
     "confidence": "high"
    },
    {
-    "text": "Applicable documents, highest precedence first: AD-2026-17-04 (g), SB-TF-72-0142 3.B, AMM-TF-R3 05-20-00, AMM-TF-R3 72-31-00.",
+    "text": "Recommended, needs engineering approval: SB-TF-72-0142 3.B (service bulletin, compliance recommended, no fleet decision yet).",
+    "evidence_ids": [
+     "EV-KNW-03"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "Reference: AD-2026-17-04 (g) (airworthiness directive, conditions not met: RUL lower bound 33 \u2265 30 cycles); AMM-TF-R3 05-20-00 (manual); AMM-TF-R3 72-31-00 (manual, the plan follows it until engineering decides on SB-TF-72-0142 3.B, which would replace it on this topic).",
     "evidence_ids": [
      "EV-KNW-02",
-     "EV-KNW-03",
      "EV-KNW-04",
-     "EV-KNW-05"
+     "EV-KNW-05",
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-DIA-01"
     ],
     "confidence": "medium"
    }
@@ -297,6 +322,13 @@
     "confidence": "high"
    },
    {
+    "text": "Work package (asset-pack templates, synthetic task references): borescope inspection on wing by 2026-11-07 (4 tasks, 1 RII, 4.5 manhours); 4.5 manhours in all.",
+    "evidence_ids": [
+     "EV-MNT-05"
+    ],
+    "confidence": "medium"
+   },
+   {
     "text": "Primary fault mode HPC degradation (p=1.00).",
     "evidence_ids": [
      "EV-DIA-01"
@@ -325,7 +357,61 @@
     "confidence": "medium"
    }
   ],
-  "confidence": "low"
+  "confidence": "low",
+  "compliance": [],
+  "work_package": {
+   "sections": [
+    {
+     "template": "borescope_inspection",
+     "title": "Borescope inspection",
+     "for_tasks": [
+      "FM-HPC-01"
+     ],
+     "when": "on wing by 2026-11-07",
+     "skill": "B1 type-rated certifying staff with borescope authorisation",
+     "tasks": [
+      {
+       "ref": "SYN-72-00-00-200-802",
+       "title": "Open the HPC borescope ports (stages 1-9)",
+       "rii": false,
+       "manhours": 0.5
+      },
+      {
+       "ref": "SYN-72-31-00-200-801",
+       "title": "Borescope HPC stages 1-9; measure against the limit table in effect",
+       "rii": false,
+       "manhours": 3.0
+      },
+      {
+       "ref": "SYN-72-00-00-400-802",
+       "title": "Borescope plugs installed and torqued",
+       "rii": true,
+       "manhours": 0.5
+      },
+      {
+       "ref": "SYN-72-31-00-210-801",
+       "title": "Record the result in Cleris (Add inspection finding) and the CMMS",
+       "rii": false,
+       "manhours": 0.5
+      }
+     ],
+     "tooling": [
+      "Borescope kit (video borescope with measurement tip)",
+      "Borescope plug kit TF-GEN-8101",
+      "Engine hand-cranking tool"
+     ],
+     "manhours": 4.5,
+     "governed_by": "AMM-TF-R3 72-31-00",
+     "verify_before_installation": []
+    }
+   ],
+   "manhours": 4.5,
+   "rii": 1,
+   "note": "Task references are SYNTHETIC (prefix SYN-) and manhours are planning estimates for the demo; they are not from any OEM manual. Plan the work from the operator's approved maintenance data.",
+   "evidence_ids": [
+    "EV-MNT-05"
+   ]
+  }
  },
  "escalations": [
   {
@@ -372,15 +458,15 @@
    "outcome": "accept",
    "gaps": [
     "unsupported number challenge refuted by code (2 challenges): EV-PRG-01, EV-PRG-02 supports 55 or 33",
-    "unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33"
+    "unsupported number challenge refuted by code: EV-KNW-02, EV-KNW-04, EV-KNW-05, EV-PRG-01, EV-PRG-02, EV-DIA-01 supports 33"
    ],
    "model": "nvidia/nemotron-3-ultra-550b-a55b",
    "routes": [],
    "recorded": "recorded Nemotron response (captured 2026-10-26)",
    "dropped_notes": [
     "repeats the unsupported number challenge code refuted: Claim 1 states the two RUL methods differ by 55 cycles, but EV-PRG-01 (RUL A = 96) and EV-PRG-02 (RUL B = 40) give a difference of 56 cycles, not 55.",
-    "repeats the unsupported number challenge code refuted: Claim 7 cites EV-PRG-01 and EV-PRG-02 for deadline 2026-11-07 using RUL lower bound 33 cycles, but EV-PRG-01 does not contain a lower bound of 33 cycles; the 33-cycle lower bound comes only from EV-PRG-02.",
-    "repeats the unsupported number challenge code refuted: Claim 8 cites EV-PRG-01 and EV-PRG-02 for planning lower bound 33 cycles (min(A 10th percentile 73, B lower 33)), but EV-PRG-01 does not contain the value 33; the 33-cycle lower bound comes only from EV-PRG-02."
+    "repeats the unsupported number challenge code refuted: Claim 7 cites EV-PRG-01 and EV-PRG-02 for RUL lower bound 33 cycles, but EV-PRG-01 does not contain a lower bound of 33 cycles; the 33-cycle lower bound comes only from EV-PRG-02.",
+    "repeats the unsupported number challenge code refuted: Claim 8 cites EV-PRG-01 and EV-PRG-02 for deadline 2026-11-07 using RUL lower bound 33 cycles, but EV-PRG-01 does not report a lower bound of 33 cycles."
    ]
   }
  ],
@@ -479,7 +565,7 @@
   "EV-KNW-02": {
    "kind": "document",
    "source": "snapshot:doc_chunks.parquet#AD-2026-17-04#(g)",
-   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: mandatory only when hpc_degradation with p >= 0.5 and RUL lower bound < 30 cycles; not met here (RUL lower bound 33)",
+   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: mandatory only when hpc_degradation with p >= 0.5 and RUL lower bound < 30 cycles; not met here: RUL lower bound 33 \u2265 30 cycles",
    "produced_by": "knowledge",
    "degraded": null
   },
@@ -532,6 +618,13 @@
    "produced_by": "maint_planner",
    "degraded": null
   },
+  "EV-MNT-05": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/work_packages",
+   "summary": "Work package from the asset pack's templates (synthetic task references): borescope inspection on wing by 2026-11-07 (4 tasks, 1 RII, 4.5 manhours); 4.5 manhours, 1 RII in all",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
   "EV-PRG-01": {
    "kind": "model",
    "source": "model:rul_a@turbofan_cmapss/0.1.0",
@@ -570,8 +663,8 @@
  },
  "decision_log": [
   {
-   "timestamp": "2026-10-26T07:15:20.638775Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:00.669122Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "agent",
    "actor": "intake",
    "decision": "resolved engine",
@@ -584,8 +677,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.867155Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:00.899366Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "delegated follow-up",
@@ -596,8 +689,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.867155Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:00.899366Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "agent",
    "actor": "planner",
    "decision": "delegated follow-up",
@@ -608,8 +701,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.870156Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:00.902868Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "agent",
    "actor": "data",
    "decision": "ran follow-up",
@@ -622,8 +715,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.920511Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:00.953913Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "agent",
    "actor": "prognostics",
    "decision": "ran follow-up",
@@ -636,8 +729,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.952358Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:00.995292Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "agent",
    "actor": "maint_planner",
    "decision": "proposed plan",
@@ -646,7 +739,8 @@
     "EV-MNT-01",
     "EV-MNT-02",
     "EV-MNT-03",
-    "EV-MNT-04"
+    "EV-MNT-04",
+    "EV-MNT-05"
    ],
    "round": 1,
    "case_feedback": {},
@@ -654,8 +748,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.956880Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:01.000357Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "gate",
    "actor": "rule_checks",
    "decision": "accepted",
@@ -667,8 +761,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.960880Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:01.004358Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "model",
    "actor": "nvidia/nemotron-3-ultra-550b-a55b",
    "decision": "reviewed the brief",
@@ -681,8 +775,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.960880Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:01.004358Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
@@ -698,16 +792,19 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.960880Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:01.004358Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "challenge refuted",
-   "rationale": "Unsupported number challenge refuted by code: EV-MNT-04, EV-PRG-01, EV-PRG-02 supports 33 (from the recorded Nemotron response (captured 2026-10-26)).",
+   "rationale": "Unsupported number challenge refuted by code: EV-KNW-02, EV-KNW-04, EV-KNW-05, EV-PRG-01, EV-PRG-02, EV-DIA-01 supports 33 (from the recorded Nemotron response (captured 2026-10-26)).",
    "evidence_ids": [
-    "EV-MNT-04",
+    "EV-KNW-02",
+    "EV-KNW-04",
+    "EV-KNW-05",
     "EV-PRG-01",
-    "EV-PRG-02"
+    "EV-PRG-02",
+    "EV-DIA-01"
    ],
    "round": 1,
    "recorded": true,
@@ -716,8 +813,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.960880Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:01.004358Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "gate",
    "actor": "critic",
    "decision": "accepted",
@@ -729,8 +826,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.961880Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:01.006358Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -745,8 +842,8 @@
    "noted": []
   },
   {
-   "timestamp": "2026-10-26T07:15:20.961880Z",
-   "run_id": "20261026T071520Z-b61cb2",
+   "timestamp": "2026-10-26T08:30:01.006358Z",
+   "run_id": "20261026T083000Z-de5add",
    "actor_type": "gate",
    "actor": "escalation",
    "decision": "escalated",
@@ -832,7 +929,7 @@
    "source": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
- "trace_file": "logs\\trace-20261026T071520Z-b61cb2.jsonl",
- "duration_s": 0.34,
- "execution_time_seconds": 0.344
+ "trace_file": "logs\\trace-20261026T083000Z-de5add.jsonl",
+ "duration_s": 0.36,
+ "execution_time_seconds": 0.36
 }

@@ -9,6 +9,7 @@ import numpy as np
 
 from agents.runtime import NodeResult, RunContext, node, run_tasks
 from casefile.schemas import CaseFile, Claim, EvidenceLedger, Findings, Task
+from casefile.shop_findings import findings_claim, shop_finding
 from casefile.wear import only_mode
 from models.fault_mode import discriminating
 from models.features import normalise
@@ -37,12 +38,7 @@ def diagnostics(state: CaseFile, ctx: RunContext) -> NodeResult:
         mode = ctx.pack["failure_modes"][top.failure_mode]
         hits = ctx.store.search_memory(f"{mode['label']} {mode['component']} removal", top_n=SIMILAR_CASES,
                                        tags=["case", asset.asset_type, top.failure_mode], threshold=0.0)
-        for hit in hits:
-            evidence = ledger.add("case", f"{ctx.store.backend}:{hit.source}", hit.content[:240],
-                                  {"memory_id": hit.id, "content": hit.content, "tags": hit.tags,
-                                   "trust": hit.confidence, "relevance": round(hit.relevance, 3)},
-                                  degraded=ctx.store.degraded_reason)
-            similar.append(evidence.id)
+        similar = [_case_evidence(ctx, ledger, hit) for hit in hits]
         cohort = ctx.store.search_memory(f"{mode['label']} {mode['component']} removal", top_n=COHORT,
                                          tags=["case", asset.asset_type, top.failure_mode], threshold=0.0)
         leads = []
@@ -67,18 +63,28 @@ def diagnostics(state: CaseFile, ctx: RunContext) -> NodeResult:
     return NodeResult({"findings": findings, "evidence": ledger.records}, f"{head}{note}", confidence=top.probability)
 
 
+def _case_evidence(ctx: RunContext, ledger: EvidenceLedger, hit) -> str:
+    """One past removal from case memory as case evidence, with what the shop found on it read out of the record's
+    CMMS text (casefile/shop_findings.py); returns its ID."""
+    return ledger.add("case", f"{ctx.store.backend}:{hit.source}", hit.content[:240],
+                      {"memory_id": hit.id, "content": hit.content, "tags": hit.tags,
+                       "trust": hit.confidence, "relevance": round(hit.relevance, 3),
+                       "shop_finding": shop_finding(hit.content, ctx.pack)},
+                      degraded=ctx.store.degraded_reason).id
+
+
+def similar_cases_claim(state_evidence: dict, ids: list[str], fallback: str) -> str:
+    """The shop findings of the cited past removals in one sentence, or `fallback` when none carries one."""
+    items = [f for i in ids if (f := (state_evidence[i].content.get("shop_finding") if i in state_evidence else None))]
+    return findings_claim(items) if items and len(items) == len(ids) else fallback
+
+
 def _search_cases(ctx: RunContext, ledger: EvidenceLedger, asset_type: str, mode: str, tags: list[str]) -> list[str]:
     """Past removals from case memory as case evidence; returns their IDs."""
     spec = ctx.pack["failure_modes"][mode]
-    ids = []
-    for hit in ctx.store.search_memory(f"{spec['label']} {spec['component']} removal", top_n=SIMILAR_CASES,
-                                       tags=tags, threshold=0.0):
-        evidence = ledger.add("case", f"{ctx.store.backend}:{hit.source}", hit.content[:240],
-                              {"memory_id": hit.id, "content": hit.content, "tags": hit.tags,
-                               "trust": hit.confidence, "relevance": round(hit.relevance, 3)},
-                              degraded=ctx.store.degraded_reason)
-        ids.append(evidence.id)
-    return ids
+    return [_case_evidence(ctx, ledger, hit)
+            for hit in ctx.store.search_memory(f"{spec['label']} {spec['component']} removal", top_n=SIMILAR_CASES,
+                                               tags=tags, threshold=0.0)]
 
 
 def check_candidates(state: CaseFile, ctx: RunContext, task: Task, ledger: EvidenceLedger):
@@ -132,8 +138,9 @@ def research_cases(state: CaseFile, ctx: RunContext, task: Task, ledger: Evidenc
     cases = _search_cases(ctx, ledger, asset.asset_type, modes[0].failure_mode, ["case", asset.asset_type])
     if not cases:
         return "case memory returned nothing again; the gap stays", None
-    claim = Claim(text=f"{len(cases)} similar past removals found in case memory on a wider search.",
-                  evidence_ids=cases, confidence="medium")
+    found = similar_cases_claim(ledger.records, cases, f"{len(cases)} similar past removals found in case memory")
+    claim = Claim(text=f"{found.rstrip('.')} (wider search, without the fault-mode tag).", evidence_ids=cases,
+                  confidence="medium")
     return f"found {len(cases)} past cases ({', '.join(cases)})", Findings(similar_cases=cases, claims=[claim])
 
 

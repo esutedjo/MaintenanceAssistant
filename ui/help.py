@@ -14,8 +14,8 @@ import yaml
 
 from casefile.schemas import AGENT_CODES, INSPECTION_CODE
 from casefile.wear import NOT_DETECTED
-from ui.brief import (ESCALATION_TITLES, check_summary, fault_display, fault_label, primary_fault, rul_context,
-                      verdict_tone, world_eligibility)
+from ui.brief import (ESCALATION_TITLES, check_summary, document_groups, fault_display, fault_label, primary_fault,
+                      rul_context, shop_findings, verdict_tone, world_eligibility)
 
 GLOSSARY_FILE = Path(__file__).with_name("glossary.yaml")
 
@@ -42,8 +42,11 @@ SECTION_HELP = {
                "instead of averaging them.",
     "chart": "Each line is one engine sensor, shown as how far it has drifted from where this engine started "
              "(0 = as new). Lines climbing away from 0 show wear building up.",
-    "plan": "What to do, by when, and with which parts. Every statement ends with evidence tags (EV-…) that "
-            "point to the data behind it.",
+    "plan": "What to do, by when, and with which parts. When a mandatory document applies, the plan card says how it "
+            "is complied with (the line for the AD compliance record); the Work package under it lists the steps, "
+            "required inspection items (RII), tooling, manhours and skills (synthetic task references). Documents are "
+            "grouped as mandatory now, recommended (engineering decides once per fleet) and reference. Every "
+            "statement ends with evidence tags (EV-…) that point to the data behind it.",
     "context": "Background on this engine: its maintenance record, which sensors changed most, and how much "
                "it is scheduled to fly.",
     "decision": "Before you see the brief, automatic checks and a reviewer try to find mistakes. If the reviewer "
@@ -117,7 +120,9 @@ TOPICS = {
     "verdict": ("The verdict", "verdict", ["Confidence", "Deadline", "Planning bound", "RUL", "Percentile and range",
                                           "Divergence", "Escalation", "Rule checks", "Critic"]),
     "plan": ("The plan", "plan", ["Task ID", "FMEA", "World Model", "Severity", "Planning bound", "Lead time",
-                                  "Hangar slot", "Lease engine swap", "Shop visit"]),
+                                  "Hangar slot", "Lease engine swap", "Shop visit", "Mandatory now", "Recommended",
+                                  "Reference", "Method of compliance", "Work package", "RII", "Engineering order",
+                                  "Shop finding"]),
     "signoff": ("Your decision", "signoff", ["Sign-off", "Escalation", "Work order (draft)",
                                              "Certificate of release to service", "Decision log", "Hash chain"]),
     "details": ("The detail tabs", "evidence", ["Evidence ID", "Claim", "Rule checks", "Critic", "Decision log",
@@ -354,12 +359,22 @@ def plain_summary(case: dict, pack: dict) -> list[str]:
         elif esc.get("rule") == "ambiguous_fault":
             lines.append("It is not clear which part is wearing, so an inspection of both is suggested.")
 
+    complies = {(c.get("doc_id"), c.get("section")): c for c in rec.get("compliance") or []}
     for doc in (findings.get("documents") or []):
         if doc.get("mandatory"):
             kind = doc.get("doc_type", "document").replace("_", " ")
+            line = complies.get((doc.get("doc_id"), doc.get("section")))
+            how = (f" The plan complies by {line['text'].split('complied with by ', 1)[-1].split('; record in')[0]}."
+                   if line else "")
             lines.insert(1, f"An **{kind}** ({doc['doc_id']}) applies to this engine and **requires**: "
                             f"{(doc.get('action') or doc.get('required_task') or '').rstrip('.')}. "
-                            "The tool cannot drop this from the plan.")
+                            f"The tool cannot drop this from the plan.{how}")
+    decided = {d["doc_id"]: d for d in findings.get("documents") or [] if d.get("fleet_decision")}
+    for doc in decided.values():
+        follows = "the bulletin" if doc["fleet_decision"] == "adopt" else "the manual"
+        lines.append(f"Engineering **{'adopted' if doc['fleet_decision'] == 'adopt' else 'declined'}** "
+                     f"{doc['doc_id']} for this fleet once (an engineering order), so the plan follows {follows} "
+                     "without asking again.")
 
     if rec.get("action"):
         when = f" by **{rec['deadline']}**" if rec.get("deadline") else ""
@@ -370,7 +385,9 @@ def plain_summary(case: dict, pack: dict) -> list[str]:
     similar = len(findings.get("similar_cases") or [])
     checks = "Automatic checks and a reviewer approved this brief"
     checks += f" after sending it back {revisions} time{'s' if revisions != 1 else ''}" if revisions else ""
-    checks += f"; {similar} similar past engine{'s' if similar != 1 else ''} had the same problem." if similar else "."
+    checks += f"; {similar} similar past engine{'s' if similar != 1 else ''} had the same problem" if similar else ""
+    found = shop_findings(case) if similar else []
+    checks += (f", and the shop found {' / '.join(found)}." if found else ".")
     lines.append(checks)
     return lines
 
@@ -469,8 +486,20 @@ def screen_guide(case: dict | None, pack: dict) -> list[tuple[str, str]]:
             bits.append(f"{len(parts) - len(short)} of {len(parts)} parts on hand")
         if rec.get("slot"):
             bits.append(f"first hangar slot {rec['slot']}")
-        rows.append(("Plan", "The plan card lists the work: " + "; ".join(bits) + ". **Why this plan and not "
-                     "another** gives each rule the planner applied and the value at which the plan would change."))
+        extra = ""
+        if rec.get("compliance"):
+            extra += (" Under it, the compliance line says how each mandatory document is complied with, for the AD "
+                      "compliance record.")
+        if rec.get("work_package"):
+            extra += (" **Work package** lists the steps, required inspection items (RII), tooling, manhours and "
+                      "skills (synthetic task references).")
+        groups = document_groups(case)
+        if groups:
+            extra += (" Documents: " + "; ".join(f"{len(docs)} {title.split(',')[0].lower()}"
+                                                 for _, title, docs in groups) + ".")
+        rows.append(("Plan", "The plan card lists the work: " + "; ".join(bits) + "." + extra + " **Why this plan "
+                     "and not another** gives each rule the planner applied and the value at which the plan would "
+                     "change."))
     else:
         rows.append(("Plan", "The plan card lists the tasks, parts and hangar slot. **Why this plan and not another** "
                              "gives each rule the planner applied and the value at which the plan would change."))

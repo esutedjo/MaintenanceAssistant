@@ -18,6 +18,15 @@ failure_modes:
   hpc_degradation: {component: hpc, label: HPC degradation}
   fan_degradation: {component: fan, label: Fan degradation}
 failure_modes_csv: fmea.csv
+# Work-package templates per kind of work (engine change, module shop visit induction, borescope inspection): task
+# references (synthetic), required inspection items, tooling, manhours and skills. The planner attaches the ones whose
+# FMEA tasks are in the plan.
+work_packages: work_packages.yaml
+# Past removals in case memory carry the shop's finding as CMMS free text in capitals. The brief shows it in sentence
+# case: these words stay in capitals and these shop abbreviations are spelled out.
+shop_findings:
+  keep_upper: [HPC, LPC, HPT, LPT, EGT, BPR, QEC, LLP]
+  spell_out: {STG: stage, STGS: stages, CYC: cycles}
 
 # Synthetic maintenance documents (markdown with front matter; one chunk per section). Ingested into
 # knowledge.doc_chunks (pgvector) and data/snapshot/doc_chunks.parquet by `uv run task ingest-docs`.
