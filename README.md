@@ -4,7 +4,17 @@ The MRO clearance assistant. An evidence-backed maintenance decision agent for t
 
 It answers: **what is wrong with this engine, how long do I have, and what should I do?** Every number is computed in Python or SQL and stored as evidence. Claims without a resolvable evidence ID fail the rule checks.
 
+**Why it matters, in practitioners' words** (short excerpts, verified at source on 26 Oct 2026):
+
+- Japan Airlines' VP of IT and digital promotion, Sugimoto Kei: "a big challenge for us is really our data and it's very disparate." ([Constellation Research](https://constellationr.com/insights/news/how-aviation-maintenance-looks-ai-systems), Oct 2026)
+- Sarunas Kisevicius, EngineStands.com: "spare engine pools have become much thinner" as engines spend longer in overhaul. ([Aviation Week](https://aviationweek.com/mro/supply-chain/tightening-parts-supply-intensifies-airlines-summer-aog-pressures), 14 Jul 2026)
+- Alice Belcher, Delta TechOps, on predictive alerts: "The analytic itself does not make maintenance decisions." Engineers investigate and decide. ([Aviation Week](https://aviationweek.com/mro/emerging-technologies/false-alerts-test-trust-predictive-maintenance-systems), 19 Oct 2026)
+
 All maintenance, spares and document data in this project is **synthetic**. Telemetry is the NASA C-MAPSS simulated dataset (FD001 / FD003).
+
+> **Hackathon prototype.** Runs on NASA C-MAPSS simulated telemetry and synthetic maintenance, spares and document data. Not certified or approved by any aviation authority and not for operational use. It does not issue a return to service or a certificate of release to service: approval drafts a work order for the organisation's own release process.
+>
+> **Intended use:** advisory decision support for the engineer. Never the sole source of an airworthiness determination or a change to maintenance intervals. "Clearance" in the product line means the engineer's decision to keep, inspect or remove an engine; the release to service stays with certifying staff in the organisation's own system. See [`docs/regulatory-requirements.md`](docs/regulatory-requirements.md).
 
 **Judges / clean clone:** set `SAMPLE_MODE=true` and run. That path uses only committed Parquet snapshots and SQLite case memory. It does not need Zetaris, Nightshift, Docker, Node, or any credentials. If a live service is down during judging, the same snapshot path is used automatically and the brief is flagged `degraded`.
 
@@ -16,6 +26,16 @@ uv run python run.py --question "What should I do about FD001-A031?"
 # then: curl http://127.0.0.1:8000/health
 #       curl -X POST http://127.0.0.1:8000/run -H "Content-Type: application/json" --data-binary @input_examples/critical_hpc.json
 ```
+
+macOS / Linux:
+
+```bash
+uv sync
+SAMPLE_MODE=true uv run python run.py --question "What should I do about FD001-A031?"
+SAMPLE_MODE=true uv run task ui        # decision brief UI on http://localhost:8501
+```
+
+No `.env.local` or other credentials are needed: `.env*` files are git-ignored (only `.env.example` with placeholders is committed) and excluded from the Docker image. Checked on 26 Oct 2026 from a fresh clone with no credentials: CLI, `POST /run`, the test suite, `docker build` / `docker run` and the UI all ran in sample mode. Without `SAMPLE_MODE`, a run still completes on the snapshot and the brief is flagged `degraded` ("LLM critic unavailable").
 
 ## Prerequisites
 
@@ -56,6 +76,57 @@ What a reviewer can check in the UI, without reading code:
 - **Why this plan and not another**: each rule the planner applied (severity band, swap against parts lead time plus the first free slot, method disagreement, mandates), this engine's value, and the value at which the plan would change. Computed from the planner's decision record and the asset pack thresholds.
 - **Stress test**: inject any of the 16 seeded mistakes (tampered remaining life, fabricated part, dropped mandate, and others) into the brief on screen and see which gate stops it. The same faults and gates as the evaluation.
 - **Fleet triage**: "Which engines need attention this week?" is answered from `data/snapshot/fleet_triage.parquet`, which `uv run task fleet-triage` builds by running the full agent graph on all 200 active engines (sample mode, about 75 s). The Fleet tab shows when it was computed and can recompute it.
+
+## Agents and how they coordinate
+
+Not a fixed pipeline: the planner delegates follow-ups when the findings call for them, and every gap a gate finds goes to the agent that can fix it.
+
+```mermaid
+flowchart LR
+  Q[Question] --> I[Intake]
+  I --> P[Planner]
+  P --> D[Data] & PR[Prognostics] & DG[Diagnostics]
+  D & PR & DG --> B[Brief]
+  B --> RV{Planner review}
+  RV -- "methods disagree, fault unclear, bad input" --> FU[Follow-ups: data, prognostics, diagnostics]
+  RV -- clear case --> K[Knowledge]
+  FU --> K
+  K --> M[Maintenance planner]
+  M --> RC{Rule checks}
+  RC -- pass --> C{Critic: code checks + Nemotron}
+  RC -- gap --> R[Planner routes each gap]
+  C -- gap --> R
+  R -- "mandate" --> K2[Knowledge]
+  R -- "part, stock, slot" --> D2[Data]
+  R -- "no similar cases" --> DG2[Diagnostics]
+  R -- "RUL mismatch" --> PR2[Prognostics]
+  R -- "number, deadline, signature" --> M
+  K2 & D2 & DG2 & PR2 --> M
+  R -- "no agent can fix, or round 3" --> X[Close: insufficient evidence]
+  C -- accept --> E[Escalation rules] --> S[Engineer sign-off: decision log, draft work order]
+```
+
+| Agent or gate | Does | Uses a model? | Can block or send back? |
+| --- | --- | --- | --- |
+| Intake | Resolves the engine; parser first | Nemotron only for free text; code checks the quote and the registry | Asks back when no engine is found |
+| Planner | Assigns the specialists, reviews their findings and delegates follow-ups, routes each gap to its owner | No | Routes; closes a case no agent can fix |
+| Data | Telemetry, history, stock, slots through Zetaris; input plausibility gate | No | Raises a data-quality escalation |
+| Prognostics | RUL A (LightGBM quantiles, calibrated) and RUL B (health-index trend), SHAP drivers, back-test at the last inspection | No | No |
+| Diagnostics | Fault mode, discriminating sensors, similar past cases from H-MEM | No | No |
+| Knowledge | Documents in effect, in precedence order; mandates decided in code | No | Mandate escalation |
+| Maintenance planner | Task from the World Model, parts, slot, deadline, every claim with evidence | No | No |
+| Rule checks | Deterministic checks on every claim and number | No | Sends back |
+| Critic | Deterministic checks, then Nemotron tries to disprove the brief; code verifies each challenge | Nemotron (live; recorded replies in sample mode) | Sends back only on a challenge code confirms |
+| Escalation rules | Fixed rules from the asset pack | No | Escalates |
+| Engineer | Approves or rejects with name, acknowledgements and a reason for urgent escalations | Human | Decides |
+
+**Follow-ups.** After round 1 the planner checks the findings. If the two remaining-life methods disagree beyond the pack's limit, the Data agent pulls the inspection history and prognostics back-tests both methods at the last inspection. If the fault mode is unclear, diagnostics reads the discriminating sensors and past cases for both candidates. If the input failed a plausibility check, the Data agent re-reads it. Follow-ups only make the plan more cautious, and a clear case logs "no follow-up needed" with the reason. Routing table: `assurance/routing.py`.
+
+**Nemotron in sample mode.** Judges usually run without Nightshift, so sample mode replays Nemotron replies captured from live calls on 26 Oct 2026 (`data/snapshot/llm_recordings.json`, model `nvidia/nemotron-3-ultra-550b-a55b`). A reply is used only when the prompt hash matches exactly; code verifies every replayed challenge as in live mode, and the trace, decision log and brief label it "recorded Nemotron response". A changed prompt falls back to the deterministic checks, and a test fails if the golden prompts drift (`uv run task record-llm` re-captures).
+
+**Decision log and sign-off.** Every agent, gate, model and human decision is recorded in order (Details, Decision log tab; `casefile/decision_log.py`). To approve, the engineer types a name (role and licence reference optional), ticks each escalation as read and gives a reason for urgent ones; the entry binds to the brief by a SHA-256 of the recommendation. The log is stored append-only with a SHA-256 hash chain under `.state/decision_logs/` and attached to the draft work order, which says it is not a certificate of release to service.
+
+**Help for non-experts.** A Help button and "What is this?" links open one panel: what each part of the screen means for the open engine, a searchable glossary of 105 terms and abbreviations, an engine diagram with the sensors and fault modes, credited photos, and "Ask Cleris": Nemotron explains the brief from the fields on screen, and code flags any number in its answer that the brief does not contain.
 
 ## Documents (Knowledge agent)
 
@@ -128,6 +199,15 @@ Writes `evaluation/report.md` and `report.json`. Results from the committed snap
 - **Seeded faulty briefs:** 16 fault types (uncited claim, tampered or averaged RUL, fabricated part, inflated stock, slot not free, deadline past the RUL bound, mandate dropped, a changed number in a supporting claim, and others) applied to 30 finished briefs: 311 of 311 caught by the deterministic gates, 0 false alarms on the clean briefs. The first version of the gates missed the tampered RUL, fabricated part and inflated stock faults; the eval found them and two rule checks were added. The changed-number fault got through until the number check was added on 25 Oct; building that check also found a claim citing the wrong evidence, now fixed.
 - **Nemotron on its own** (`uv run task eval-llm`, needs Nightshift; `evaluation/llm_critic_report.md`): the four golden briefs, corrupted with every fault that applies, go to the Nemotron critic with the deterministic gates bypassed. It flagged a problem in free text on 34 of 41; code confirmed 3 of its 150 checkable challenges and refuted 147; it blocked no clean brief. That is why code, not the model, decides.
 - **Implausible input data:** 0 of the 200 clean runs raise a data-quality issue. 12 corruptions (a T30 spike, P30 in kPa instead of psia, a frozen Ps30, missing phi readings, duplicate, reversed and truncated cycles, a removal on an active engine, negative stock as serious; a cycle gap, an out-of-range T2 the models ignore and a work order after the last cycle as minor) fed through the full graph on 10 engines: 116 of 116 graded at the expected severity, no crashes. Building these found two crashes, now fixed: missing readings broke the telemetry summary, and two specialists failing in the same step broke the graph state.
+
+## Research findings
+
+`docs/research-findings.md` (26 Oct 2026) lists the market and regulatory findings that point to changes in Cleris, each with its sources and its status here (built, partly built, not built). `docs/regulatory-requirements.md` maps EASA, FAA, ICAO and industry requirements for an operator using a tool like Cleris: 26 requirements, 2 met, 15 partly met, 9 not met, with the actions for a pilot and for operational use. The items with the most weight:
+
+- **Sign-off:** a return to service is signed by a certificated person (14 CFR 43.9; EASA Part-145.A.50), but the Approve record names no signer. Record who decided, and leave the release with certifying staff.
+- **Wording:** "clearance" and "release" are regulated words, and the repo has no "not for operational use" statement.
+- **Uncertainty and cost:** weight RUL A's range against late removal (asymmetric conformal intervals), and set the inspect and remove thresholds from what each kind of false alarm costs.
+- **Data:** read a real M&E system through mapped connectors; today the SQL names the team's own synthetic tables.
 
 ## Live mode
 
