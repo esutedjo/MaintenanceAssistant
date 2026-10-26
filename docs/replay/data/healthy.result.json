@@ -1,0 +1,640 @@
+{
+ "run_id": "20261026T173756Z-178c68",
+ "trace_id": "trace-20261026T173756Z-178c68",
+ "status": "needs_review",
+ "question": "What is the status of FD001-A001?",
+ "mode": {
+  "sample_mode": false,
+  "data": "live",
+  "context_store": "meterless"
+ },
+ "degraded": [],
+ "asset": {
+  "asset_id": "FD001-A001",
+  "asset_type": "turbofan_cmapss",
+  "pack_version": "0.1.0",
+  "variant": "FD001"
+ },
+ "intent": {
+  "goal": "status",
+  "asset_id": "FD001-A001",
+  "horizon_days": null,
+  "needs_clarification": false,
+  "clarification": null,
+  "resolved_by": null,
+  "recorded": null
+ },
+ "findings": {
+  "rul_ml": {
+   "method": "lightgbm",
+   "rul": 120.9,
+   "lower": 114.9,
+   "upper": 125.0,
+   "at_cap": false,
+   "note": null,
+   "evidence_id": "EV-PRG-01"
+  },
+  "rul_trend": {
+   "method": "health_index",
+   "rul": 125.0,
+   "lower": 125.0,
+   "upper": 125.0,
+   "at_cap": true,
+   "note": "health index within healthy fleet band; no degradation trend yet",
+   "evidence_id": "EV-PRG-02"
+  },
+  "fault_modes": [
+   {
+    "failure_mode": "hpc_degradation",
+    "probability": 1.0,
+    "evidence_id": "EV-DIA-01"
+   }
+  ],
+  "drivers": [
+   {
+    "sensor": "s_8",
+    "component": "fan",
+    "contribution": -2.04,
+    "evidence_id": "EV-PRG-03"
+   }
+  ],
+  "anomaly": {
+   "cycle": 31,
+   "health_index": 0.044,
+   "fleet_median": 0.054,
+   "residual_sigma": -0.36,
+   "flagged": false,
+   "evidence_id": "EV-PRG-04"
+  },
+  "similar_cases": [],
+  "documents": [
+   {
+    "doc_id": "AD-2026-17-04",
+    "doc_type": "airworthiness_directive",
+    "section": "(g)",
+    "heading": "Required actions",
+    "revision": "0",
+    "effective_date": "2026-09-01",
+    "precedence": 0,
+    "relevance": 0.201,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-02",
+    "group": "reference",
+    "group_reason": "conditions not met: RUL lower bound 115 ≥ 30 cycles",
+    "fleet_decision": null,
+    "decision_evidence_id": null
+   },
+   {
+    "doc_id": "SB-TF-72-0142",
+    "doc_type": "service_bulletin",
+    "section": "3.B",
+    "heading": "Recommended action",
+    "revision": "1",
+    "effective_date": "2026-06-15",
+    "precedence": 1,
+    "relevance": 0.249,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-03",
+    "group": "recommended",
+    "group_reason": "compliance recommended, no fleet decision yet",
+    "fleet_decision": null,
+    "decision_evidence_id": null
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "72-31-00",
+    "heading": "HPC borescope inspection",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 0.303,
+    "failure_modes": [
+     "hpc_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": "SB-TF-72-0142 3.B",
+    "evidence_id": "EV-KNW-04",
+    "group": "reference",
+    "group_reason": "the plan follows it until engineering decides on SB-TF-72-0142 3.B, which would replace it on this topic",
+    "fleet_decision": null,
+    "decision_evidence_id": null
+   },
+   {
+    "doc_id": "AMM-TF-R3",
+    "doc_type": "manual",
+    "section": "05-20-00",
+    "heading": "Gas-path trend monitoring",
+    "revision": "3",
+    "effective_date": "2026-03-01",
+    "precedence": 2,
+    "relevance": 0.228,
+    "failure_modes": [
+     "hpc_degradation",
+     "fan_degradation"
+    ],
+    "mandatory": false,
+    "required_task": null,
+    "within_cycles": null,
+    "action": null,
+    "overridden_by": null,
+    "evidence_id": "EV-KNW-05",
+    "group": "reference",
+    "group_reason": null,
+    "fleet_decision": null,
+    "decision_evidence_id": null
+   }
+  ],
+  "inspections": [],
+  "claims": [
+   {
+    "text": "Remaining useful life is about 121 cycles (10th-90th percentile 115-125) by the ML model; the health-index trend gives 125.",
+    "evidence_ids": [
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "No wear detected; this fleet's only known wear mode is HPC degradation.",
+    "evidence_ids": [
+     "EV-DIA-01",
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Sensors pulling the RUL estimate down most: Nf (fan).",
+    "evidence_ids": [
+     "EV-PRG-03"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "SB-TF-72-0142 3.B (service bulletin) takes precedence over AMM-TF-R3 72-31-00 (manual) on the same topic; SB recommended; adopting it needs engineering approval.",
+    "evidence_ids": [
+     "EV-KNW-03",
+     "EV-KNW-04"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Recommended, needs engineering approval: SB-TF-72-0142 3.B (service bulletin, compliance recommended, no fleet decision yet).",
+    "evidence_ids": [
+     "EV-KNW-03"
+    ],
+    "confidence": "medium"
+   },
+   {
+    "text": "Reference: AD-2026-17-04 (g) (airworthiness directive, conditions not met: RUL lower bound 115 ≥ 30 cycles); AMM-TF-R3 72-31-00 (manual, the plan follows it until engineering decides on SB-TF-72-0142 3.B, which would replace it on this topic); AMM-TF-R3 05-20-00 (manual).",
+    "evidence_ids": [
+     "EV-KNW-02",
+     "EV-KNW-04",
+     "EV-KNW-05",
+     "EV-PRG-01",
+     "EV-PRG-02",
+     "EV-DIA-01"
+    ],
+    "confidence": "medium"
+   }
+  ]
+ },
+ "recommendation": {
+  "action": "No action proposed before the next scheduled inspection",
+  "task_ids": [],
+  "parts": [],
+  "slot": "2026-10-23",
+  "deadline": "2026-12-18",
+  "rationale": [
+   {
+    "text": "Deadline 2026-12-18 is the RUL lower bound 115 cycles at 2 cycles/day.",
+    "evidence_ids": [
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "Trigger severity minor: planning lower bound 115 cycles (min(A 10th percentile 115, B lower 125); severe < 25, moderate < 80).",
+    "evidence_ids": [
+     "EV-MNT-03",
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "No wear detected; this fleet's only known wear mode is HPC degradation.",
+    "evidence_ids": [
+     "EV-DIA-01",
+     "EV-PRG-01",
+     "EV-PRG-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "World Model lists tasks for this fault (FM-HPC-01, FM-HPC-02, FM-HPC-03, FM-HPC-04, FM-HPC-05, FM-HPC-06); none selected while the engine is still in the healthy band.",
+    "evidence_ids": [
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   },
+   {
+    "text": "World Model links these document sections to tasks for this fault: AD-2026-17-04 (g)→FM-HPC-01, AMM-TF-R2 72-31-00→FM-HPC-01, AMM-TF-R3 71-00-00→FM-HPC-06, AMM-TF-R3 72-31-00→FM-HPC-01, AMM-TF-R3 72-31-10→FM-HPC-02, SB-TF-72-0142 3.B→FM-HPC-01; which apply now and which are mandatory is decided by the knowledge agent.",
+    "evidence_ids": [
+     "EV-MNT-02"
+    ],
+    "confidence": "high"
+   }
+  ],
+  "confidence": "high",
+  "compliance": [],
+  "work_package": null
+ },
+ "escalations": [],
+ "verdicts": [
+  {
+   "round": 1,
+   "gate": "rule_checks",
+   "outcome": "accept",
+   "gaps": [],
+   "model": null,
+   "routes": [],
+   "recorded": null,
+   "dropped_notes": []
+  },
+  {
+   "round": 1,
+   "gate": "critic",
+   "outcome": "accept",
+   "gaps": [
+    "unsupported number challenge refuted by code: the challenge names no claim number and value",
+    "unsupported number challenge refuted by code: EV-MNT-03, EV-PRG-01, EV-PRG-02 supports 125"
+   ],
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "routes": [],
+   "recorded": null,
+   "dropped_notes": [
+    "repeats the unsupported number challenge code refuted: Claim 6 states 'Deadline 2026-12-18 is the RUL lower bound 115 cycles at 2 cycles/day' but EV-PRG-01 and EV-PRG-02 do not contain a utilization rate of 2 cycles/day nor the computed date 2026-12-18; the deadline derivation is unsupported by the cited evidence.",
+    "repeats the unsupported number challenge code refuted: Claim 7 cites EV-MNT-03 for 'planning lower bound 115 cycles (min(A 10th percentile 115, B lower 125))' but EV-MNT-03 itself states the same formula without providing the source for 'B lower 125'; EV-PRG-02 only gives a point estimate of 125 cycles and a health index, not a lower bound for method B, so the B lower value of 125 is not evidenced."
+   ]
+  }
+ ],
+ "evidence": {
+  "EV-DAT-01": {
+   "kind": "query",
+   "source": "zetaris:telemetry_pg.cycles",
+   "summary": "FD001-A001: 31 cycles (1-31); largest moves vs first 20 cycles: Nf +1.5 sd, NRf +0.9 sd, W31 -0.8 sd",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-02": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/data_quality",
+   "summary": "FD001-A001: input data plausible (31 cycles, 21 sensors, 0 work orders within asset-pack limits)",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-03": {
+   "kind": "query",
+   "source": "zetaris:cmms_pg.work_orders+findings",
+   "summary": "FD001-A001: 0 work orders, no inspections on record",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-04": {
+   "kind": "query",
+   "source": "zetaris:cmms_pg.planning_flight_schedule",
+   "summary": "FD001-A001: 12 cycles planned in 7 days, 58 in 30 days",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DAT-05": {
+   "kind": "query",
+   "source": "zetaris:cmms_pg.planning_hangar_slots",
+   "summary": "75 free hangar slots; first on 2026-10-23 (1 days from 2026-10-22)",
+   "produced_by": "data",
+   "degraded": null
+  },
+  "EV-DIA-01": {
+   "kind": "model",
+   "source": "model:fault_mode@turbofan_cmapss/0.1.0",
+   "summary": "Fault-mode match: hpc_degradation 1.00 (variant FD001 has one failure mode in the asset pack); health index still in healthy band, signature is weak",
+   "produced_by": "diagnostics",
+   "degraded": null
+  },
+  "EV-INT-01": {
+   "kind": "query",
+   "source": "zetaris:cmms_pg.assets",
+   "summary": "FD001-A001 (ESN-700101, FD001) is active; last observed cycle 31 at 2026-10-22T00:00:00+00:00",
+   "produced_by": "intake",
+   "degraded": null
+  },
+  "EV-KNW-01": {
+   "kind": "query",
+   "source": "zetaris:knowledge_pg.doc_chunks",
+   "summary": "13 document sections for turbofan_cmapss; 4 apply; excluded: AMM-TF-R2 72-31-00 (superseded by AMM-TF-R3)",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-02": {
+   "kind": "document",
+   "source": "zetaris:knowledge_pg.doc_chunks#AD-2026-17-04#(g)",
+   "summary": "AD-2026-17-04 (g) Required actions [airworthiness directive, rev 0, effective 2026-09-01]: mandatory only when hpc_degradation with p >= 0.5 and RUL lower bound < 30 cycles; not met here: RUL lower bound 115 ≥ 30 cycles",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-03": {
+   "kind": "document",
+   "source": "zetaris:knowledge_pg.doc_chunks#SB-TF-72-0142#3.B",
+   "summary": "SB-TF-72-0142 3.B Recommended action [service bulletin, rev 1, effective 2026-06-15]: relevance 0.25",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-04": {
+   "kind": "document",
+   "source": "zetaris:knowledge_pg.doc_chunks#AMM-TF-R3#72-31-00",
+   "summary": "AMM-TF-R3 72-31-00 HPC borescope inspection [manual, rev 3, effective 2026-03-01]: overridden by SB-TF-72-0142 3.B on hpc_borescope_interval",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-KNW-05": {
+   "kind": "document",
+   "source": "zetaris:knowledge_pg.doc_chunks#AMM-TF-R3#05-20-00",
+   "summary": "AMM-TF-R3 05-20-00 Gas-path trend monitoring [manual, rev 3, effective 2026-03-01]: relevance 0.23",
+   "produced_by": "knowledge",
+   "degraded": null
+  },
+  "EV-MNT-01": {
+   "kind": "query",
+   "source": "zetaris:s3_files.fmea+cmms_pg.planning_stock",
+   "summary": "hpc_degradation: 6 FMEA tasks; FM-HPC-01 inspect (minor); FM-HPC-02 restore (minor); FM-HPC-03 inspect (moderate); FM-HPC-04 replace (severe); FM-HPC-05 replace (severe); FM-HPC-06 engine_change (severe)",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-02": {
+   "kind": "rule",
+   "source": "meterless:world/hpc_degradation",
+   "summary": "World Model: 6 tasks address hpc_degradation",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-MNT-03": {
+   "kind": "rule",
+   "source": "asset_pack:turbofan_cmapss/thresholds",
+   "summary": "Trigger severity minor: planning lower bound 115 cycles (min(A 10th percentile 115, B lower 125); severe < 25, moderate < 80).",
+   "produced_by": "maint_planner",
+   "degraded": null
+  },
+  "EV-PRG-01": {
+   "kind": "model",
+   "source": "model:rul_a@turbofan_cmapss/0.1.0",
+   "summary": "RUL A (LightGBM): 121 cycles, 10th-90th 115-125 at cycle 31",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-02": {
+   "kind": "model",
+   "source": "model:rul_b@turbofan_cmapss/0.1.0",
+   "summary": "RUL B (health-index trend): 125 cycles, health index 0.04 (healthy band up to 0.18); health index within healthy fleet band; no degradation trend yet",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-03": {
+   "kind": "model",
+   "source": "model:shap_rul_a@turbofan_cmapss/0.1.0",
+   "summary": "Sensors pulling RUL A down, in cycles: Nf (fan) -2.0",
+   "produced_by": "prognostics",
+   "degraded": null
+  },
+  "EV-PRG-04": {
+   "kind": "model",
+   "source": "model:anomaly@turbofan_cmapss/0.1.0",
+   "summary": "Health index 0.04 is -0.4 sd from the fleet median 0.05 at cycle 31 (flag at +2 sd)",
+   "produced_by": "prognostics",
+   "degraded": null
+  }
+ },
+ "decision_log": [
+  {
+   "timestamp": "2026-10-26T17:37:57.101598Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "agent",
+   "actor": "intake",
+   "decision": "resolved engine",
+   "rationale": "The question resolves to FD001-A001, found in the asset registry.",
+   "evidence_ids": [
+    "EV-INT-01"
+   ],
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T17:37:59.163001Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "agent",
+   "actor": "planner",
+   "decision": "no follow-up needed",
+   "rationale": "RUL methods agree within 20 cycles (A 121, B 125); fault mode clear (hpc_degradation p=1.00); input data plausible.",
+   "evidence_ids": [],
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T17:38:00.921115Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "agent",
+   "actor": "maint_planner",
+   "decision": "proposed plan",
+   "rationale": "No action proposed before the next scheduled inspection; deadline 2026-12-18; 0 parts, confidence high.",
+   "evidence_ids": [
+    "EV-MNT-01",
+    "EV-MNT-02",
+    "EV-MNT-03"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T17:38:00.924115Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "gate",
+   "actor": "rule_checks",
+   "decision": "accepted",
+   "rationale": "All deterministic rule checks passed.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T17:38:07.196150Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "model",
+   "actor": "nvidia/nemotron-3-ultra-550b-a55b",
+   "decision": "reviewed the brief",
+   "rationale": "Raised 2 checkable challenges and 0 notes for the engineer; notes cannot block a cited brief; code dropped 2 notes it showed false or repeating a refuted challenge (kept in the trace).",
+   "evidence_ids": [],
+   "round": 1,
+   "recorded": false,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T17:38:07.196150Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code: the challenge names no claim number and value.",
+   "evidence_ids": [],
+   "round": 1,
+   "recorded": false,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T17:38:07.196150Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code: EV-MNT-03, EV-PRG-01, EV-PRG-02 supports 125.",
+   "evidence_ids": [
+    "EV-MNT-03",
+    "EV-PRG-01",
+    "EV-PRG-02"
+   ],
+   "round": 1,
+   "recorded": false,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T17:38:07.196150Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "accepted",
+   "rationale": "No gap found by the deterministic checks; no model challenge was confirmed by code.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  },
+  {
+   "timestamp": "2026-10-26T17:38:07.198150Z",
+   "run_id": "20261026T173756Z-178c68",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "no escalation",
+   "rationale": "No escalation rule fired.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": [],
+   "noted": []
+  }
+ ],
+ "agents": [
+  {
+   "name": "intake",
+   "role": "Reads the question and resolves the engine, or asks back",
+   "uses_model": true,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "planner",
+   "role": "Assigns round 1, delegates follow-ups the findings call for, routes each gap to the agent that can fix it",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "data",
+   "role": "Telemetry, input plausibility, history, schedule, slots, entered inspection findings; inspection history and targeted re-queries",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "prognostics",
+   "role": "RUL methods A and B, SHAP drivers, anomaly flag; back-test at the last inspection",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "diagnostics",
+   "role": "Fault-mode match and similar past cases; checks both candidates when unclear; checks an inspection finding against the fault mode",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "knowledge",
+   "role": "Applicable documents in precedence order, mandates decided in code; the limit section for each inspection finding, compared in code; binds a missing mandate",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "maint_planner",
+   "role": "Task, parts, slot and deadline from the RUL lower bound; applies the routed fixes",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "rule_checks",
+   "role": "Deterministic gate: citations, numbers, parts, slots, deadlines, mandates",
+   "uses_model": false,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "critic",
+   "role": "Deterministic checks, then Nemotron challenges that code confirms or refutes",
+   "uses_model": true,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "escalation",
+   "role": "Deterministic escalation rules from the asset pack",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  }
+ ],
+ "model_calls": [
+  {
+   "agent": "critic",
+   "round": 1,
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "recorded": false,
+   "source": "live Nightshift call"
+  }
+ ],
+ "trace_file": "logs\\trace-20261026T173756Z-178c68.jsonl",
+ "duration_s": 10.47,
+ "execution_time_seconds": 10.469
+}

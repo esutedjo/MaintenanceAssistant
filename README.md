@@ -4,6 +4,8 @@ The MRO clearance assistant. An evidence-backed maintenance decision agent for t
 
 **Demo video (3:52, 1440p):** https://youtu.be/rbfwq12gzoI
 
+**Replay of six live runs, nothing to install:** https://esutedjo.github.io/MaintenanceAssistant/ (each brief with its evidence, gates, decision log and every Zetaris, World Model, H-MEM and Nemotron call)
+
 It answers: **what is wrong with this engine, how long do I have, and what should I do?** Every number is computed in Python or SQL and stored as evidence. Claims without a resolvable evidence ID fail the rule checks.
 
 **Why it matters, in practitioners' words** (short excerpts, verified at source on 26 Oct 2026):
@@ -18,7 +20,7 @@ All maintenance, spares and document data in this project is **synthetic**. Tele
 >
 > **Intended use:** advisory decision support for the engineer. Never the sole source of an airworthiness determination or a change to maintenance intervals. "Clearance" in the product line means the engineer's decision to keep, inspect or remove an engine; the release to service stays with certifying staff in the organisation's own system. See [`docs/regulatory-requirements.md`](docs/regulatory-requirements.md).
 
-**Judges / clean clone:** set `SAMPLE_MODE=true` and run. That path uses only committed Parquet snapshots and SQLite case memory. It does not need Zetaris, Nightshift, Docker, Node, or any credentials. If a live service is down during judging, the same snapshot path is used automatically and the brief is flagged `degraded`. To see what the live path did (Zetaris on RDS and S3, the Meterless services, Nemotron through Nightshift) without credentials, run `uv run task live-evidence` ([Check the live path without credentials](#check-the-live-path-without-credentials)).
+**Judges / clean clone:** set `SAMPLE_MODE=true` and run. That path uses only committed Parquet snapshots and SQLite case memory. It does not need Zetaris, Nightshift, Docker, Node, or any credentials. If a live service is down during judging, the same snapshot path is used automatically and the brief is flagged `degraded`. To see what the live path did (Zetaris on RDS and S3, the Meterless services, Nemotron through Nightshift) without credentials, open the [replay page](https://esutedjo.github.io/MaintenanceAssistant/) or run `uv run task live-evidence` ([Check the live path without credentials](#check-the-live-path-without-credentials)).
 
 ```powershell
 uv sync
@@ -252,6 +254,7 @@ uv run task live-evidence
 
 - **Five live briefs** (`trace-live-*.jsonl`, 26 Oct 2026): the four golden cases and the beyond-limits inspection case. For each run it lists the Zetaris reads (39 in all: live SQL on `telemetry_pg`, `cmms_pg` and `knowledge_pg` in RDS Postgres and `s3_files` on S3, with tables, rows and timing), the 49 World Model and H-MEM calls to the Meterless context service, and the model that answered the critic through Nightshift (`nvidia/nemotron-3-ultra-550b-a55b`, a live call, not a replay) with how many of its challenges code confirmed or refuted. It checks that every trace reads as a live run: no snapshot fallback, no SQLite stand-in, no replayed or non-Nemotron critic reply.
 - **A live `/health` snapshot** (`health-live.json`, 26 Oct 2026 15:39 UTC): `GET /health` read right after one more live brief on FD001-A031 in the same process. Every component is green: Zetaris and each of its four sources (0.6–1.3 s), the context service (World Model 112 edges, H-MEM 202 memories), Nightshift serving Nemotron 3 Ultra 550B A55B, and the CMMS write path. That brief took 25.9 s, with nothing degraded. The file holds component states only, no hosts, URLs, tokens or keys; the capture refuses to write one. `uv run python -m tools.live_evidence --capture-health` retakes it in live mode.
+- **A replay page, nothing to install:** https://esutedjo.github.io/MaintenanceAssistant/ shows six live runs recorded on 26 Oct 2026, 17:32–17:38 UTC, one per file in `input_examples/`, with every service green in the `/health` read taken right after them. For each: the brief, the evidence behind every claim (coloured by where it came from), the gates and their verdicts, each Zetaris query with its tables, rows and timing, each World Model and H-MEM call, each Nemotron reply with its challenges confirmed or refuted by code, the full timeline and the decision log. The page is one self-contained file (`docs/index.html`, also openable from a clone) built from the committed run files in `docs/replay/data/` by `uv run task replay`; `uv run python -m tools.replay --record` re-records them in live mode and keeps only runs with nothing degraded.
 - **The demo video:** the live run on FD001-A031 with the services strip at 1:44; the Zetaris reads, H-MEM and the Nemotron model in the trace at 2:48.
 
 These files show what the services answered on the day; they do not replace a run. To run the same path on your own stack, see below.
@@ -330,6 +333,7 @@ In AWS itself, an RDS snapshot and S3 versioning are the faster way back. This b
 | `uv run task fleet-triage` | Run the agent graph on all active engines and rank them by decision and deadline (`data/snapshot/fleet_triage.parquet`) |
 | `uv run task eval-llm` | Nemotron critic on its own against the seeded faults (needs Nightshift; `evaluation/llm_critic_report.md`) |
 | `uv run task preflight` | Read-only check of every live dependency plus one live brief, before recording a demo |
+| `uv run task replay` | Rebuild the no-install replay page (`docs/index.html`) from the committed live runs in `docs/replay/data/` |
 | `uv run task live-evidence` | Summarise and check the committed live traces and the live `/health` snapshot; no credentials or network |
 | `uv run task backup --verify` | Portable backup of the live data (RDS dumps, FMEA from S3, manifest) outside the repository, checked by a local restore |
 | `uv run task calibrate-rul` | Calibrate RUL A's 10th–90th range on the held-out engines (stored in `rul_a.json`) |

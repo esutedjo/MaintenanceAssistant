@@ -1,0 +1,107 @@
+{
+ "captured_at": "2026-10-26T17:38:08+00:00",
+ "health": {
+  "status": "ok",
+  "sample_mode": false,
+  "data": "live",
+  "snapshot": true,
+  "overall": "ok",
+  "checked_at": "2026-10-26T17:38:08+00:00",
+  "summary": "Mode: live · Zetaris: reachable · 1.0 s · last query 17:38:08 UTC · Meterless context service: up · port 8710 · 469 ms · World Model 112 edges · H-MEM 202 memories · Meterless Nightshift: online · Nemotron 3 Ultra 550B A55B · 15 ms · CMMS write path: configured · approve inserts a draft into cmms.work_orders",
+  "components": [
+   {
+    "key": "mode",
+    "label": "Mode",
+    "state": "ok",
+    "summary": "live",
+    "details": [
+     "SAMPLE_MODE off, ZETARIS_MODE=live"
+    ],
+    "parts": [],
+    "chip": "live"
+   },
+   {
+    "key": "zetaris",
+    "label": "Zetaris",
+    "state": "ok",
+    "summary": "reachable · 1.0 s · last query 17:38:08 UTC",
+    "details": [
+     "telemetry_pg (RDS Postgres): answered in 1.0 s; last answer 17:38:08 UTC",
+     "cmms_pg (RDS Postgres): answered in 0.5 s; last answer 17:38:07 UTC",
+     "knowledge_pg (RDS Postgres): answered in 0.9 s; last answer 17:38:08 UTC",
+     "s3_files (S3): answered in 0.9 s; last answer 17:38:08 UTC"
+    ],
+    "parts": [
+     {
+      "name": "telemetry_pg",
+      "kind": "RDS Postgres",
+      "state": "ok",
+      "seconds": 1.0,
+      "summary": "answered in 1.0 s",
+      "last_ok": "17:38:08 UTC"
+     },
+     {
+      "name": "cmms_pg",
+      "kind": "RDS Postgres",
+      "state": "ok",
+      "seconds": 0.52,
+      "summary": "answered in 0.5 s",
+      "last_ok": "17:38:07 UTC"
+     },
+     {
+      "name": "knowledge_pg",
+      "kind": "RDS Postgres",
+      "state": "ok",
+      "seconds": 0.94,
+      "summary": "answered in 0.9 s",
+      "last_ok": "17:38:08 UTC"
+     },
+     {
+      "name": "s3_files",
+      "kind": "S3",
+      "state": "ok",
+      "seconds": 0.86,
+      "summary": "answered in 0.9 s",
+      "last_ok": "17:38:08 UTC"
+     }
+    ],
+    "chip": "reachable · 1.0 s · last query 17:38:08 UTC"
+   },
+   {
+    "key": "context_service",
+    "label": "Meterless context service",
+    "state": "ok",
+    "summary": "up · port 8710 · 469 ms · World Model 112 edges · H-MEM 202 memories",
+    "details": [
+     "World Model 112 relations, 12 document nodes · H-MEM 202 memories"
+    ],
+    "parts": [],
+    "chip": "up · port 8710"
+   },
+   {
+    "key": "nightshift",
+    "label": "Meterless Nightshift",
+    "state": "ok",
+    "summary": "online · Nemotron 3 Ultra 550B A55B · 15 ms",
+    "details": [
+     "Nightshift app turbofan-maintenance-critic, routing meterless/auto",
+     "Critic lane last served by nvidia/nemotron-3-ultra-550b-a55b at 17:38:07 UTC",
+     "18 routing modes"
+    ],
+    "parts": [],
+    "chip": "online · Nemotron 3 Ultra 550B A55B"
+   },
+   {
+    "key": "cmms",
+    "label": "CMMS write path",
+    "state": "ok",
+    "summary": "configured · approve inserts a draft into cmms.work_orders",
+    "details": [
+     "The JSONL record (.state/draft_work_orders.jsonl) is written as well"
+    ],
+    "parts": [],
+    "chip": "configured"
+   }
+  ]
+ }
+}
