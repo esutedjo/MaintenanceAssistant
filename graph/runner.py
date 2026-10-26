@@ -115,7 +115,8 @@ def result_json(case: CaseFile, ctx: RunContext, duration_s: float) -> dict:
         "agents": [{"name": n, "role": r, "uses_model": m, "can_block_or_send_back": b} for n, r, m, b in AGENTS],
         "model_calls": model_calls(case),
         "trace_file": str(ctx.trace.path.relative_to(ROOT)),
-        "duration_s": round(duration_s, 2),
+        # The short form is rounded from the long one, so the two never disagree (1.2346 s: 1.235 and 1.24, not 1.23).
+        "duration_s": round(round(duration_s, 3), 2),
         "execution_time_seconds": round(duration_s, 3),
     }
 
