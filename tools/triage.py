@@ -23,7 +23,7 @@ def decision_kind(action: str | None) -> str:
     text = (action or "").lower()
     if not text:
         return "no recommendation"
-    if text.startswith("continue"):
+    if text.startswith(("no action proposed", "continue")):     # "continue in service" is the pre-27 Oct wording
         return "keep flying"
     if "inspect" in text or "borescope" in text:
         return "inspect"

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import html
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -28,23 +27,32 @@ importlib.reload(ui.brief)
 importlib.reload(ui.engine)
 importlib.reload(ui.fleet)
 importlib.reload(ui.help)
+import ui.explain  # after ui.help is fresh: it imports names from ui.help
+
+importlib.reload(ui.explain)
 importlib.reload(ui.methods)
 importlib.reload(ui.stress)
 
+from casefile.decision_log import Signer, brief_ref, derive_log, verify_rows
 from casefile.schemas import CaseFile
 from data.db import load_pack
 from graph.runner import execute_run
 from settings import get_settings
 from tools.writeback import approve_case, cited_cases, reject_case
 from ui.brief import (
-    CSS, asset_context, check_summary, decision_boundaries, decision_rows, driving_sensor_figure, escalation_view,
-    fault_label, fmt_rul,
-    load_trace_file, primary_fault, rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries,
+    CSS, approval_gate, asset_context, check_summary, decision_boundaries, decision_log_rows, decision_rows,
+    driving_sensor_figure, escalation_ack_label, escalation_view, fault_label, fmt_rul, load_trace_file,
+    needs_urgent_reason, primary_fault, rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries,
     trace_chips, trace_rows, verdict_headline, verdict_meta, verdict_tone, world_eligibility,
 )
-from ui.engine import component_probabilities, credit, engine_figure, photos
+from ui.engine import component_probabilities, credit, engine_figure, engine_svg, photos
+from ui.explain import explain
 from ui.fleet import list_active_assets, load_cycles
-from ui.help import GLOSSARY, HOW_TO_READ, SECTION_HELP, plain_summary
+from ui.help import (
+    CLEARANCE, DISCLAIMER, DISCLAIMER_SHORT, HOW_TO_READ, INTENDED_USE, KEYFRAME_NOTE, KEYFRAMES, SECTION_HELP,
+    TONE_WORDS, TOPICS, WHAT_IT_DOES, bold_html, flow_html, glossary, glossary_html, guide_html, plain_summary,
+    screen_guide, search_glossary, tooltip, topic_entries,
+)
 from ui.methods import drivers_figure, health_index_figure, method_facts
 from ui.stress import gate_result, stress_rows
 from agents.intake import FLEET_QUESTION
@@ -65,6 +73,8 @@ def main() -> None:
     settings = get_settings()
     pack = load_pack()
     _ask_bar(settings)
+    if st.session_state.get("help_topic"):
+        _help_dialog(st.session_state.help_topic, settings, pack)
     brief, fleet, trace_tab, stress_tab, pack_tab, help_tab = st.tabs(
         ["Decision brief", "Fleet", "Trace", "Stress test", "Asset pack", "Help"])
     with brief:
@@ -78,12 +88,44 @@ def main() -> None:
     with pack_tab:
         _pack_page(pack)
     with help_tab:
-        _help_page()
+        _help_panel("tab", settings, pack)
+
+
+def _esc(value) -> str:
+    return html.escape(str(value if value is not None else ""))
 
 
 def _explain(key: str) -> None:
     if st.session_state.get("explain", False):
         st.markdown(f'<div class="explain">{SECTION_HELP[key]}</div>', unsafe_allow_html=True)
+
+
+def _open_help(topic: str = "") -> None:
+    st.session_state.help_topic = topic or "overview"
+
+
+def _close_help() -> None:
+    st.session_state.help_topic = None
+
+
+# Opened from the Help button or a section's "What is this?"; kept open across reruns until dismissed, so a
+# question typed inside it survives a full rerun.
+@st.dialog("Help: how to read the brief", width="large", on_dismiss=_close_help)
+def _help_dialog(topic: str, settings, pack: dict) -> None:
+    _help_panel("dlg", settings, pack, topic)
+
+
+def _help_link(topic: str) -> None:
+    """A small link from a section to the Help panel, opened at that section's terms."""
+    st.button("What is this?", key=f"help_{topic}", type="tertiary", icon=":material/help:", on_click=_open_help,
+              args=(topic,), help=f"Explain {TOPICS[topic][0].lower()} in plain words")
+
+
+def _heading(text: str, topic: str, level: str = "###") -> None:
+    head, link = st.columns([5, 1], vertical_alignment="bottom")
+    head.markdown(f"{level} {text}")
+    with link:
+        _help_link(topic)
 
 
 def _ask_bar(settings) -> None:
@@ -95,8 +137,8 @@ def _ask_bar(settings) -> None:
         if linked:
             st.session_state.question = f"What should I do about {linked}?"
             st.session_state.run_now = True
-    st.markdown('<div class="brand"><b>Cleris</b><span>the MRO clearance assistant</span></div>',
-                unsafe_allow_html=True)
+    st.markdown(f'<div class="brand"><b>Cleris</b><span title="{html.escape(CLEARANCE)}">the MRO clearance '
+                'assistant</span></div>', unsafe_allow_html=True)
     with st.container(key="ask"):
         ask, run = st.columns([5, 1], vertical_alignment="bottom")
         ask.text_input("Ask about an engine", key="question", placeholder="What should I do about FD001-A031?")
@@ -108,11 +150,14 @@ def _ask_bar(settings) -> None:
         f"Live mode: data {settings.zetaris_mode}"
     result = st.session_state.get("result") or {}
     last = f" · last run {result.get('duration_s', 0):.1f} s" if result else ""
-    note, toggle = st.columns([4, 1], vertical_alignment="center")
+    note, toggle, helper = st.columns([4, 1, 1], vertical_alignment="center")
     note.caption(f"{mode}{last}. Telemetry is NASA C-MAPSS (simulated); maintenance, spares and documents are "
-                 "synthetic.")
+                 f"synthetic.  \n{DISCLAIMER_SHORT}")
     toggle.toggle("Explain", value=False, key="explain",
-                  help="Show a short plain-language note under each section. The Help tab has a glossary.")
+                  help="Show a short plain-language note under each section. Help has the glossary.")
+    helper.button("Help", key="help_open", icon=":material/help:", width="stretch", on_click=_open_help,
+                  help="What each part of the brief means, a glossary of terms and abbreviations, pictures of the "
+                       "engine, and AI help")
     if clicked or st.session_state.pop("run_now", False):
         _run(settings)
 
@@ -152,48 +197,53 @@ def _brief_page(settings, pack: dict) -> None:
         st.markdown("#### What is wrong with this engine, how long do I have, and what should I do?")
         st.write("Pick an example engine above, or type a question that names one (e.g. FD001-A031), and press "
                  "**Run**. You get one recommendation to approve or reject, with the evidence behind every number. "
-                 "The Help tab explains how to read it.")
+                 "Press **Help** at the top for what each part means, a glossary and pictures of the engine.")
         return
     if case.get("degraded"):
         st.warning("Degraded: " + "; ".join(case["degraded"]))
+    terms = glossary(pack)
+
+    def tip(text) -> str:
+        return tooltip(text, terms)
+
     tone = verdict_tone(case)
     st.markdown(
-        f'<div class="verdict {tone}"><h2>{verdict_headline(case)}</h2>'
-        f'<div class="meta">{verdict_meta(case)}</div></div>',
+        f'<div class="verdict {tone}"><h2>{tip(verdict_headline(case))}</h2>'
+        f'<div class="meta">{tip(verdict_meta(case))}</div></div>',
         unsafe_allow_html=True,
     )
     chips = check_summary(case)
     if chips:
-        st.markdown('<div class="checks">' + "".join(f'<span class="{tone}">{html.escape(text)}</span>'
+        st.markdown('<div class="checks">' + "".join(f'<span class="{tone}">{tip(text)}</span>'
                                                      for text, tone in chips) + "</div>", unsafe_allow_html=True)
     _explain("verdict")
+    _help_link("verdict")
     ctx = asset_context(case, pack)
-    _context_strip(case, ctx)
+    _context_strip(case, ctx, tip)
     for esc in case.get("escalations") or []:
         view = escalation_view(esc)
-        extra = "".join(f'<div class="esc-act">{html.escape(note)}</div>' for note in view["notes"])
+        extra = "".join(f'<div class="esc-act">{tip(note)}</div>' for note in view["notes"])
         if view["proposed"]:
-            extra += f'<div class="esc-act">Proposed: {html.escape(" · ".join(view["proposed"]))}</div>'
+            extra += f'<div class="esc-act">Proposed: {tip(" · ".join(view["proposed"]))}</div>'
         st.markdown(f'<div class="esc {view["severity"]}"><div class="esc-title"><span class="esc-sev">'
-                    f'{html.escape(view["severity"])}</span>{html.escape(view["title"])}</div>'
-                    f'<div class="esc-msg">{html.escape(view["message"])}</div>{extra}</div>',
+                    f'{html.escape(view["severity"])}</span>{tip(view["title"])}</div>'
+                    f'<div class="esc-msg">{tip(view["message"])}</div>{extra}</div>',
                     unsafe_allow_html=True)
 
     _explain("metrics")
     _overview_cards(case, pack)
-    _plan_summary(case)
+    _plan_summary(case, tip)
     why = decision_boundaries(case, pack)
     if why:
         with st.container(border=True):
-            st.markdown("**Why this plan and not another**")
+            _heading("Why this plan and not another", "plan", "####")
             st.markdown("\n".join(f"- {line}" for line in why))
             st.caption("Each line is a rule the planner applied, this engine's value, and the value at which the plan "
                        "would change. Computed from the planner's decision record and the asset pack thresholds.")
     summary = plain_summary(case, pack)
     if summary:
-        text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(" ".join(summary), quote=False))
         with st.expander("In plain words", expanded=st.session_state.get("explain", False)):
-            st.markdown(f'<div class="plain">{text}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="plain">{bold_html(" ".join(summary))}</div>', unsafe_allow_html=True)
     _sign_off(settings, case)
     _details(case, ctx, pack)
 
@@ -274,8 +324,9 @@ def _overview_cards(case: dict, pack: dict) -> None:
                 st.caption(line)
 
 
-def _plan_summary(case: dict) -> None:
+def _plan_summary(case: dict, tip=None) -> None:
     rec = case.get("recommendation") or {}
+    tip = tip or _esc
     if not rec:
         intent = case.get("intent") or {}
         if intent.get("needs_clarification"):
@@ -286,7 +337,7 @@ def _plan_summary(case: dict) -> None:
                 st.markdown("**Engines due within 7 days** (fleet triage; the Fleet tab has the full ranking)")
                 _triage_table(triage, 7, "brief_triage")
         return
-    esc = html.escape
+    esc = tip
     facts = []
     if rec.get("deadline"):
         facts.append(f"Deadline <b>{esc(str(rec['deadline']))}</b>")
@@ -319,12 +370,13 @@ def _plan_summary(case: dict) -> None:
 
 def _details(case: dict, ctx: dict, pack: dict) -> None:
     st.divider()
-    st.markdown("### Details")
+    _heading("Details", "details")
     st.caption("Drill down: each tab shows the working and the evidence records behind one part of the brief.")
     evidence_count = len(case.get("evidence") or {})
     docs = (case.get("findings") or {}).get("documents") or []
+    entries, stored = _log_entries(case)
     tabs = st.tabs(["Remaining life", "Fault", f"Plan and documents ({len(docs)})", "History",
-                    f"Checks and evidence ({evidence_count})"])
+                    f"Checks and evidence ({evidence_count})", f"Decision log ({len(entries)})"])
     with tabs[0]:
         _tab_life(case, pack)
     with tabs[1]:
@@ -339,6 +391,49 @@ def _details(case: dict, ctx: dict, pack: dict) -> None:
         _tab_checks(case)
         st.markdown("#### All evidence")
         _evidence(case)
+    with tabs[5]:
+        _tab_decision_log(entries, stored)
+
+
+def _log_entries(case: dict) -> tuple[list[dict], dict | None]:
+    """The stored log once the engineer has signed this case; before that, the log derived from the case file."""
+    record = (st.session_state.get("decision") or {}).get("record") or {}
+    if record.get("case_id") == case.get("case_id") and record.get("decision_log"):
+        return record["decision_log"]["entries"], record["decision_log"]
+    return [e.model_dump(mode="json") for e in derive_log(CaseFile.model_validate(case))], None
+
+
+def _tab_decision_log(entries: list[dict], stored: dict | None) -> None:
+    st.caption("Who decided what, in order: agents propose, gates accept or send the work back, the model raises "
+               "challenges that code confirms or refutes, and the engineer signs. Read from the case file; the "
+               "sign-off is added when you decide.")
+    if not entries:
+        st.caption("No decisions recorded for this case.")
+        return
+    st.markdown("".join(_log_row_html(r) for r in decision_log_rows(entries)), unsafe_allow_html=True)
+    if stored:
+        intact, note = verify_rows(entries, stored.get("head_hash"))
+        (st.caption if intact else st.error)(f"Stored at `{stored['path']}` · {note}. The draft work-order record "
+                                             "carries the same entries.")
+    else:
+        st.caption("Not stored yet. Approve or reject writes this log, hash-chained, to `.state/decision_logs/` and "
+                   "attaches it to the work-order record.")
+    with st.expander("Full JSONL"):
+        st.code("\n".join(json.dumps(e) for e in entries), language="json")
+
+
+def _log_row_html(r: dict) -> str:
+    esc = html.escape
+    meta = [f"round {r['round']}"] if r["round"] else []
+    evidence = "".join(f'<span class="ev-tag">{esc(i)}</span>' for i in r["evidence_ids"])
+    more = [*r["details"], *([f"hash {r['hash']}"] if r["hash"] else [])]
+    return (f'<div class="dl-row {r["tone"]}"><span class="tl-n">{r["step"]}</span><div>'
+            f'<div class="dl-head"><span class="dl-chip {esc(r["kind"])}">{esc(r["chip"])}</span>'
+            f'<b>{esc(r["actor"])}</b><span>{esc(r["decision"])}</span>'
+            + "".join(f'<span class="dl-meta">{esc(m)}</span>' for m in [*meta, r["time"]])
+            + f'</div><div class="tl-sum">{esc(r["rationale"])}</div>'
+            + (f'<div class="dl-ev">{evidence}</div>' if evidence else "")
+            + "".join(f'<div class="dl-more">{esc(line)}</div>' for line in more) + "</div></div>")
 
 
 DOC_TYPE = {"airworthiness_directive": "Airworthiness directive", "service_bulletin": "Service bulletin",
@@ -587,21 +682,23 @@ def _tab_checks(case: dict) -> None:
         st.caption("Full step-by-step log in the Trace tab at the top.")
 
 
-def _context_strip(case: dict, ctx: dict) -> None:
+def _context_strip(case: dict, ctx: dict, tip=None) -> None:
     profile, schedule, slots = ctx.get("profile"), ctx.get("schedule"), ctx.get("slots")
+    tip = tip or _esc
     result = st.session_state.get("result") or {}
     mode = result.get("mode") or {}
     items = []
     if profile:
-        items.append(f"<b>{profile['asset_id']}</b> {profile['esn']} · {profile['dataset']} · {profile['status']}")
-        items.append(f"cycle <b>{profile['last_cycle']}</b> on {profile['last_seen']}")
+        items.append(f"<b>{tip(profile['asset_id'])}</b> {tip(profile['esn'])} · {tip(profile['dataset'])} · "
+                     f"{tip(profile['status'])}")
+        items.append(f"cycle <b>{tip(profile['last_cycle'])}</b> on {tip(profile['last_seen'])}")
     if schedule:
-        items.append(f"<b>{schedule['cycles_next_7_days']}</b> cycles planned in 7 d, "
-                     f"<b>{schedule['cycles_next_30_days']}</b> in 30 d")
+        items.append(f"<b>{tip(schedule['cycles_next_7_days'])}</b> cycles planned in 7 d, "
+                     f"<b>{tip(schedule['cycles_next_30_days'])}</b> in 30 d")
     if slots and slots.get("first_free"):
-        items.append(f"first free slot <b>{slots['first_free']}</b>")
+        items.append(f"first free slot <b>{tip(slots['first_free'])}</b>")
     if mode:
-        items.append(f"data {mode.get('data')} · memory {mode.get('context_store')}")
+        items.append(f"data {tip(mode.get('data'))} · memory {tip(mode.get('context_store'))}")
     if items:
         st.markdown('<div class="context">' + "".join(f"<span>{i}</span>" for i in items) + "</div>",
                     unsafe_allow_html=True)
@@ -695,13 +792,19 @@ def _sign_off(settings, case: dict) -> None:
     decision = st.session_state.get("decision")
     if decision:
         rec = decision["record"]
+        signed = (rec.get("signed_by") or {}).get("name")
         if decision["kind"] == "approved":
             where = "CMMS" if rec.get("backend") == "cmms" else rec.get("path", "local file")
-            st.success(f"Draft work order **{rec['wo_id']}** written to {where}.")
+            st.success(f"DRAFT work order **{rec['wo_id']}** written to {where}, signed by {signed}. It goes to your "
+                       "organisation's own release process; it is not a certificate of release to service.")
         else:
-            st.info(f"Rejected {rec['wo_id']}. Comment stored with the case.")
+            st.info(f"Rejected {rec['wo_id']}, signed by {signed}. No work order drafted; comment stored with the case.")
         if rec.get("cmms_error"):
             st.warning(f"CMMS insert failed ({rec['cmms_error']}); saved locally instead.")
+        log = rec.get("decision_log") or {}
+        if log:
+            st.caption(f"Decision log: {len(log.get('entries') or [])} entries, hash-chained, stored at "
+                       f"`{log.get('path')}` and attached to the work-order record (Details, Decision log tab).")
         applied = (rec.get("memory") or {}).get("case_feedback") or []
         if applied:
             st.caption("Case memory updated: " + "; ".join(
@@ -716,22 +819,54 @@ def _sign_off(settings, case: dict) -> None:
             if gaps:
                 st.error("Gaps: " + "; ".join(dict.fromkeys(gaps)))
         return
-    st.subheader("Your decision")
+    _heading("Your decision", "signoff")
     _explain("signoff")
+    model = CaseFile.model_validate(case)
+    with st.container(key="grid2-signer"):
+        name_col, role_col, licence_col = st.columns(3)
+    name = name_col.text_input("Signed by", key="signoff_name", placeholder="Your name (required)",
+                               help="Required. Recorded with the time (UTC) and the brief you sign.")
+    role = role_col.text_input("Role (optional)", key="signoff_role", placeholder="e.g. B1 engineer")
+    licence = licence_col.text_input("Licence reference (optional)", key="signoff_licence")
     comment = st.text_area("Comment (optional)", key="signoff_comment", height=70)
-    cited = cited_cases(CaseFile.model_validate(case))
+    cited = cited_cases(model)
     feedback = {}
     if cited:
         with st.expander(f"Rate the {len(cited)} cited past case{'s' if len(cited) != 1 else ''} (optional)"):
-            feedback = _case_feedback_form(CaseFile.model_validate(case))
+            feedback = _case_feedback_form(model)
+    escalations = case.get("escalations") or []
+    ticked = []
+    if escalations:
+        st.markdown(f"**Before you approve, confirm you have read the {len(escalations)} "
+                    f"escalation{'s' if len(escalations) != 1 else ''} above**")
+        # Keyed by case so a tick never carries over to the next brief.
+        ticked = [st.checkbox(escalation_ack_label(esc), key=f"ack_{model.case_id}_{i}")
+                  for i, esc in enumerate(escalations)]
+    reason = ""
+    if needs_urgent_reason(escalations):
+        reason = st.text_input("Why approve despite the urgent escalation?", key=f"urgent_reason_{model.case_id}",
+                               placeholder="Required to approve, e.g. lease engine fitted tonight, parts expedited",
+                               help="Stored with your sign-off in the decision log. Reject needs no reason.")
+    sha = brief_ref(model).recommendation_sha256 or ""
+    st.caption(f"You sign brief `{model.case_id}` · recommendation fingerprint `{sha[:12]}`. Approval drafts a work "
+               "order for your organisation's own release process; it is not a certificate of release to service.")
+    can_approve, missing = approval_gate(name, escalations, ticked, reason)
+    if missing:
+        st.caption(missing)
+    unsigned = not (name or "").strip()
+    read = [i for i, tick in enumerate(ticked) if tick]
     left, right = st.columns(2)
-    if left.button("Approve and draft work order", type="primary", key="approve_case", width="stretch"):
-        record = approve_case(CaseFile.model_validate(case), settings, comment, case_feedback=feedback)
+    if left.button("Approve and draft work order", type="primary", key="approve_case", width="stretch",
+                   disabled=not can_approve):
+        signer = Signer(name=name, role=role, licence_ref=licence)
+        record = approve_case(model, settings, comment, case_feedback=feedback, signer=signer, acknowledged=read,
+                              reason=reason)
         st.session_state.decision = {"kind": "approved", "record": record}
         st.session_state.case = {**case, "status": "approved"}
         st.rerun()
-    if right.button("Reject", key="reject_case", width="stretch"):
-        record = reject_case(CaseFile.model_validate(case), settings, comment, case_feedback=feedback)
+    if right.button("Reject", key="reject_case", width="stretch", disabled=unsigned):
+        signer = Signer(name=name, role=role, licence_ref=licence)
+        record = reject_case(model, settings, comment, case_feedback=feedback, signer=signer, acknowledged=read)
         st.session_state.decision = {"kind": "rejected", "record": record}
         st.session_state.case = {**case, "status": "rejected"}
         st.rerun()
@@ -877,25 +1012,119 @@ def _stress_page(settings, pack: dict) -> None:
     st.caption("The evaluation runs the same mistakes on 30 briefs: `uv run task eval`, section Seeded faulty briefs.")
 
 
-def _help_page() -> None:
-    st.markdown("### What this tool does")
-    st.write("It answers three questions about one engine: what is wrong, how long it can keep flying, and what "
-             "to do. Several specialist agents each look at one thing (sensor data, remaining life, fault type, "
-             "parts and hangar slots). A reviewer then tries to find mistakes before you see the result. Every "
-             "number is calculated by code, not written by the AI, and every statement links to its evidence.")
-    st.markdown("### How to read the brief")
-    st.markdown("\n".join(f"{i}. {step}" for i, step in enumerate(HOW_TO_READ, 1)))
-    st.markdown("### Colours")
-    st.markdown("- **Red**: act now; the engine may wear out before the normal repair can happen.\n"
-                "- **Amber**: plan soon, or inspect first because the evidence is uncertain.\n"
-                "- **Green**: keep flying; routine inspection.\n"
-                "- **Grey**: no recommendation (question unclear, or not enough evidence).")
-    st.markdown("### Glossary")
-    query = st.text_input("Search terms", placeholder="e.g. borescope, RUL, critic", key="glossary_search")
-    q = (query or "").strip().lower()
-    for term, meaning in GLOSSARY:
-        if not q or q in term.lower() or q in meaning.lower():
-            st.markdown(f"**{term}** — {meaning}")
+def _help_panel(prefix: str, settings, pack: dict, topic: str | None = None) -> None:
+    """The help shown in the Help dialog (prefix "dlg") and on the Help tab (prefix "tab"); widget keys differ so
+    both can be on the page at once."""
+    case = st.session_state.get("case")
+    terms = glossary(pack)
+    if topic in TOPICS:
+        title, note, _ = TOPICS[topic]
+        st.markdown(f"**{title}.** {SECTION_HELP[note]}")
+        st.markdown(glossary_html(topic_entries(topic, terms)), unsafe_allow_html=True)
+        st.caption("The tabs below explain the whole screen, every term, the engine, and let you ask a question.")
+    screen, words, engine, flow, ask = st.tabs(["This screen", "Glossary", "Engine and photos", "How Cleris works",
+                                                "Ask Cleris"])
+    with screen:
+        st.markdown(f'<div class="notice">{html.escape(DISCLAIMER)}<br><br><b>Intended use.</b> '
+                    f'{html.escape(INTENDED_USE)}</div>', unsafe_allow_html=True)
+        st.markdown(f"**Cleris, the MRO clearance assistant.** {CLEARANCE}")
+        st.write(WHAT_IT_DOES)
+        summary = plain_summary(case, pack) if case else []
+        if summary:
+            st.markdown("**This engine in plain words**")
+            st.markdown(f'<div class="plain">{bold_html(" ".join(summary))}</div>', unsafe_allow_html=True)
+        st.markdown("**What each part of the screen tells you**" + (" (worded from the open brief)" if case else ""))
+        st.markdown(guide_html(screen_guide(case, pack)), unsafe_allow_html=True)
+        st.markdown("**How to read the brief**")
+        st.markdown("\n".join(f"{i}. {step}" for i, step in enumerate(HOW_TO_READ, 1)))
+        st.markdown("**Colours**")
+        st.markdown("\n".join(f"- {line}" for line in TONE_WORDS.values()))
+    with words:
+        query = st.text_input("Search terms and abbreviations", key=f"{prefix}_glossary_search",
+                              placeholder="e.g. RUL, HPC, borescope, certificate of release to service")
+        found = search_glossary(query, terms)
+        st.caption(f"{len(found)} of {len(terms)} terms. Sensor entries come from the asset pack. In the brief, "
+                   "abbreviations with a dotted underline show their meaning when you hover over them.")
+        st.markdown(glossary_html(found), unsafe_allow_html=True)
+    with engine:
+        svg = engine_svg(pack)
+        if svg:
+            st.image(svg, width="stretch")
+            st.caption("Air flows left to right: the fan pushes most of it around the core; the compressors (LPC, "
+                       "HPC) squeeze the rest, it burns in the combustor, and the turbines (HPT, LPT) take power out "
+                       "to drive the compressors and the fan. Drawn from the asset pack.")
+        _help_photos(pack)
+    with flow:
+        st.markdown(flow_html(), unsafe_allow_html=True)
+        if settings.sample_mode:
+            st.caption("In sample mode step 3 reads the saved snapshot and step 6 runs the critic's code checks only; "
+                       "nothing leaves this machine.")
+        by_file = {Path(p["path"]).name: p for p in photos(pack)}
+        for col, (file, caption) in zip(st.columns(len(KEYFRAMES)), KEYFRAMES):
+            if file in by_file:
+                col.image(by_file[file]["path"], width="stretch")
+                col.caption(f"{caption} Photo: {credit(by_file[file]).split('. Photo: ', 1)[-1]}")
+        st.caption(KEYFRAME_NOTE)
+    with ask:
+        _ask_cleris(prefix, settings, pack, case)
+
+
+def _help_photos(pack: dict) -> None:
+    """One illustrative photo of the whole engine and of each part a fault mode wears."""
+    pics = photos(pack)
+    wanted = ["engine", *dict.fromkeys(m.get("component") for m in (pack.get("failure_modes") or {}).values())]
+    chosen = [p for p in (next((p for p in pics if p["component"] == c), None) for c in wanted) if p]
+    if not chosen:
+        return
+    st.markdown("**What the parts look like**")
+    names = pack.get("components") or {}
+    for col, item in zip(st.columns(len(chosen)), chosen):
+        col.image(item["path"], width="stretch")
+        col.caption(f"**{names.get(item['component'], item['component'])}** · " + credit(item))
+    st.caption((pack.get("images") or {}).get("disclaimer", ""))
+
+
+def _ask_cleris(prefix: str, settings, pack: dict, case: dict | None) -> None:
+    st.markdown("**Ask Cleris to explain**")
+    if settings.sample_mode:
+        st.caption("Sample mode: nothing leaves this machine, so questions are answered from the glossary.")
+    else:
+        st.caption("Your question, the glossary and the brief fields on screen (no sensor rows, no names) go to "
+                   "Nemotron through Nightshift. The model explains; it does not change the decision. Code flags any "
+                   "number, date or ID in the answer that the brief or glossary does not contain.")
+    question = st.text_input("Your question", key=f"{prefix}_ask_question",
+                             placeholder="e.g. Why are there two remaining-life numbers?")
+    key = f"{prefix}_answer"
+    if st.button("Explain", key=f"{prefix}_ask_go", type="primary", icon=":material/chat:"):
+        with st.spinner("Looking up the glossary" if settings.sample_mode else
+                        f"Asking Nemotron through Nightshift (up to {settings.critic_timeout_s:.0f} s)"):
+            st.session_state[key] = {"case_id": (case or {}).get("case_id"),
+                                     "answer": explain(question, case, pack, settings)}
+    held = st.session_state.get(key) or {}
+    answer = held.get("answer")
+    if answer is None or held.get("case_id") != (case or {}).get("case_id"):
+        return
+    if answer.source == "model":
+        with st.container(border=True):
+            st.markdown(answer.text.replace("$", "\\$"))
+            st.caption(answer.label)
+        if answer.unsupported:
+            st.warning("Not found in the brief or the glossary, so check before relying on it: "
+                       + ", ".join(answer.unsupported))
+        else:
+            st.caption("Every number, date and ID in this answer appears in the brief or the glossary.")
+        if answer.advice:
+            st.warning("This reads as advice, which the model was told not to give. The decision is the brief's "
+                       "recommendation and your sign-off: " + " / ".join(answer.advice))
+        if answer.entries:
+            with st.expander("Related glossary entries"):
+                st.markdown(glossary_html(answer.entries), unsafe_allow_html=True)
+    else:
+        st.info(answer.note)
+        if answer.entries:
+            st.markdown(glossary_html(answer.entries), unsafe_allow_html=True)
+        elif answer.note != "Type a question first.":
+            st.caption("No glossary entry matches; try a single term such as RUL, borescope or escalation.")
 
 
 def _pack_page(pack: dict) -> None:

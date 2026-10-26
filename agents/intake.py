@@ -11,6 +11,7 @@ import re
 from agents.runtime import NodeResult, RunContext, node
 from casefile.schemas import AssetRef, CaseFile, EvidenceLedger, Intent
 from tools.data_tools import AssetNotFound, DataTools
+from tools import llm_recordings as recordings
 from tools.llm import LlmClient, LlmRefusal, LlmUnavailable
 
 log = logging.getLogger("intake")
@@ -121,16 +122,28 @@ def _json(text: str) -> dict:
     return value
 
 
+def intake_prompt(question: str) -> str:
+    return INTAKE_PROMPT + question[:500]
+
+
 def read_engine_with_llm(question: str, ctx: RunContext) -> tuple[str | None, str | None, str]:
-    """Ask the critic's Nightshift lane which engine the question names. Returns (engine, model, note)."""
+    """Ask the critic's Nightshift lane which engine the question names. Returns (engine, model, note). In sample
+    mode a recorded reply to exactly this prompt is used, checked by the same code; else no model is read."""
     if ctx.settings.sample_mode:
-        return None, None, "sample mode"
+        recording = recordings.lookup(intake_prompt(question), "intake")
+        if recording is None:
+            return None, None, "sample mode"
+        try:
+            engine, reason = grounded_engine(question, _json(recording.text))
+        except (ValueError, json.JSONDecodeError) as error:
+            return None, recording.model, f"recorded reply unreadable ({type(error).__name__})"
+        return engine, recording.model, recording.label if engine else reason
     client = LlmClient(ctx.settings)
     reply = None
     try:
         if not client.configured:
             return None, None, "no Nightshift token"
-        reply = client.chat([{"role": "user", "content": INTAKE_PROMPT + question[:500]}],
+        reply = client.chat([{"role": "user", "content": intake_prompt(question)}],
                             model=ctx.settings.meterless_critic_model, temperature=0, max_tokens=200,
                             app=ctx.settings.meterless_critic_app, response_format={"type": "json_object"},
                             timeout_s=ctx.settings.critic_timeout_s)
@@ -159,7 +172,8 @@ def intake(state: CaseFile, ctx: RunContext) -> NodeResult:
         if engine is None:
             return _ask_back(intent, model)
         intent = intent.model_copy(update={"asset_id": engine, "needs_clarification": False, "clarification": None,
-                                           "resolved_by": model})
+                                           "resolved_by": model,
+                                           "recorded": note if note.startswith("recorded ") else None})
     if intent.needs_clarification:
         return _ask_back(intent)
     ledger = EvidenceLedger("intake", state.evidence)
@@ -180,5 +194,7 @@ def intake(state: CaseFile, ctx: RunContext) -> NodeResult:
     summary = f"goal={intent.goal}; {profile.summary}"
     if intent.resolved_by:
         summary += f"; engine read from free text by {intent.resolved_by}, checked against the question and registry"
+        if intent.recorded:
+            summary += f" ({intent.recorded})"
     return NodeResult({"intent": intent, "asset": asset, "evidence": ledger.records}, summary,
                       target_agent="data,prognostics,diagnostics", model=model)

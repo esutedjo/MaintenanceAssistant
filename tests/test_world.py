@@ -132,7 +132,7 @@ def test_signoff_writes_facts_on_the_asset(tmp_path):
                                         content={"last_cycle": 180}, produced_by="prognostics")},
         status="needs_review",
     )
-    record = approve_case(case, settings, path=tmp_path / "wo.jsonl")
+    record = approve_case(case, settings, path=tmp_path / "wo.jsonl", signer="A. Engineer")
     assert record["memory"]["world"]["ok"] is True
     state = asset_state(store, PACK, "FD001-A031")
     assert state["last_decision"] == "approved"

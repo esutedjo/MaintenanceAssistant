@@ -71,6 +71,7 @@ class Intent(BaseModel):
     needs_clarification: bool = False
     clarification: str | None = None
     resolved_by: str | None = None      # set when an LLM read the engine from free text and code verified it
+    recorded: str | None = None         # sample mode: "recorded Nemotron response (captured <date>)"
 
 
 class Task(BaseModel):
@@ -79,6 +80,15 @@ class Task(BaseModel):
     description: str
     round: int = 1
     status: Literal["pending", "done", "failed", "skipped"] = "pending"
+    kind: str | None = None                     # follow-up or repair the agent runs ("inspection_history", ...)
+    reason: str | None = None                   # why the planner delegated it: the finding or gap behind it
+
+
+class GapRoute(BaseModel):
+    """A gate's gap, its kind and the agent that can fix it (None: no agent can, the engineer must decide)."""
+    kind: str
+    target: AgentName | None
+    gap: str
 
 
 class RulFinding(BaseModel):
@@ -167,6 +177,8 @@ class Verdict(BaseModel):
     outcome: Literal["accept", "revise", "reject"]
     gaps: list[str] = Field(default_factory=list)
     model: str | None = None
+    routes: list[GapRoute] = Field(default_factory=list)    # the blocking gaps, by kind and fixing agent
+    recorded: str | None = None                 # "recorded Nemotron response (captured <date>)" in sample mode
 
 
 class Escalation(BaseModel):
@@ -212,6 +224,14 @@ def append(left: list, right: list) -> list:
     return [*left, *right]
 
 
+def merge_tasks(left: list[Task], right: list[Task]) -> list[Task]:
+    """Reducer for the plan: the planner adds tasks, agents mark theirs done; a task ID keeps its place."""
+    merged = {t.id: t for t in left}
+    for task in right:
+        merged[task.id] = task
+    return list(merged.values())
+
+
 def keep_error(left: str, right: str) -> str:
     """Reducer for parallel branches: several specialists may fail in one step; "error" is final."""
     return "error" if "error" in (left, right) else right
@@ -234,7 +254,7 @@ class CaseFile(BaseModel):
     question: str
     asset: AssetRef | None = None
     intent: Intent | None = None
-    plan: list[Task] = Field(default_factory=list)
+    plan: Annotated[list[Task], merge_tasks] = Field(default_factory=list)
     evidence: Annotated[dict[str, Evidence], merge_evidence] = Field(default_factory=dict)
     findings: Annotated[Findings, merge_findings] = Field(default_factory=Findings)
     recommendation: Recommendation | None = None
@@ -248,6 +268,10 @@ class CaseFile(BaseModel):
 
     def unresolved(self, evidence_ids: list[str]) -> list[str]:
         return [i for i in evidence_ids if i not in self.evidence]
+
+    def pending(self, agent: str) -> list[Task]:
+        """Follow-ups and repairs the planner delegated to this agent and it has not run yet."""
+        return [t for t in self.plan if t.agent == agent and t.status == "pending" and t.kind]
 
 
 class EvidenceLedger:

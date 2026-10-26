@@ -1,0 +1,550 @@
+# Plain-language glossary for the decision brief: the Help panel's search, the tooltips on abbreviations in the
+# brief, and the grounding for "Ask Cleris to explain". Sensor entries (T30, P30, phi, ...) are added from the asset
+# pack in ui/help.py, so this file holds no sensor list.
+#
+# term:    as the brief shows it
+# full:    the expansion of an abbreviation (optional)
+# meaning: one or two plain sentences for someone who is not an engineer
+# where:   where it appears in the brief
+# aliases: other spellings the search matches (optional)
+# abbr:    exact tokens that get a hover tooltip in the brief's own HTML (optional)
+
+# --- Engine and wear -------------------------------------------------------------------------------------------
+- term: Cycle
+  meaning: One flight, from take-off to landing. Engine wear is counted in cycles.
+  where: Context strip under the verdict ("cycle 214"), Remaining life tab, deadline wording.
+  aliases: [cycles, operating cycle]
+
+- term: Flight
+  meaning: In this brief one flight is one cycle. The fleet flies 2 flights a day, which is how flights become days
+    and dates.
+  where: Key numbers ("Flights left"), In plain words.
+  aliases: [flights, flights left]
+
+- term: RUL
+  full: remaining useful life
+  meaning: How many more flights the engine can make before it should come off the wing. Capped at 125 flights,
+    because early in life the data cannot tell a new engine from a slightly used one.
+  where: Key numbers ("Flights left · method A / B"), Remaining life tab, escalation messages.
+  aliases: [remaining life, remaining useful life, flights left]
+  abbr: [RUL]
+
+- term: Method A
+  full: RUL A, machine learning
+  meaning: A model (LightGBM) trained on 160 engines that ran until they failed compares this engine's last 30
+    flights with them. It gives a number and a range.
+  where: Key numbers ("Flights left · method A (range)"), Remaining life tab.
+  aliases: [RUL A, method a, machine learning]
+
+- term: Method B
+  full: RUL B, wear trend
+  meaning: Rolls the sensors that worsen with wear into one health score and projects when that score reaches the
+    level at which past engines failed. Simple, and most accurate close to the end of life.
+  where: Key numbers ("Flights left · method B (trend)"), Remaining life tab.
+  aliases: [RUL B, method b, trend]
+
+- term: Cap
+  meaning: The 125-flight ceiling on remaining life. "cap" after a number means that method sees no measurable wear
+    yet.
+  where: Key numbers, Remaining life tab.
+  aliases: [at cap, 125]
+
+- term: Percentile and range
+  full: 10th–90th percentile
+  meaning: Method A's pessimistic (10th percentile) and optimistic (90th percentile) estimates. 8 in 10 engines like
+    this one (80%) fall inside the range; 1 in 10 fails sooner than the low end.
+  where: Key numbers, shown in brackets after method A ("10 (5–11)"), Remaining life tab.
+  aliases: [percentile, range, 10th percentile, 90th percentile, interval]
+
+- term: Planning bound
+  full: remaining-life lower bound
+  meaning: The more cautious of method A's 10th percentile and method B's lower value. The deadline is set from this
+    bound, never from the middle of the range and never from an average.
+  where: Why this plan and not another, Plan tab rationale, escalation messages ("RUL lower bound").
+  aliases: [lower bound, rul lower bound, planning lower bound]
+
+- term: Deadline
+  meaning: The last date to do the planned work. It is the planning bound turned into days at 2 flights a day,
+    counted from the reference date.
+  where: Verdict box ("deadline 2026-10-23"), plan card.
+
+- term: Reference date
+  meaning: '"Now" for planning: 22 Oct 2026, the date of the active fleet''s last recorded flight in this data.'
+  where: Deadlines and hangar slots are counted from it.
+  aliases: [reference time]
+
+- term: Divergence
+  full: A vs B gap
+  meaning: When the two methods are more than 20 flights apart, Cleris trusts neither alone. It lowers its confidence
+    and recommends a borescope inspection instead of averaging them.
+  where: Escalation "The two remaining-life methods disagree", Remaining life tab ("A vs B gap").
+  aliases: [disagree, disagreement, gap, a vs b]
+
+- term: Confidence
+  meaning: How sure the brief is (high, medium or low). It drops to low when the two methods disagree or the input
+    data failed a serious check.
+  where: Verdict box ("confidence high").
+
+- term: Health index
+  meaning: One number for overall wear, about 0 when new and about 1 at failure. Compared with the rest of the fleet
+    at the same age to spot engines wearing unusually fast.
+  where: Remaining life tab.
+  aliases: [health score]
+
+- term: sd
+  full: standard deviation
+  meaning: A measure of normal scatter. "+2.1 sd vs fleet" means this engine sits further from the fleet average
+    than most engines do.
+  where: Remaining life tab (health index), Fault tab ("Biggest sensor changes").
+  aliases: [standard deviation, sigma]
+
+- term: Fault mode
+  full: failure mode
+  meaning: Which part of the engine is wearing out. In this data it is either the HPC (HPC degradation) or the fan
+    (fan degradation, FD003 fleet only).
+  where: Key numbers ("Fault mode"), Fault tab, In plain words.
+  aliases: [failure mode, hpc degradation, fan degradation, fault]
+
+- term: p
+  full: probability
+  meaning: How likely the fault mode is on this evidence, from 0 to 1. 1.00 means the sensors point clearly to that
+    part.
+  where: Key numbers ("p = 1.00"), Fault tab.
+  aliases: [probability]
+
+- term: Severity
+  meaning: 'How serious the planner rates the wear: severe when the planning bound is under 25 flights, moderate
+    under 80, otherwise minor. It decides which task from the failure-mode table is picked.'
+  where: Why this plan and not another, Plan tab rationale.
+  aliases: [severe, moderate, minor]
+
+- term: SHAP driver
+  meaning: The sensors that pulled method A's estimate down the most. They show how worn the engine is, but not
+    always which part is worn.
+  where: Remaining life tab (drivers chart), engine diagram (amber labels), Fault tab sensor trends.
+  aliases: [shap, driver, drivers]
+  abbr: [SHAP]
+
+- term: Signature sensors
+  meaning: Sensors that move one way for an HPC fault and the other way for a fan fault (P30, phi, BPR, W31, W32),
+    so they tell the two apart.
+  where: Engine diagram (cyan labels), Fault tab sensor trends.
+  aliases: [signature, discriminating sensors]
+
+- term: Fan
+  meaning: The large front fan, which makes most of the thrust by pushing air around the core. Fan degradation is the
+    second fault mode, seen only in the FD003 fleet.
+  where: Fault mode, engine diagram, plan tasks FM-FAN-…
+  aliases: [fan degradation, fan module]
+
+- term: Bypass duct
+  meaning: The channel where air from the fan flows around the engine core instead of through it.
+  where: Engine diagram.
+  aliases: [bypass]
+
+- term: Core
+  meaning: The middle of the engine where air is squeezed, burned and expanded (LPC, HPC, combustor, HPT, LPT).
+  where: Engine diagram, In plain words.
+  aliases: [engine core]
+
+- term: LPC
+  full: low-pressure compressor (booster)
+  meaning: Just behind the fan, the first stage that squeezes air on its way into the core.
+  where: Engine diagram. Sensor T24 sits here.
+  aliases: [low-pressure compressor, booster]
+  abbr: [LPC]
+
+- term: HPC
+  full: high-pressure compressor
+  meaning: The compressor in the core that squeezes the air hardest before it burns. HPC degradation is the fault
+    mode in both fleets.
+  where: Fault mode, engine diagram, plan tasks FM-HPC-…
+  aliases: [high-pressure compressor, hpc degradation, compressor]
+  abbr: [HPC]
+
+- term: Combustor
+  meaning: Where fuel burns in the compressed air. Sensor phi (fuel flow relative to Ps30) sits here.
+  where: Engine diagram.
+  aliases: [combustion chamber, burner]
+
+- term: HPT
+  full: high-pressure turbine
+  meaning: Right behind the combustor; the hot gas turns it, and it drives the HPC. Sensor W31 (its cooling air)
+    sits here.
+  where: Engine diagram.
+  aliases: [high-pressure turbine]
+  abbr: [HPT]
+
+- term: LPT
+  full: low-pressure turbine
+  meaning: The last turbine; it drives the fan and the LPC. Sensors T50 and W32 sit here.
+  where: Engine diagram.
+  aliases: [low-pressure turbine]
+  abbr: [LPT]
+
+- term: EGT
+  full: exhaust gas temperature
+  meaning: On real engines, the temperature of the gas leaving the core, the classic engine-health number. The
+    C-MAPSS data has no sensor called EGT; the nearest is T50, the LPT outlet temperature.
+  where: Not shown in the brief; mentioned in the failure-mode table's effects ("EGT margin shrinks").
+  aliases: [exhaust gas temperature, egt margin]
+  abbr: [EGT]
+
+# --- Data and identifiers ----------------------------------------------------------------------------------------
+- term: C-MAPSS
+  full: Commercial Modular Aero-Propulsion System Simulation
+  meaning: NASA's turbofan engine simulator. Its run-to-failure data sets are the sensor data here; the engines are
+    simulated, not real aircraft.
+  where: Header caption, Asset pack tab.
+  aliases: [cmapss, nasa]
+  abbr: [C-MAPSS]
+
+- term: FD001
+  meaning: C-MAPSS fleet with one fault mode, HPC degradation. Engines FD001-A001 to FD001-A100.
+  where: Engine IDs, context strip under the verdict.
+  aliases: [fd001 fleet]
+  abbr: [FD001]
+
+- term: FD003
+  meaning: C-MAPSS fleet with two possible fault modes, HPC degradation or fan degradation. Engines FD003-A001 to
+    FD003-A100.
+  where: Engine IDs, context strip under the verdict.
+  aliases: [fd003 fleet]
+  abbr: [FD003]
+
+- term: Engine ID
+  meaning: Cleris's name for an engine, e.g. FD001-A031. It gives the fleet (FD001 or FD003), A for an active engine
+    (H for the historical engines used for training) and a number.
+  where: Ask bar, context strip, verdict.
+  aliases: [asset id, asset, engine]
+
+- term: ESN
+  full: engine serial number
+  meaning: The engine's own serial number (e.g. ESN-700131). It stays with the engine when it moves between
+    aircraft.
+  where: Context strip under the verdict.
+  aliases: [engine serial number, serial number, serial]
+  abbr: [ESN]
+
+- term: Evidence ID
+  full: EV-XXX-NN
+  meaning: A tag on every fact in the brief. The three letters name the agent that produced it (INT intake, DAT data,
+    PRG prognostics, DIA diagnostics, KNW documents, MNT maintenance planner) and NN counts up.
+  where: After every statement in Details, plan card ("EV-MNT-02"), decision log.
+  aliases: [evidence, ev, evidence tag, ev-]
+
+- term: Claim
+  meaning: One sentence in the brief that states a fact. Every claim lists the evidence IDs it rests on; a claim
+    without them fails the rule checks.
+  where: Plan tab ("Why"), Checks and evidence tab.
+  aliases: [claims, statement]
+
+- term: Snapshot
+  meaning: A saved copy of the data (Parquet files). Used in sample mode, or when Zetaris is unreachable, and the
+    brief then says so.
+  where: Header caption, context strip ("data snapshot").
+  aliases: [parquet]
+
+- term: Synthetic data
+  meaning: The sensor data is NASA's simulated engines; maintenance records, parts, schedules and documents were
+    generated for this demo.
+  where: Header caption, History tab, Documents.
+  aliases: [synthetic, generated]
+
+- term: Degraded
+  meaning: A live source or the AI critic was not available, so Cleris used saved data or code-only checks instead.
+    The brief says so in an amber note at the top.
+  where: Amber note above the verdict, evidence records.
+  aliases: [fallback]
+
+- term: Plausibility check
+  full: input data check
+  meaning: Code checks the input data before any model runs (values in range, no frozen sensors, cycles in order).
+    A serious issue sets confidence to low and raises an escalation.
+  where: Escalation "Input data failed a plausibility check", Checks and evidence tab.
+  aliases: [data quality, input check]
+
+# --- Maintenance and regulation ----------------------------------------------------------------------------------
+- term: MRO
+  full: maintenance, repair and overhaul
+  meaning: The organisations and work that keep aircraft fit to fly.
+  where: Header ("the MRO clearance assistant").
+  aliases: [maintenance repair and overhaul]
+  abbr: [MRO]
+
+- term: Clearance
+  full: MRO clearance
+  meaning: Clearance here means the engineer's decision to keep, inspect or remove an engine. The release to service
+    stays with certifying staff.
+  where: Header ("the MRO clearance assistant"), Help.
+  aliases: [mro clearance, clearance assistant]
+
+- term: CMMS
+  full: computerised maintenance management system
+  meaning: The system that holds work orders, inspection findings and parts history. Cleris reads it and, after
+    approval in live mode, adds a draft work order to it.
+  where: Sign-off result ("written to CMMS"), History tab.
+  aliases: [maintenance system]
+  abbr: [CMMS]
+
+- term: FMEA
+  full: failure modes and effects analysis
+  meaning: A table of how each part fails, how the failure shows, and which task fixes it. The plan's tasks come from
+    it (FM-HPC-01 …), limited to those the World Model lists for the fault.
+  where: Plan card tasks, Plan and documents tab.
+  aliases: [failure-mode table, failure mode table]
+  abbr: [FMEA]
+
+- term: Task ID
+  full: FM-…
+  meaning: A task from the failure-mode table, e.g. FM-HPC-01 is a borescope inspection of the HPC.
+  where: Plan card ("Tasks"), Why this plan and not another.
+  aliases: [task, tasks, fm-]
+
+- term: Part number
+  full: TF-…
+  meaning: A synthetic part number in this demo. TF-ENG-9001 is the lease engine.
+  where: Plan tab parts table, In plain words.
+  aliases: [part, parts, tf-]
+
+- term: AD
+  full: airworthiness directive
+  meaning: A legally binding order from the aviation authority; Cleris shows its required action first and no agent
+    can remove it. The AD in this demo (AD-2026-17-04) is synthetic.
+  where: Escalation "Mandatory document action", Plan and documents tab.
+  aliases: [airworthiness directive, directive]
+  abbr: [AD]
+
+- term: SB
+  full: service bulletin
+  meaning: The manufacturer's notice recommending an inspection or a change. It outranks the manual when the two
+    disagree.
+  where: Plan and documents tab.
+  aliases: [service bulletin, bulletin]
+  abbr: [SB]
+
+- term: AMM
+  full: aircraft maintenance manual
+  meaning: The approved procedures and limits for the work. Only the revision in effect is used (here the synthetic
+    revision 3; revision 2 is superseded).
+  where: Plan and documents tab (AMM-TF-R3).
+  aliases: [manual, maintenance manual]
+  abbr: [AMM]
+
+- term: Document precedence
+  meaning: 'When documents disagree, the higher one wins: airworthiness directive, then service bulletin, then
+    manual, then internal procedure, then past cases.'
+  where: Plan and documents tab.
+  aliases: [precedence]
+
+- term: Borescope
+  meaning: A thin camera pushed inside the engine to look at blades without taking it apart.
+  where: Verdict and plan when the methods disagree or a document requires it.
+  aliases: [borescope inspection, inspection]
+
+- term: Shop visit
+  meaning: Sending an engine (or one module of it) to an engine shop to be taken apart and repaired.
+  where: Verdict ("module shop visit on the removed engine").
+  aliases: [module shop visit, overhaul]
+
+- term: On wing
+  meaning: Work done with the engine still fitted to the aircraft. The opposite is removing the engine for a shop
+    visit.
+  where: Why this plan and not another ("a repair on wing").
+  aliases: [on-wing, off wing, removal]
+
+- term: Lease engine swap
+  meaning: Fit a rented spare engine so the aircraft keeps flying while the worn engine goes to the shop or waits
+    for parts. In the plan it is part TF-ENG-9001.
+  where: Verdict ("Swap in lease engine"), Why this plan and not another.
+  aliases: [lease engine, engine swap, swap, engine change]
+
+- term: Lead time
+  meaning: Days between ordering a part and receiving it.
+  where: Plan card, escalation "The engine wears out before a normal repair can happen".
+  aliases: [lead]
+
+- term: Hangar slot
+  meaning: A free maintenance bay on a given day (2 per day in this data).
+  where: Plan card, context strip ("first free slot").
+  aliases: [slot]
+
+- term: Derate
+  meaning: Running the engine below its full rated thrust to reduce wear and heat, buying time until the repair.
+  where: Escalation proposals ("derate").
+
+- term: Expedite
+  meaning: Paying for faster delivery of a part that is out of stock.
+  where: Escalation proposals ("expedite").
+
+- term: AOG
+  full: aircraft on ground
+  meaning: An aircraft that cannot fly until a part or repair arrives, the state airlines work hardest to avoid. A
+    lease engine swap is one way to avoid it.
+  where: Not shown in the brief; background for the swap decision.
+  aliases: [aircraft on ground]
+  abbr: [AOG]
+
+- term: LLP
+  full: life-limited part
+  meaning: A part, such as a disk or shaft, that must be replaced after a fixed number of cycles whatever its
+    condition. The C-MAPSS data has no life-limited parts, so Cleris does not track them.
+  where: Not shown in the brief.
+  aliases: [life-limited part, life limited part]
+  abbr: [LLP]
+
+- term: Work order (draft)
+  meaning: 'The job card for the work: Approve writes a DRAFT work order (a local file in sample mode; also the CMMS
+    in live mode). Your organisation still plans, performs and certifies the work.'
+  where: Sign-off ("Approve and draft work order"), sign-off result.
+  aliases: [work order, draft work order, wo]
+
+- term: Certificate of release to service
+  full: CRS
+  meaning: The signed statement by authorised certifying staff that maintenance was done properly and the aircraft
+    or engine may return to service. Cleris never issues one; approving only drafts a work order.
+  where: Sign-off, above the Approve button.
+  aliases: [crs, release to service, return to service, certificate]
+  abbr: [CRS]
+
+- term: Part-145
+  meaning: The European (EASA) rule for approved maintenance organisations. A Part-145 organisation does the work
+    and its certifying staff issue the certificate of release to service.
+  where: Not shown in the brief; background for the sign-off.
+  aliases: [part 145, maintenance organisation]
+
+- term: CAMO
+  full: continuing airworthiness management organisation
+  meaning: The organisation that plans and controls an aircraft's maintenance and keeps its records under EASA rules.
+    Cleris advises the engineer; it does not replace the CAMO.
+  where: Not shown in the brief.
+  aliases: [continuing airworthiness]
+  abbr: [CAMO]
+
+# --- How Cleris checks itself ------------------------------------------------------------------------------------
+- term: Escalation
+  meaning: A fixed rule that raises the alarm, red for urgent and amber for a warning, for example when the engine
+    will wear out before parts and a hangar slot are available. Tick each one as read before Approve works.
+  where: Red or amber cards under the verdict, sign-off ticks, Checks and evidence tab.
+  aliases: [escalations, alarm, urgent, warning]
+
+- term: Rule checks
+  meaning: Automatic checks with no AI. Every claim has evidence, the numbers match that evidence, parts and slots
+    exist, and the deadline is not later than the planning bound allows.
+  where: Chips under the verdict ("rule checks passed"), Checks and evidence tab.
+  aliases: [rule check, gates, gate]
+
+- term: Critic
+  meaning: A reviewer step that tries to disprove the brief and sends it back if it finds a gap (up to 3 rounds).
+    Its code checks always run; in live mode Nemotron adds challenges that code confirms or refutes.
+  where: Chips under the verdict ("critic accepted"), Checks and evidence tab, decision log.
+  aliases: [evidence critic, reviewer, challenge]
+
+- term: Round
+  meaning: One pass of planner, rule checks and critic. At most 3; if the brief still fails, the case closes as
+    "insufficient evidence" rather than guessing.
+  where: Chips under the verdict, decision log ("round 2").
+  aliases: [rounds, revision, insufficient evidence]
+
+- term: Decision log
+  meaning: The ordered record of who decided what and why. Agent proposals, gate verdicts, each model challenge and
+    whether code confirmed it, escalations, and the engineer's sign-off.
+  where: Details, last tab ("Decision log").
+  aliases: [log, audit trail]
+
+- term: Hash chain
+  meaning: Each stored decision-log line carries a SHA-256 fingerprint of itself and of the line before it, so an
+    edited, deleted or reordered entry shows when the log is checked.
+  where: Decision log tab ("hash …"), sign-off result.
+  aliases: [hash, sha-256, fingerprint, recommendation fingerprint]
+
+- term: Trace
+  meaning: The step-by-step log of what each agent and gate did in one run, with timings and the model that
+    answered.
+  where: Trace tab, Checks and evidence tab.
+  aliases: [timeline]
+
+- term: Sign-off
+  meaning: 'Your decision: type your name (required), tick each escalation and, with an urgent escalation, say why
+    you approve despite it. Approve then drafts a work order and Reject records your comment, both in the decision
+    log.'
+  where: Your decision, under the plan.
+  aliases: [signoff, sign off, approve, reject, signed by]
+
+# --- Platform and models -----------------------------------------------------------------------------------------
+- term: Agent
+  meaning: A program step with one job (read data, estimate life, find the fault, plan the work). Agents propose;
+    gates check them; the engineer decides.
+  where: Trace tab, decision log.
+  aliases: [agents, specialist]
+
+- term: Zetaris
+  meaning: 'The governed data layer Cleris reads through: sensor data, maintenance records, spares, slots, the
+    failure-mode table and documents are read where they are, without copying. Sample mode uses saved snapshots
+    instead.'
+  where: Context strip ("data zetaris" or "data snapshot"), step 3 of how Cleris works.
+  aliases: [data layer]
+
+- term: Meterless
+  meaning: The sponsor platform behind Nightshift, the World Model and H-MEM.
+  where: Asset pack and Trace tabs.
+
+- term: Nightshift
+  meaning: Meterless Nightshift, the model gateway Cleris calls; it sends each request to the pinned model lane and
+    reports which model answered. Sample mode does not use it.
+  where: 'Chips under the verdict ("LLM critic: …"), Trace tab, Ask Cleris to explain.'
+  aliases: [meterless nightshift, gateway]
+
+- term: Nemotron
+  meaning: NVIDIA's open language models; through Nightshift, Nemotron reviews the brief as the critic, reads
+    free-text questions the parser cannot, and answers "Ask Cleris to explain". It never produces a number in the
+    brief.
+  where: Chips under the verdict, Trace tab, decision log (model entries).
+  aliases: [nvidia, nemotron 3 ultra]
+
+- term: LLM
+  full: large language model
+  meaning: An AI model that reads and writes text. In Cleris it reads and critiques; code computes every number.
+  where: Chips under the verdict ("LLM critic").
+  aliases: [language model, ai, model]
+  abbr: [LLM]
+
+- term: World Model
+  meaning: 'Meterless''s map of the machine: asset type, component, sensor, failure mode, task and part. Cleris takes
+    the list of tasks allowed for a fault from it.'
+  where: 'Plan card ("World Model: 6 eligible tasks"), Why this plan and not another.'
+  aliases: [world, graph, machine graph]
+
+- term: H-MEM
+  meaning: Meterless's case memory of 200 synthetic past engine removals, where Cleris looks up similar past cases;
+    your sign-off adjusts how much each cited case is trusted. Sample mode uses a local copy (SQLite).
+  where: Key numbers ("Similar past cases"), context strip ("memory"), History tab.
+  aliases: [hmem, case memory, memory, similar cases, similar past cases]
+  abbr: [H-MEM]
+
+- term: LightGBM
+  meaning: The decision-tree library behind method A. Hundreds of small trees each nudge the estimate.
+  where: Remaining life tab.
+
+- term: Sample mode
+  meaning: Runs on saved data files with no network. No Zetaris, no Nightshift, nothing leaves this machine, and AI
+    help answers from this glossary.
+  where: 'Header caption ("Sample mode: committed snapshot, no network").'
+  aliases: [sample, offline]
+
+- term: Live mode
+  meaning: Reads data through Zetaris and uses the Meterless services. Before you approve, evidence summaries go to
+    the Nemotron critic via Nightshift (and a question the parser cannot read goes to Nemotron intake).
+  where: 'Header caption ("Live mode: data live").'
+  aliases: [live]
+
+- term: Fleet triage
+  meaning: The full brief run on all 200 active engines, ranked by urgency.
+  where: Fleet tab.
+  aliases: [fleet, triage]
+
+- term: Asset pack
+  meaning: The configuration file that describes this engine type (parts, sensors, fault modes, thresholds), so
+    agents hold no engine-specific code.
+  where: Asset pack tab.
+  aliases: [manifest]

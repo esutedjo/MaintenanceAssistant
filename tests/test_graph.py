@@ -77,7 +77,7 @@ def test_fan_case_swaps_when_lead_time_exceeds_rul(settings):
 def test_disagreeing_methods_get_inspection_not_average(settings):
     result = run_case("The two remaining-life estimates for FD001-A070 look different. What should I do?", settings)
     rec = result["recommendation"]
-    assert [e["rule"] for e in result["escalations"]] == ["rul_divergence"]
+    assert [e["rule"] for e in result["escalations"]] == ["rul_divergence", "sb_adoption"]
     assert rec["action"].lower().startswith("borescope")
     assert rec["confidence"] == "low"
     assert any("SB-TF-72-0142" in c["text"] for c in rec["rationale"])
@@ -121,3 +121,18 @@ def test_run_rejects_bad_input_with_structured_error(payload):
 def test_health_reports_snapshot_without_credentials():
     payload = health_payload()
     assert payload["status"] == "ok" and payload["snapshot"] is True
+
+
+def test_result_lists_agents_timing_and_trace_id_and_the_log_has_no_nulls(settings):
+    result = run_case("The two remaining-life estimates for FD001-A070 look different. What should I do?", settings)
+    agents = {a["name"]: a for a in result["agents"]}
+    assert set(agents) == {"intake", "planner", "data", "prognostics", "diagnostics", "knowledge", "maint_planner",
+                           "rule_checks", "critic", "escalation"}
+    assert all(set(a) == {"name", "role", "uses_model", "can_block_or_send_back"} for a in agents.values())
+    assert agents["critic"]["uses_model"] and agents["critic"]["can_block_or_send_back"]
+    assert not agents["planner"]["uses_model"] and agents["rule_checks"]["can_block_or_send_back"]
+    assert result["execution_time_seconds"] > 0 and result["duration_s"] == round(result["execution_time_seconds"], 2)
+    assert result["trace_id"] == f"trace-{result['run_id']}" and result["trace_file"].endswith(f"{result['trace_id']}.jsonl")
+    assert result["model_calls"] == []                       # recordings are switched off in tests (conftest.py)
+    assert all(None not in entry.values() for entry in result["decision_log"])
+    assert {"run_id", "status", "findings", "recommendation", "evidence", "verdicts", "escalations"} <= set(result)

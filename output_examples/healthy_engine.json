@@ -1,5 +1,6 @@
 {
- "run_id": "20261025T214530Z-bd6bf6",
+ "run_id": "20261026T003711Z-4bece7",
+ "trace_id": "trace-20261026T003711Z-4bece7",
  "status": "needs_review",
  "question": "What is the status of FD001-A001?",
  "mode": {
@@ -20,7 +21,8 @@
   "horizon_days": null,
   "needs_clarification": false,
   "clarification": null,
-  "resolved_by": null
+  "resolved_by": null,
+  "recorded": null
  },
  "findings": {
   "rul_ml": {
@@ -168,7 +170,7 @@
     "confidence": "medium"
    },
    {
-    "text": "SB-TF-72-0142 3.B (service bulletin) takes precedence over AMM-TF-R3 72-31-00 (manual) on the same topic.",
+    "text": "SB-TF-72-0142 3.B (service bulletin) takes precedence over AMM-TF-R3 72-31-00 (manual) on the same topic; SB recommended; adopting it needs engineering approval.",
     "evidence_ids": [
      "EV-KNW-03",
      "EV-KNW-04"
@@ -188,7 +190,7 @@
   ]
  },
  "recommendation": {
-  "action": "Continue in service; next scheduled inspection",
+  "action": "No action proposed before the next scheduled inspection",
   "task_ids": [],
   "parts": [],
   "slot": "2026-10-23",
@@ -226,7 +228,7 @@
     "confidence": "high"
    },
    {
-    "text": "World Model links mandatory document actions for this fault: AD-2026-17-04 (g)\u2192FM-HPC-01, AMM-TF-R2 72-31-00\u2192FM-HPC-01, AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-31-00\u2192FM-HPC-01, AMM-TF-R3 72-31-10\u2192FM-HPC-02, SB-TF-72-0142 3.B\u2192FM-HPC-01.",
+    "text": "World Model links these document sections to tasks for this fault: AD-2026-17-04 (g)\u2192FM-HPC-01, AMM-TF-R2 72-31-00\u2192FM-HPC-01, AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-31-00\u2192FM-HPC-01, AMM-TF-R3 72-31-10\u2192FM-HPC-02, SB-TF-72-0142 3.B\u2192FM-HPC-01; which apply now and which are mandatory is decided by the knowledge agent.",
     "evidence_ids": [
      "EV-MNT-02"
     ],
@@ -242,14 +244,18 @@
    "gate": "rule_checks",
    "outcome": "accept",
    "gaps": [],
-   "model": null
+   "model": null,
+   "routes": [],
+   "recorded": null
   },
   {
    "round": 1,
    "gate": "critic",
    "outcome": "accept",
    "gaps": [],
-   "model": null
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "routes": [],
+   "recorded": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
  "evidence": {
@@ -387,6 +393,167 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261025T214530Z-bd6bf6.jsonl",
- "duration_s": 0.27
+ "decision_log": [
+  {
+   "timestamp": "2026-10-26T00:37:11.269489Z",
+   "run_id": "20261026T003711Z-4bece7",
+   "actor_type": "agent",
+   "actor": "intake",
+   "decision": "resolved engine",
+   "rationale": "The question resolves to FD001-A001, found in the asset registry.",
+   "evidence_ids": [
+    "EV-INT-01"
+   ],
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:11.472531Z",
+   "run_id": "20261026T003711Z-4bece7",
+   "actor_type": "agent",
+   "actor": "planner",
+   "decision": "no follow-up needed",
+   "rationale": "RUL methods agree within 20 cycles (A 121, B 125); fault mode clear (hpc_degradation p=1.00); input data plausible.",
+   "evidence_ids": [],
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:11.516143Z",
+   "run_id": "20261026T003711Z-4bece7",
+   "actor_type": "agent",
+   "actor": "maint_planner",
+   "decision": "proposed plan",
+   "rationale": "No action proposed before the next scheduled inspection; deadline 2026-12-18; 0 parts, confidence high.",
+   "evidence_ids": [
+    "EV-MNT-01",
+    "EV-MNT-02",
+    "EV-MNT-03"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:11.517662Z",
+   "run_id": "20261026T003711Z-4bece7",
+   "actor_type": "gate",
+   "actor": "rule_checks",
+   "decision": "accepted",
+   "rationale": "All deterministic rule checks passed.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:11.520178Z",
+   "run_id": "20261026T003711Z-4bece7",
+   "actor_type": "model",
+   "actor": "nvidia/nemotron-3-ultra-550b-a55b",
+   "decision": "reviewed the brief",
+   "rationale": "Raised 0 checkable challenges and 0 notes for the engineer; notes cannot block a cited brief (recorded Nemotron response (captured 2026-10-26)).",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:11.520178Z",
+   "run_id": "20261026T003711Z-4bece7",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "accepted",
+   "rationale": "No gap found by the deterministic checks; no model challenge was confirmed by code.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:11.521180Z",
+   "run_id": "20261026T003711Z-4bece7",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "no escalation",
+   "rationale": "No escalation rule fired.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  }
+ ],
+ "agents": [
+  {
+   "name": "intake",
+   "role": "Reads the question and resolves the engine, or asks back",
+   "uses_model": true,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "planner",
+   "role": "Assigns round 1, delegates follow-ups the findings call for, routes each gap to the agent that can fix it",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "data",
+   "role": "Telemetry, input plausibility, history, schedule, slots; inspection history and targeted re-queries",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "prognostics",
+   "role": "RUL methods A and B, SHAP drivers, anomaly flag; back-test at the last inspection",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "diagnostics",
+   "role": "Fault-mode match and similar past cases; checks both candidates when unclear",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "knowledge",
+   "role": "Applicable documents in precedence order, mandates decided in code; binds a missing mandate",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "maint_planner",
+   "role": "Task, parts, slot and deadline from the RUL lower bound; applies the routed fixes",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "rule_checks",
+   "role": "Deterministic gate: citations, numbers, parts, slots, deadlines, mandates",
+   "uses_model": false,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "critic",
+   "role": "Deterministic checks, then Nemotron challenges that code confirms or refutes",
+   "uses_model": true,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "escalation",
+   "role": "Deterministic escalation rules from the asset pack",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  }
+ ],
+ "model_calls": [
+  {
+   "agent": "critic",
+   "round": 1,
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "source": "recorded Nemotron response (captured 2026-10-26)"
+  }
+ ],
+ "trace_file": "logs\\trace-20261026T003711Z-4bece7.jsonl",
+ "duration_s": 0.27,
+ "execution_time_seconds": 0.266
 }

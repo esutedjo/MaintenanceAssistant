@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 
+from assurance.routing import routes_for
 from casefile.schemas import CaseFile, Verdict
 
 
@@ -87,15 +88,16 @@ def slot_exists(case: CaseFile) -> list[str]:
     rec = case.recommendation
     if rec is None or rec.slot is None:
         return []
+    listed = False                       # a re-queried free-slot list counts as well as the first one
     for evidence in case.evidence.values():
         nxt = evidence.content.get("next") or []
         first = evidence.content.get("first_free")
         dates = {first, *nxt} - {None}
         if rec.slot.isoformat() in dates:
             return []
-        if dates:
-            return [f"slot {rec.slot} is not in the free-slot list"]
-    return ["recommendation has a slot but no free-slot evidence"]
+        listed |= bool(dates)
+    return [f"slot {rec.slot} is not in the free-slot list" if listed
+            else "recommendation has a slot but no free-slot evidence"]
 
 
 def mandates_honoured(case: CaseFile, pack: dict, reference: date | None = None) -> list[str]:
@@ -167,4 +169,5 @@ def run_rule_checks(case: CaseFile, pack: dict, reference: date | None = None) -
             *parts_exist(case), *slot_exists(case), *mandates_honoured(case, pack, reference),
             *deadline_within_rul(case, pack, reference), *world_tasks_eligible(case),
             *numbers_supported(case, pack)]
-    return Verdict(round=case.round, gate="rule_checks", outcome="accept" if not gaps else "revise", gaps=gaps)
+    return Verdict(round=case.round, gate="rule_checks", outcome="accept" if not gaps else "revise", gaps=gaps,
+                   routes=routes_for(gaps))

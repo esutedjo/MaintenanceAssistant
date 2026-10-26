@@ -104,11 +104,27 @@ def run_fleet(assets: list[str], settings: Settings) -> tuple[list[dict], dict[s
                                               if i in case.evidence)),
                 "degraded": list(case.degraded),
                 "data_issues": [i["check"] for e in case.evidence.values() for i in e.content.get("issues") or []],
+                "follow_ups": [t.kind for t in case.plan if t.kind and not t.id.startswith("T-fix-")],
+                "routes": [f"{r.kind} -> {r.target or 'nobody'}" for v in case.verdicts for r in v.routes],
+                "follow_up_changed_plan": _follow_up_changed_plan(case),
             })
         rows.append(row)
         if n % 20 == 0 or n == len(assets):
             print(f"  {n}/{len(assets)} runs", flush=True)
     return rows, cases
+
+
+def _follow_up_changed_plan(case: CaseFile) -> str | None:
+    """How a follow-up's evidence changed the plan, if it did (it may only make the plan more cautious)."""
+    for evidence in case.evidence.values():
+        content = evidence.content
+        if content.get("optimistic_missed_wear"):
+            return "inspection brought forward to the first free slot"
+        if content.get("runner_up_leads"):
+            return "inspect both candidate modules"
+        if content.get("reproduced") is False:
+            return "re-run on fresh data"
+    return None
 
 
 def _rmse(error: pd.Series) -> float:
@@ -180,6 +196,12 @@ def fleet_metrics(frame: pd.DataFrame, cap: float, limit: float) -> dict:
         "critic": {
             "rounds": done["rounds"].value_counts().sort_index().to_dict(),
             "escalations": pd.Series([e for es in done["escalations"] for e in es]).value_counts().to_dict(),
+        },
+        "delegation": {
+            "runs_with_follow_ups": int(done["follow_ups"].map(bool).sum()),
+            "follow_ups": pd.Series([k for ks in done["follow_ups"] for k in ks], dtype=object).value_counts().to_dict(),
+            "follow_ups_that_changed_the_plan": done["follow_up_changed_plan"].dropna().value_counts().to_dict(),
+            "routed_gaps": pd.Series([r for rs in done["routes"] for r in rs], dtype=object).value_counts().to_dict(),
         },
         "decisions": decision_metrics(done),
         "data_quality": {
@@ -280,6 +302,7 @@ def fault_metrics(cases: dict[str, CaseFile], pack: dict, settings: Settings, sa
 def markdown(report: dict) -> str:
     f, s = report["fleet"], report["seeded_faults"]
     c, r, sa, d, fm, ev = f["completion"], f["rul"], f["safety"], f["disagreement"], f["fault_mode"], f["evidence"]
+    dl = f["delegation"]
     lines = [
         "# Evaluation report (sample mode, synthetic fleet)", "",
         f"Generated {report['generated_at']} by `uv run task eval`. {f['runs']} active engines through the full agent "
@@ -324,7 +347,13 @@ def markdown(report: dict) -> str:
           for band, row in f["decisions"]["table"].items()], "",
         "## Critic and escalation", "",
         f"- Critic rounds per run: {', '.join(f'{k}: {v}' for k, v in f['critic']['rounds'].items())}.",
-        f"- Escalations: {', '.join(f'{k} {v}' for k, v in f['critic']['escalations'].items())}.", "",
+        f"- Escalations: {', '.join(f'{k} {v}' for k, v in f['critic']['escalations'].items())}.",
+        f"- Planner follow-ups after round 1, only where the findings call for them: {dl['runs_with_follow_ups']} of "
+        f"{f['runs']} runs ({', '.join(f'{k} {v}' for k, v in dl['follow_ups'].items()) or 'none'}); "
+        f"follow-ups that changed the plan: "
+        f"{', '.join(f'{k} {v}' for k, v in dl['follow_ups_that_changed_the_plan'].items()) or 'none'}.",
+        f"- Gaps routed by the planner to the agent that fixes them: "
+        f"{', '.join(f'{k} {v}' for k, v in dl['routed_gaps'].items()) or 'none'}.", "",
         "## Seeded faulty briefs", "",
         f"{s['seeded']} faulty briefs built from {s['briefs']} finished briefs (the 4 golden cases plus a random sample). "
         f"The deterministic gates (rule checks, then the critic's deterministic checks; no LLM) caught "

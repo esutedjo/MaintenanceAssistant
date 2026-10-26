@@ -48,6 +48,21 @@ CSS = """
 .tl-model { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; color: #a5b4fc;
             margin-left: .4rem; }
 .tl-sum { grid-column: 2; color: #cbd5e1; font-size: .86rem; }
+.dl-row { display: grid; grid-template-columns: 2rem 1fr; gap: 0 .6rem; padding: .5rem .2rem;
+          border-bottom: 1px solid #1f2b3b; }
+.dl-row.flag { background: #221c0e; }
+.dl-row.bad { background: #2a1015; }
+.dl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .45rem; font-size: .92rem; }
+.dl-head b { color: #e8eef5; }
+.dl-chip { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; border-radius: 999px;
+           padding: .05rem .55rem; border: 1px solid #334155; color: #cbd5e1; }
+.dl-chip.agent { border-color: #3b82f6; color: #93c5fd; }
+.dl-chip.gate { border-color: #0d9488; color: #5eead4; }
+.dl-chip.model { border-color: #6366f1; color: #a5b4fc; }
+.dl-chip.human { border-color: #15803d; color: #86efac; }
+.dl-meta { color: #64748b; font-size: .82rem; }
+.dl-ev { display: flex; flex-wrap: wrap; gap: .1rem .7rem; font-size: .84rem; margin-top: .15rem; }
+.dl-more { color: #94a3b8; font-size: .84rem; margin-top: .15rem; overflow-wrap: anywhere; }
 .brand { display: flex; align-items: baseline; gap: .6rem; margin: 0 0 .2rem 0; }
 .brand b { font-size: 1.2rem; }
 .brand span { color: #94a3b8; font-size: .9rem; }
@@ -80,6 +95,29 @@ CSS = """
                margin-bottom: .25rem; }
 .explain { color: #94a3b8; font-size: .88rem; border-left: 2px solid #334155; padding: .1rem 0 .1rem .6rem;
            margin: -.2rem 0 .8rem 0; }
+/* Help: glossary tooltips on abbreviations, the screen guide, the glossary list and the step strip. */
+abbr[title] { text-decoration: underline dotted #64748b; text-underline-offset: 3px; cursor: help; }
+.notice { background: #1e293b; border-left: 3px solid #f59e0b; color: #cbd5e1; padding: .5rem .8rem;
+          border-radius: 4px; font-size: .88rem; margin: 0 0 .9rem 0; }
+.guide { display: grid; grid-template-columns: 11rem 1fr; gap: .5rem 1rem; font-size: .94rem; line-height: 1.5;
+         margin: .3rem 0 1rem 0; }
+.guide dt { color: #93c5fd; font-weight: 600; }
+.guide dd { margin: 0; color: #e2e8f0; }
+.gloss { font-size: .93rem; line-height: 1.5; }
+.gloss > div { padding: .45rem 0; border-bottom: 1px solid #1f2b3b; }
+.gloss b { color: #e8eef5; }
+.gloss .full, .gloss .where { color: #94a3b8; }
+.gloss .where { font-size: .84rem; }
+.flow { display: flex; flex-wrap: wrap; gap: .5rem; margin: .4rem 0 1rem 0; }
+.flow-step { flex: 1 1 8.5rem; background: #16202e; border: 1px solid #2b3a4f; border-radius: 8px;
+             padding: .5rem .65rem; font-size: .85rem; color: #cbd5e1; line-height: 1.4; }
+.flow-step b { display: block; color: #e8eef5; font-size: .9rem; margin: .2rem 0 .15rem 0; }
+.flow-n { display: inline-block; width: 1.4rem; height: 1.4rem; border-radius: 999px; background: #1e3a5f;
+          color: #93c5fd; text-align: center; font-size: .78rem; line-height: 1.4rem; }
+@media (max-width: 640px) {
+  .guide { grid-template-columns: 1fr; gap: .1rem; }
+  .guide dd { margin-bottom: .5rem; }
+}
 </style>
 """
 
@@ -277,6 +315,31 @@ def escalation_view(esc: dict) -> dict[str, Any]:
             "message": message, "proposed": proposed, "notes": notes}
 
 
+def escalation_ack_label(esc: dict) -> str:
+    """The checkbox an engineer ticks to confirm an escalation was read before approving."""
+    view = escalation_view(esc)
+    return f"I have read the {view['severity']} escalation: {view['title']}. {view['message']}"
+
+
+def needs_urgent_reason(escalations: list[dict]) -> bool:
+    return any(e.get("severity") == "urgent" for e in escalations)
+
+
+def approval_gate(signer: str, escalations: list[dict], ticked: list[bool], reason: str = "") -> tuple[bool, str]:
+    """Whether Approve is enabled and, if not, what is missing. Reject needs only the signer's name. With an urgent
+    escalation, Approve also needs a typed reason for approving despite it."""
+    open_items = len(escalations) - sum(1 for t in ticked[:len(escalations)] if t)
+    ticks = f"tick {open_items} more escalation{'s' if open_items != 1 else ''} as read"
+    if not (signer or "").strip():
+        return False, ("To approve or reject, type your name in Signed by"
+                       + (f"; to approve, also {ticks}." if open_items else "."))
+    if open_items:
+        return False, f"To approve, {ticks}. Reject needs no acknowledgement."
+    if needs_urgent_reason(escalations) and not (reason or "").strip():
+        return False, "To approve despite the urgent escalation, say why in the box above. Reject needs no reason."
+    return True, ""
+
+
 def world_eligibility(case: dict) -> dict[str, Any] | None:
     """The World Model's eligible tasks for the fault next to the tasks the plan uses."""
     for eid, item in sorted((case.get("evidence") or {}).items()):
@@ -412,6 +475,66 @@ def trace_rows(events: list[dict]) -> list[dict[str, Any]]:
             "model": event.get("model") or "",
             "summary": event.get("output_summary") or "",
             "seconds": event.get("duration_s"),
+        })
+    return rows
+
+
+ACTOR_CHIPS = {"agent": "agent", "gate": "gate", "model": "model", "human": "engineer"}
+LOG_ACTORS = {**AGENT_LABELS, "close": "round limit"}
+DECISION_TONE = {"accepted": "ok", "approved": "ok", "challenge refuted": "ok", "no escalation": "ok",
+                 "sent back for revision": "flag", "challenge confirmed": "flag", "escalated": "flag",
+                 "asked back": "flag", "rejected": "bad", "failed": "bad", "not accepted at the round limit": "bad",
+                 "closed: insufficient evidence": "bad"}
+
+
+def _utc_time(stamp: str | None, with_date: bool = False) -> str:
+    text = str(stamp or "")
+    if "T" not in text:
+        return text
+    day, clock = text.split("T", 1)
+    return f"{day + ' ' if with_date else ''}{clock[:8]} UTC"
+
+
+def _signoff_details(entry: dict) -> list[str]:
+    """The sign-off's binding: who, when, which brief, the comment and the past-case ratings."""
+    if entry.get("actor_type") != "human":
+        return []
+    signer, brief = entry.get("signer") or {}, entry.get("brief") or {}
+    who = [signer.get("role"), f"licence {signer['licence_ref']}" if signer.get("licence_ref") else None]
+    lines = [f"Signed {_utc_time(entry.get('timestamp'), with_date=True)}" + "".join(f" · {x}" for x in who if x)]
+    if brief:
+        sha = (brief.get("recommendation_sha256") or "")[:12]
+        lines.append(f"Brief {brief.get('case_id')}" + (f" · recommendation fingerprint {sha}" if sha else ""))
+    if entry.get("wo_id"):
+        lines.append(f"Work order {entry['wo_id']}")
+    acknowledged = entry.get("acknowledged") or []
+    if acknowledged:
+        lines.append("Escalations acknowledged: " + "; ".join(
+            f"{a.get('severity')} {(a.get('rule') or '').replace('_', ' ')}" for a in acknowledged))
+    reason = next((a["reason"] for a in acknowledged if a.get("reason")), None)
+    if reason:
+        lines.append(f"Approved despite the urgent escalation because: {reason}")
+    if entry.get("comment"):
+        lines.append(f"Comment: {entry['comment']}")
+    ratings = entry.get("case_feedback") or {}
+    if ratings:
+        lines.append("Past-case ratings: " + ", ".join(f"{k} {v.replace('_', ' ')}" for k, v in ratings.items()))
+    return lines
+
+
+def decision_log_rows(entries: list[dict]) -> list[dict[str, Any]]:
+    """Decision-log entries as display rows: actor type chip, who, what, round, time, why, evidence IDs."""
+    rows = []
+    for n, entry in enumerate(entries, 1):
+        kind, actor = entry.get("actor_type") or "agent", entry.get("actor") or "?"
+        decision = entry.get("decision") or ""
+        rows.append({
+            "step": n, "kind": kind, "chip": ACTOR_CHIPS.get(kind, kind),
+            "actor": LOG_ACTORS.get(actor, actor) if kind in {"agent", "gate"} else actor,
+            "decision": decision, "tone": DECISION_TONE.get(decision, "plain"),
+            "round": entry.get("round"), "time": _utc_time(entry.get("timestamp")),
+            "rationale": entry.get("rationale") or "", "evidence_ids": list(entry.get("evidence_ids") or []),
+            "details": _signoff_details(entry), "hash": (entry.get("hash") or "")[:12],
         })
     return rows
 

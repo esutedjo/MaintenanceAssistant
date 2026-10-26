@@ -1,5 +1,7 @@
 """Evidence critic: try to disprove the brief. Deterministic checks always run (sample mode included).
-An LLM pass is added when Nightshift is available and SAMPLE_MODE is off. The critic never writes the recommendation."""
+An LLM pass is added when Nightshift is available and SAMPLE_MODE is off; in sample mode a recorded Nemotron reply is
+used only when the prompt matches it exactly (tools/llm_recordings.py), and code checks it exactly as a live one.
+Each blocking gap gets a kind and a fixing agent (assurance/routing.py). The critic never writes the recommendation."""
 
 import json
 import logging
@@ -8,8 +10,10 @@ import time
 
 from agents.runtime import NodeResult, RunContext, node
 from assurance.challenges import KINDS, prompt_section, verify
+from assurance.routing import routes_for
 from casefile.schemas import CaseFile, MAX_ROUNDS, Verdict
 from models.fault_mode import discriminating
+from tools import llm_recordings as recordings
 from tools.llm import LlmClient, LlmRefusal, LlmUnavailable
 
 log = logging.getLogger("critic")
@@ -91,19 +95,13 @@ def _remaining_s(ctx: RunContext) -> float:
     return ctx.settings.run_timeout_s - (time.monotonic() - ctx.started)
 
 
-def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, str | None, list[dict]]:
-    """Returns (gaps, model_name, error_note, challenges). Empty model_name means the LLM was not called."""
-    if ctx.settings.sample_mode:
-        return [], None, None, []
-    remaining = _remaining_s(ctx)
-    if remaining < ctx.settings.critic_timeout_s + 1:
-        return [], None, (f"llm_critic_skipped: remaining run time {remaining:.0f}s "
-                          f"< critic timeout {ctx.settings.critic_timeout_s:.0f}s"), []
+def critic_prompt(case: CaseFile, pack: dict) -> str:
+    """What the LLM critic reads. Sample-mode recordings are keyed by the SHA-256 of this exact text."""
     evidence_lines = "\n".join(f"- {e.id} [{e.kind}] {e.summary}" for e in case.evidence.values())
     rec = case.recommendation
     rec_text = rec.action if rec else "(none)"
-    limit = ctx.pack["thresholds"]["rul_divergence_cycles"]
-    prompt = (
+    limit = pack["thresholds"]["rul_divergence_cycles"]
+    return (
         "You are an independent evidence critic for a turbofan maintenance brief. Try to DISPROVE it.\n"
         "Reply with one JSON object only, no markdown: "
         "{\"outcome\": \"accept\"|\"revise\"|\"reject\", \"gaps\": [\"...\"], \"challenges\": [...]}.\n"
@@ -121,18 +119,48 @@ def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, s
         f"Question: {case.question}\nAsset: {case.asset.asset_id if case.asset else None}\n"
         f"Recommendation: {rec_text}\n{prompt_section(case)}Evidence:\n{evidence_lines}\n"
     )
+
+
+def _reply_gaps(text: str, model: str) -> tuple[list[str], list[dict], str | None]:
+    """(gaps, challenges, lane note) from a reply, live or recorded. Raises ValueError on a reply that is not JSON."""
+    parsed = _parse(text)
+    note = "critic_lane_not_nemotron" if _family(model) in {"anthropic", "openai"} else None
+    gaps = list(parsed["gaps"])
+    if parsed["outcome"] == "reject" and "critic rejected the brief" not in gaps:
+        gaps.append("critic rejected the brief")
+    return gaps, parsed["challenges"], note
+
+
+def _recorded_gaps(prompt: str) -> tuple[list[str], str | None, str | None, list[dict]]:
+    """Sample mode: the recorded Nemotron reply to exactly this prompt, else nothing (deterministic checks only)."""
+    recording = recordings.lookup(prompt, "critic")
+    if recording is None:
+        return [], None, None, []
+    try:
+        gaps, challenges, note = _reply_gaps(recording.text, recording.model)
+    except (ValueError, json.JSONDecodeError) as error:
+        return [], recording.model, f"llm_critic_skipped: recorded reply unreadable ({type(error).__name__})", []
+    return gaps, recording.model, note or recording.label, challenges
+
+
+def _llm_gaps(case: CaseFile, ctx: RunContext) -> tuple[list[str], str | None, str | None, list[dict]]:
+    """Returns (gaps, model_name, note, challenges). Empty model_name means the LLM was not called. In sample mode
+    the note is the recording's label ("recorded Nemotron response (captured <date>)")."""
+    prompt = critic_prompt(case, ctx.pack)
+    if ctx.settings.sample_mode:
+        return _recorded_gaps(prompt)
+    remaining = _remaining_s(ctx)
+    if remaining < ctx.settings.critic_timeout_s + 1:
+        return [], None, (f"llm_critic_skipped: remaining run time {remaining:.0f}s "
+                          f"< critic timeout {ctx.settings.critic_timeout_s:.0f}s"), []
     client = LlmClient(ctx.settings)
     reply = None
     try:
         reply = client.chat([{"role": "user", "content": prompt}], model=ctx.settings.meterless_critic_model,
                             temperature=0, max_tokens=1024, app=ctx.settings.meterless_critic_app,
                             response_format={"type": "json_object"}, timeout_s=ctx.settings.critic_timeout_s)
-        parsed = _parse(reply.text)
-        note = "critic_lane_not_nemotron" if _family(reply.model) in {"anthropic", "openai"} else None
-        gaps = list(parsed["gaps"])
-        if parsed["outcome"] == "reject" and "critic rejected the brief" not in gaps:
-            gaps.append("critic rejected the brief")
-        return gaps, reply.model, note, parsed["challenges"]
+        gaps, challenges, note = _reply_gaps(reply.text, reply.model)
+        return gaps, reply.model, note, challenges
     except (LlmUnavailable, LlmRefusal, ValueError, json.JSONDecodeError) as error:
         snippet = (reply.text[:240] if reply and reply.text else "")
         log.warning("llm critic skipped (%s: %s): %s", type(error).__name__, str(error)[:300], snippet)
@@ -171,13 +199,17 @@ def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
     outcome = "accept" if not gaps else "revise"
     if state.round >= MAX_ROUNDS and outcome == "revise":
         outcome = "reject"
-    recorded = [*gaps, *[g for g in llm_gaps if g not in gaps]]
+    listed = [*gaps, *[g for g in llm_gaps if g not in gaps]]
     update: dict = {"verdicts": []}
     if note and note.startswith("llm_critic_skipped"):
         update["degraded"] = [f"LLM critic unavailable ({note.split(': ', 1)[-1]}); deterministic critic checks only"]
     if outcome == "revise" and state.round < MAX_ROUNDS:
         update["round"] = state.round + 1
+    # Only the blocking gaps (deterministic checks, challenges code confirmed) get a kind and a fixing agent.
+    routes = routes_for(gaps)
     summary = f"{outcome}; {len(gaps)} gap(s)" + (f"; model={model}" if model else "; deterministic")
+    if routes:
+        summary += " (" + ", ".join(dict.fromkeys(r.kind for r in routes)) + ")"
     if challenges:
         summary += f"; {len(challenges)} challenge(s): {len(confirmed)} confirmed by code, {len(refuted)} refuted"
     if llm_gaps and outcome == "accept":
@@ -186,8 +218,11 @@ def critic(state: CaseFile, ctx: RunContext) -> NodeResult:
         summary += "; critic lane not pinned to Nemotron"
     elif note:
         summary += f"; {note}"
-    verdict = Verdict(round=state.round, gate="critic", outcome=outcome, gaps=recorded, model=model)
+    replayed = note if note and note.startswith("recorded ") else None
+    verdict = Verdict(round=state.round, gate="critic", outcome=outcome, gaps=listed, model=model, routes=routes,
+                      recorded=replayed)
     update["verdicts"] = [verdict]
     retry = max(state.round - 1, 0)
+    target = {"revise": "planner", "reject": "close"}.get(outcome)
     return NodeResult(update, summary, status="success" if outcome == "accept" else "needs_revision",
-                      model=model, retry_count=retry)
+                      model=model, retry_count=retry, target_agent=target)

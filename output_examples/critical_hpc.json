@@ -1,5 +1,6 @@
 {
- "run_id": "20261025T214524Z-84703d",
+ "run_id": "20261026T003714Z-eede0a",
+ "trace_id": "trace-20261026T003714Z-eede0a",
  "status": "needs_review",
  "question": "What should I do about FD001-A031?",
  "mode": {
@@ -20,7 +21,8 @@
   "horizon_days": null,
   "needs_clarification": false,
   "clarification": null,
-  "resolved_by": null
+  "resolved_by": null,
+  "recorded": null
  },
  "findings": {
   "rul_ml": {
@@ -222,7 +224,7 @@
     "confidence": "high"
    },
    {
-    "text": "SB-TF-72-0142 3.B (service bulletin) takes precedence over AMM-TF-R3 72-31-00 (manual) on the same topic.",
+    "text": "SB-TF-72-0142 3.B (service bulletin) takes precedence over AMM-TF-R3 72-31-00 (manual) on the same topic; SB recommended; adopting it needs engineering approval.",
     "evidence_ids": [
      "EV-KNW-03",
      "EV-KNW-04"
@@ -356,8 +358,9 @@
     "confidence": "high"
    },
    {
-    "text": "Limits and intervals for FM-HPC-01 follow SB-TF-72-0142 3.B (service bulletin), the highest-precedence document on that topic.",
+    "text": "Limits and intervals for FM-HPC-01 follow AMM-TF-R3 72-31-00 (manual); SB-TF-72-0142 3.B (service bulletin) would replace it on that topic: SB recommended; adopting it needs engineering approval.",
     "evidence_ids": [
+     "EV-KNW-04",
      "EV-KNW-03"
     ],
     "confidence": "high"
@@ -385,7 +388,7 @@
     "confidence": "high"
    },
    {
-    "text": "World Model links mandatory document actions for this fault: AD-2026-17-04 (g)\u2192FM-HPC-01, AMM-TF-R2 72-31-00\u2192FM-HPC-01, AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-31-00\u2192FM-HPC-01, AMM-TF-R3 72-31-10\u2192FM-HPC-02, SB-TF-72-0142 3.B\u2192FM-HPC-01.",
+    "text": "World Model links these document sections to tasks for this fault: AD-2026-17-04 (g)\u2192FM-HPC-01, AMM-TF-R2 72-31-00\u2192FM-HPC-01, AMM-TF-R3 71-00-00\u2192FM-HPC-06, AMM-TF-R3 72-31-00\u2192FM-HPC-01, AMM-TF-R3 72-31-10\u2192FM-HPC-02, SB-TF-72-0142 3.B\u2192FM-HPC-01; which apply now and which are mandatory is decided by the knowledge agent.",
     "evidence_ids": [
      "EV-MNT-02"
     ],
@@ -434,6 +437,19 @@
     "EV-MNT-03",
     "EV-MNT-03"
    ]
+  },
+  {
+   "rule": "sb_adoption",
+   "severity": "info",
+   "message": "SB-TF-72-0142 3.B (service bulletin, compliance recommended) would replace AMM-TF-R3 72-31-00 (manual) on hpc_borescope_interval; SB recommended; adopting it needs engineering approval.",
+   "actions": [
+    "Engineering to approve or decline adopting the service bulletin",
+    "Until it is approved, the plan follows AMM-TF-R3 72-31-00"
+   ],
+   "evidence_ids": [
+    "EV-KNW-03",
+    "EV-KNW-04"
+   ]
   }
  ],
  "verdicts": [
@@ -442,14 +458,26 @@
    "gate": "rule_checks",
    "outcome": "accept",
    "gaps": [],
-   "model": null
+   "model": null,
+   "routes": [],
+   "recorded": null
   },
   {
    "round": 1,
    "gate": "critic",
    "outcome": "accept",
-   "gaps": [],
-   "model": null
+   "gaps": [
+    "Claim 0 cites EV-PRG-01 for RUL A 10th-90th percentile 5-11, but EV-PRG-01 is not listed in the evidence; only EV-PRG-02 is available, so the ML model percentile range cannot be verified.",
+    "Claim 8 derives deadline 2026-10-22 from RUL lower bound 0 cycles at 2 cycles/day, but EV-INT-01 shows last observed cycle 196 at 2026-10-22T00:00:00+00:00, meaning the deadline equals the current date, not a future bound; the calculation appears to use the observation date as the deadline.",
+    "Claim 11 states all parts are on hand but the next free slot is 1 day away; EV-MNT-03 shows TF-HPC-1101 lead time 35 d and TF-HPC-1104 lead time 21 d, so those parts are not immediately available for on-wing repair, contradicting the statement that all parts are on hand.",
+    "unsupported number challenge refuted by code: claim [0] does not state 5",
+    "unsupported number challenge refuted by code: claim [0] does not state 11",
+    "deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22)",
+    "unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1"
+   ],
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "routes": [],
+   "recorded": "recorded Nemotron response (captured 2026-10-26)"
   }
  ],
  "evidence": {
@@ -629,6 +657,275 @@
    "degraded": null
   }
  },
- "trace_file": "logs\\trace-20261025T214524Z-84703d.jsonl",
- "duration_s": 0.27
+ "decision_log": [
+  {
+   "timestamp": "2026-10-26T00:37:14.352079Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "agent",
+   "actor": "intake",
+   "decision": "resolved engine",
+   "rationale": "The question resolves to FD001-A031, found in the asset registry.",
+   "evidence_ids": [
+    "EV-INT-01"
+   ],
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.566751Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "agent",
+   "actor": "planner",
+   "decision": "no follow-up needed",
+   "rationale": "RUL methods agree within 20 cycles (A 10, B 7); fault mode clear (hpc_degradation p=1.00); input data plausible.",
+   "evidence_ids": [],
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.582836Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "agent",
+   "actor": "knowledge",
+   "decision": "applied mandate",
+   "rationale": "AD-2026-17-04 (g) requires FM-HPC-01 within 10 cycles; agents cannot remove it.",
+   "evidence_ids": [
+    "EV-KNW-02"
+   ],
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.621952Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "agent",
+   "actor": "maint_planner",
+   "decision": "proposed plan",
+   "rationale": "Swap in lease engine; module shop visit on the removed engine; deadline 2026-10-22; 5 parts, confidence high.",
+   "evidence_ids": [
+    "EV-MNT-01",
+    "EV-MNT-02",
+    "EV-MNT-03",
+    "EV-MNT-04",
+    "EV-MNT-05"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.626460Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "rule_checks",
+   "decision": "accepted",
+   "rationale": "All deterministic rule checks passed.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.628461Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "model",
+   "actor": "nvidia/nemotron-3-ultra-550b-a55b",
+   "decision": "reviewed the brief",
+   "rationale": "Raised 4 checkable challenges and 3 notes for the engineer; notes cannot block a cited brief (recorded Nemotron response (captured 2026-10-26)).",
+   "evidence_ids": [
+    "EV-PRG-01",
+    "EV-PRG-02",
+    "EV-INT-01",
+    "EV-MNT-03"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.628461Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code: claim [0] does not state 5.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.628461Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code: claim [0] does not state 11.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.628461Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Deadline after bound challenge refuted by code: deadline 2026-10-22 is within the bound (2026-10-22).",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.628461Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "challenge refuted",
+   "rationale": "Unsupported number challenge refuted by code: EV-PRG-01, EV-PRG-02, EV-MNT-04, EV-DAT-05, EV-MNT-03 supports 1.",
+   "evidence_ids": [
+    "EV-PRG-01",
+    "EV-PRG-02",
+    "EV-MNT-04",
+    "EV-DAT-05",
+    "EV-MNT-03"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.628461Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "critic",
+   "decision": "accepted",
+   "rationale": "No gap found by the deterministic checks; no model challenge was confirmed by code.",
+   "evidence_ids": [],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.629963Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "escalated",
+   "rationale": "AD-2026-17-04 (g) (airworthiness directive) requires FM-HPC-01 within 10 cycles: Borescope HPC stages 1-3 within 10 cycles; remove the engine if any blade is beyond limits (urgent, rule document_mandate).",
+   "evidence_ids": [
+    "EV-KNW-02"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.629963Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "escalated",
+   "rationale": "RUL lower bound is 0.0 days; lead time of short parts 0 d plus next free slot 1 d (urgent, rule rul_below_lead_time).",
+   "evidence_ids": [
+    "EV-PRG-01",
+    "EV-PRG-02",
+    "EV-DAT-05",
+    "EV-MNT-03"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  },
+  {
+   "timestamp": "2026-10-26T00:37:14.629963Z",
+   "run_id": "20261026T003714Z-eede0a",
+   "actor_type": "gate",
+   "actor": "escalation",
+   "decision": "escalated",
+   "rationale": "SB-TF-72-0142 3.B (service bulletin, compliance recommended) would replace AMM-TF-R3 72-31-00 (manual) on hpc_borescope_interval; SB recommended; adopting it needs engineering approval (info, rule sb_adoption).",
+   "evidence_ids": [
+    "EV-KNW-03",
+    "EV-KNW-04"
+   ],
+   "round": 1,
+   "case_feedback": {},
+   "acknowledged": []
+  }
+ ],
+ "agents": [
+  {
+   "name": "intake",
+   "role": "Reads the question and resolves the engine, or asks back",
+   "uses_model": true,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "planner",
+   "role": "Assigns round 1, delegates follow-ups the findings call for, routes each gap to the agent that can fix it",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "data",
+   "role": "Telemetry, input plausibility, history, schedule, slots; inspection history and targeted re-queries",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "prognostics",
+   "role": "RUL methods A and B, SHAP drivers, anomaly flag; back-test at the last inspection",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "diagnostics",
+   "role": "Fault-mode match and similar past cases; checks both candidates when unclear",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "knowledge",
+   "role": "Applicable documents in precedence order, mandates decided in code; binds a missing mandate",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "maint_planner",
+   "role": "Task, parts, slot and deadline from the RUL lower bound; applies the routed fixes",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  },
+  {
+   "name": "rule_checks",
+   "role": "Deterministic gate: citations, numbers, parts, slots, deadlines, mandates",
+   "uses_model": false,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "critic",
+   "role": "Deterministic checks, then Nemotron challenges that code confirms or refutes",
+   "uses_model": true,
+   "can_block_or_send_back": true
+  },
+  {
+   "name": "escalation",
+   "role": "Deterministic escalation rules from the asset pack",
+   "uses_model": false,
+   "can_block_or_send_back": false
+  }
+ ],
+ "model_calls": [
+  {
+   "agent": "critic",
+   "round": 1,
+   "model": "nvidia/nemotron-3-ultra-550b-a55b",
+   "source": "recorded Nemotron response (captured 2026-10-26)"
+  }
+ ],
+ "trace_file": "logs\\trace-20261026T003714Z-eede0a.jsonl",
+ "duration_s": 0.3,
+ "execution_time_seconds": 0.297
 }

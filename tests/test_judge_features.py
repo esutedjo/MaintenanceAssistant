@@ -51,6 +51,7 @@ def test_triage_row_classifies_the_decision(hpc, settings):
     row = triage_row(hpc, settings.reference_time.date())
     assert row["asset_id"] == "FD001-A031" and row["decision"] == "remove, swap or repair"
     assert row["days_to_deadline"] == 0 and "rul below lead time" in row["escalations"]
-    assert decision_kind("Continue in service; next scheduled inspection") == "keep flying"
+    assert decision_kind("No action proposed before the next scheduled inspection") == "keep flying"
+    assert decision_kind("Continue in service; next scheduled inspection") == "keep flying"     # older briefs
     assert decision_kind("Borescope inspection; do not average the two remaining-life estimates") == "inspect"
     assert decision_kind(None) == "no recommendation"

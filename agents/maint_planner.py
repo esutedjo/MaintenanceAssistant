@@ -1,15 +1,19 @@
 """Maintenance planner: task, parts, slot and deadline from the RUL lower bound.
-Eligible work comes from the World Model; DataTools only prices parts and slots."""
+Eligible work comes from the World Model; DataTools only prices parts and slots. On a revise round it rebuilds the
+plan on what the other agents added (a mandate Knowledge bound, stock or slots the data agent re-queried, follow-up
+evidence) and applies the targeted fix for each gap kind the planner routed to it."""
 
 from datetime import date as date_cls, timedelta
 
 from agents.runtime import NodeResult, RunContext, node
-from assurance.escalation import parts_wait_days, remaining_shorter_than_wait
-from casefile.schemas import CaseFile, Claim, Confidence, EvidenceLedger, PartNeed, Recommendation
+from assurance.escalation import needs_approval, parts_wait_days, pending_adoptions, remaining_shorter_than_wait
+from casefile.schemas import CaseFile, Claim, Confidence, EvidenceLedger, Findings, PartNeed, Recommendation
 from casefile.world import asset_state, fmea_extra, mandated_for_mode, tasks_addressing
 from tools.data_tools import DataTools
 
 SEVERITY_RANK = {"none": 0, "minor": 1, "moderate": 2, "severe": 3}
+# Advice, not an airworthiness determination: the engineer's release process decides.
+HEALTHY_ACTION = "No action proposed before the next scheduled inspection"
 
 
 def _severity(lower_cycles: float, pack: dict, inspection: str | None) -> str:
@@ -57,10 +61,15 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     modes = findings.fault_modes
     ambiguous = (len(modes) >= 2
                  and abs(modes[0].probability - modes[1].probability) < pack["thresholds"]["ambiguous_fault_probability"])
+    # Follow-up evidence can only make the plan more cautious, never less.
+    candidates = _latest(state, "runner_up_leads")
+    if candidates is not None and candidates.content["runner_up_leads"]:
+        ambiguous = True                      # the longer sensor window points at the runner-up: inspect both
     top_modes = [m.failure_mode for m in modes[:2]] if ambiguous else ([modes[0].failure_mode] if modes else [])
     severity = _severity(lower, pack, _inspection_severity(state))
     healthy = (a.at_cap or (b is not None and b.at_cap)) and not diverge
     prefer_inspect = diverge or ambiguous or healthy
+    fixes = {k for t in state.pending("maint_planner") for k in (t.kind or "").split(",")}
 
     ledger = EvidenceLedger("maint_planner", state.evidence)
     tools = DataTools(ctx.data, ledger, pack, ctx.settings.reference_time)
@@ -76,7 +85,7 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
             for task in picked:
                 part_rows.extend(task["parts"])
 
-    slots_ev = next((e for e in state.evidence.values() if e.content.get("first_free") is not None), None)
+    slots_ev = _latest(state, "first_free")          # a re-queried slot list replaces the first one
     if slots_ev is None and not healthy:
         slots_ev = tools.free_slots()
     slot_date = None
@@ -107,6 +116,22 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         if task:
             chosen.append(task)
             part_rows.extend(task["parts"])
+    # Mandates Knowledge bound after a gate found one missing, uncited or late: its task, date and citation.
+    bindings = [e for e in state.evidence.values() if e.content.get("binding")]
+    for binding in bindings:
+        comply_by = date_cls.fromisoformat(binding.content["comply_by"])
+        doc = next((d for d in mandates if d.evidence_id == binding.content["doc_evidence"]), None)
+        if comply_by < deadline:
+            deadline, deadline_doc = comply_by, doc or deadline_doc
+        world_ids.append(binding.id)
+        for task in binding.content["tasks"]:
+            if task["fmea_id"] not in {t["fmea_id"] for t in chosen}:
+                chosen.append(task)
+                part_rows.extend(task["parts"])
+    if "task_not_eligible" in fixes:
+        listed = {i for e in [*state.evidence.values(), *ledger.records.values()]
+                  if ":world/" in (e.source or "") for i in e.content.get("task_ids") or []}
+        chosen = [t for t in chosen if t["fmea_id"] in listed]
 
     swap_task = None
     if not healthy and not prefer_inspect:
@@ -115,7 +140,10 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
     candidate_rows = [*part_rows, *(swap_task["parts"] if swap_task else [])]
     part_numbers = sorted({p["part_number"] for p in candidate_rows if p.get("part_number")})
     parts_ev = tools.parts(part_numbers) if part_numbers else None
-    stock = {p["part_number"]: p for p in (parts_ev.content["parts"] if parts_ev else [])}
+    # Each part cites the record its stock row came from; a data-agent re-query wins over the planner's first read.
+    stock = {p["part_number"]: (p, parts_ev.id) for p in (parts_ev.content["parts"] if parts_ev else [])}
+    for requery in [e for e in state.evidence.values() if e.content.get("requery") and "parts" in e.content]:
+        stock.update({p["part_number"]: (p, requery.id) for p in requery.content["parts"]})
 
     def needs(rows: list[dict]) -> list[PartNeed]:
         out, seen = [], set()
@@ -124,11 +152,11 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
             if not number or number in seen:
                 continue
             seen.add(number)
-            info = stock.get(number, row)
+            info, cited = stock.get(number, (row, None))
             out.append(PartNeed(part_number=number, qty=max(int(row.get("qty") or 1), 1),
                                 available=int(info.get("available") or 0),
                                 lead_time_days=int(info.get("lead_time_days") or row.get("lead_time_days") or 0),
-                                evidence_ids=[parts_ev.id] if parts_ev else world_ids))
+                                evidence_ids=[cited] if cited else [parts_ev.id] if parts_ev else world_ids))
         return out
 
     rul_days = lower / cycles_per_day
@@ -138,12 +166,21 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         part_rows.extend(swap_task["parts"])
     parts = needs(part_rows)
 
+    # Back-test follow-up: when the optimistic method missed wear the last inspection found, inspect at the first
+    # free slot instead of waiting for the bound (earlier only; the rule checks allow any deadline before the bound).
+    backtest = _latest(state, "optimistic_missed_wear")
+    early = None
+    if backtest is not None and backtest.content["optimistic_missed_wear"] and slot_date and slot_date < deadline:
+        deadline, early = slot_date, backtest
+    if "deadline_after_bound" in fixes:
+        deadline = min(deadline, rul_deadline)
+
     swap = next((t for t in chosen if t["task_type"] == "engine_change"), None)
     if healthy and mandates:
         action = mandates[0].action
         confidence: Confidence = "high"
     elif healthy:
-        action = "Continue in service; next scheduled inspection"
+        action = HEALTHY_ACTION
         confidence = "high"
     elif diverge:
         action = "Borescope inspection; do not average the two remaining-life estimates"
@@ -160,8 +197,11 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         confidence = "medium" if severity != "severe" else "high"
     bad_data = [(e.id, i["detail"]) for e in [*state.evidence.values(), *ledger.records.values()]
                 for i in e.content.get("issues") or [] if isinstance(i, dict) and i.get("severity") == "serious"]
+    reread = _latest(state, "reproduced")
     if bad_data:
-        action = f"Confirm the input data first; then: {action}"
+        transient = reread is not None and not reread.content["reproduced"]
+        action = ("Confirm the input data first (a re-read was clean: re-run the brief on fresh data); then: "
+                  if transient else "Confirm the input data first; then: ") + action
         confidence = "low"
 
     short = [p for p in parts if p.available < p.qty]
@@ -178,7 +218,14 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
                           "lead_time_days": p.lead_time_days} for p in short]},
     )
     rul_ids = [a.evidence_id, *([b.evidence_id] if b else [])]
-    if deadline_doc:
+    if early is not None:
+        rationale = [Claim(text=(f"Deadline {deadline} is the first free slot: the back-test shows the "
+                                 f"{early.content['optimistic_method']} estimate missed wear the last inspection "
+                                 f"found, so the inspection does not wait for the RUL lower bound deadline "
+                                 f"{rul_deadline}."),
+                           evidence_ids=[early.id, *([slots_ev.id] if slots_ev else []), *rul_ids],
+                           confidence=confidence)]
+    elif deadline_doc:
         rationale = [Claim(text=(f"Deadline {deadline} is set by {deadline_doc.doc_id} {deadline_doc.section} "
                                  f"({deadline_doc.within_cycles} cycles), earlier than the RUL lower bound deadline "
                                  f"{rul_deadline}."),
@@ -191,13 +238,29 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
             text=("Input data failed plausibility checks (" + "; ".join(dict.fromkeys(d for _, d in bad_data))[:300]
                   + "); every number below is computed from it, so confidence is low until the data is confirmed."),
             evidence_ids=list(dict.fromkeys(i for i, _ in bad_data)), confidence="low"))
+    if reread is not None:
+        rationale.insert(1 if bad_data else 0, Claim(
+            text=("A re-read of the inputs past the run's cache reproduced the plausibility issue: bad source data, "
+                  "not a read error." if reread.content["reproduced"] else
+                  "A re-read of the inputs past the run's cache did not reproduce the plausibility issue: the first "
+                  "read was faulty and this brief is built on it, so re-run the brief before acting on its numbers."),
+            evidence_ids=[reread.id], confidence="low" if bad_data else "medium"))
     rationale.append(Claim(text=planning.summary, evidence_ids=[planning.id, *rul_ids], confidence=confidence))
+    if backtest is not None:
+        rationale.append(Claim(text=f"{backtest.summary}.", evidence_ids=[backtest.id, backtest.content["from"]],
+                               confidence="medium"))
+    if candidates is not None and candidates.content["runner_up_leads"]:
+        rationale.append(Claim(
+            text=(f"Over a {candidates.content['window_cycles']}-cycle window the sensors that tell the candidates "
+                  f"apart favour {candidates.content['leader']}, so the plan inspects both modules."),
+            evidence_ids=[candidates.id], confidence="low"))
     if parts and parts_ev:
         needed = ", ".join(f"{p.part_number} (need {p.qty}, {p.available} on hand, {p.lead_time_days} d lead)" for p in parts)
         extra = f" Short: {', '.join(p.part_number for p in short)}." if short else ""
+        stock_ids = list(dict.fromkeys(i for p in parts for i in p.evidence_ids))
         rationale.append(Claim(
             text=f"Selected tasks need {needed}.{extra} In-stock substitutes do not replace a short required part.",
-            evidence_ids=[parts_ev.id, planning.id], confidence="high"))
+            evidence_ids=[*(stock_ids or [parts_ev.id]), planning.id], confidence="high"))
     if swap:
         wait_ids = [*rul_ids, planning.id, *([slots_ev.id] if slots_ev else []), *([parts_ev.id] if parts_ev else [])]
         swap_parts = {p["part_number"] for p in swap["parts"]}
@@ -212,6 +275,16 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         rationale.append(Claim(text=f"World Model task {task['fmea_id']}: {task['task']}.",
                                evidence_ids=world_ids or rul_ids, confidence=confidence))
     for task_id, doc in _governing_documents(state, [t["fmea_id"] for t in chosen]).items():
+        replaced = next((d for sb, d in pending_adoptions(state) if sb.evidence_id == doc.evidence_id), None)
+        if replaced is not None and needs_approval(doc):
+            # A recommended SB is not adopted silently: the plan keeps the manual until engineering approves it.
+            rationale.append(Claim(
+                text=(f"Limits and intervals for {task_id} follow {replaced.doc_id} {replaced.section} "
+                      f"({replaced.doc_type.replace('_', ' ')}); {doc.doc_id} {doc.section} "
+                      f"({doc.doc_type.replace('_', ' ')}) would replace it on that topic: SB recommended; adopting "
+                      "it needs engineering approval."),
+                evidence_ids=[replaced.evidence_id, doc.evidence_id], confidence="high"))
+            continue
         rationale.append(Claim(
             text=(f"Limits and intervals for {task_id} follow {doc.doc_id} {doc.section} "
                   f"({doc.doc_type.replace('_', ' ')}), the highest-precedence document on that topic."),
@@ -243,7 +316,9 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         if graph_mandates and world_ev:
             names = ", ".join(f"{m['doc_id']} {m['section']}→{m['task']}" for m in graph_mandates)
             rationale.append(Claim(
-                text=f"World Model links mandatory document actions for this fault: {names}.",
+                # Graph links, not mandates: which sections apply now and which are mandatory is Knowledge's call.
+                text=(f"World Model links these document sections to tasks for this fault: {names}; which apply now "
+                      "and which are mandatory is decided by the knowledge agent."),
                 evidence_ids=world_ids[:1], confidence="high"))
         prior = asset_state(ctx.store, pack, state.asset.asset_id) if state.asset else {}
         if prior.get("last_decision") and world_ev:
@@ -269,18 +344,49 @@ def maint_planner(state: CaseFile, ctx: RunContext) -> NodeResult:
         if age is not None and age >= median:
             confidence = "low"
 
-    last_verdict = state.verdicts[-1] if state.verdicts else None
-    extra_claims = []
-    if last_verdict and last_verdict.outcome == "revise":
-        extra_claims = _revise_claims(state, pack)
+    # Targeted fixes for the gaps the planner routed here (assurance/routing.py).
+    extra_claims = _revise_claims(state, pack) if "driver_signature" in fixes else []
+    if fixes & {"unsupported_number", "uncited_claim"}:
+        rationale, withdrawn = _withdraw_unsupported(state, ledger, rationale, pack)
+        if withdrawn:
+            ledger.add("rule", "case_file:revision",
+                       f"Withdrew {len(withdrawn)} claim(s) whose citations or numbers their evidence does not support",
+                       {"withdrawn": withdrawn})
 
     rec = Recommendation(action=action, task_ids=[t["fmea_id"] for t in chosen], parts=parts,
                          slot=slot_date, deadline=deadline, rationale=rationale, confidence=confidence)
     update = {"recommendation": rec, "evidence": ledger.records, "round": max(state.round, 1)}
+    done = [t.model_copy(update={"status": "done"}) for t in state.pending("maint_planner")]
+    if done:
+        update["plan"] = done
     if extra_claims:
-        from casefile.schemas import Findings
         update["findings"] = Findings(claims=extra_claims)
-    return NodeResult(update, f"{action}; deadline {deadline}; {len(parts)} parts", confidence={"low": 0.3, "medium": 0.6, "high": 0.9}[confidence])
+    summary = f"{action}; deadline {deadline}; {len(parts)} parts"
+    if fixes - {"rebuild"}:
+        summary += f"; fixed for: {', '.join(sorted(fixes - {'rebuild'}))}"
+    elif fixes:
+        summary += "; rebuilt on the repaired evidence"
+    return NodeResult(update, summary, confidence={"low": 0.3, "medium": 0.6, "high": 0.9}[confidence])
+
+
+def _latest(state: CaseFile, key: str):
+    """The most recent evidence record that carries `key` (a re-query or follow-up supersedes the first read)."""
+    return next((e for e in reversed(list(state.evidence.values())) if e.content.get(key) is not None), None)
+
+
+def _withdraw_unsupported(state: CaseFile, ledger: EvidenceLedger, rationale: list[Claim], pack: dict
+                          ) -> tuple[list[Claim], list[str]]:
+    """Drop plan claims that cite missing evidence or state a number their evidence lacks; the deadline claim stays."""
+    from assurance.challenges import unsupported_numbers
+    probe = state.model_copy(update={"evidence": {**state.evidence, **ledger.records}})
+    kept, withdrawn = [], []
+    for n, claim in enumerate(rationale):
+        bad = probe.unresolved(claim.evidence_ids) or unsupported_numbers(probe, claim, pack)
+        if bad and n:
+            withdrawn.append(claim.text)
+        else:
+            kept.append(claim)
+    return kept, withdrawn
 
 
 def _world_tasks(ctx: RunContext, ledger: EvidenceLedger, mode: str, variant: str | None,

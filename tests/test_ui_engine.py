@@ -1,7 +1,24 @@
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from data.db import load_pack
-from ui.engine import component_probabilities, credit, engine_figure, photos
+from ui.engine import component_probabilities, credit, engine_figure, engine_svg, moving_sensors, photos
+
+
+def test_help_diagram_labels_modules_sensors_and_both_fault_modes():
+    pack = load_pack()
+    svg = engine_svg(pack)
+    root = ET.fromstring(svg)
+    texts = [" ".join(t.itertext()) for t in root.iter("{http://www.w3.org/2000/svg}text")]
+    for label in ["Fan", "LPC", "HPC", "Combustor", "HPT", "LPT", "Bypass duct"]:
+        assert label in texts, label
+    for sensor in ["T30", "P30", "Ps30", "phi", "W31", "W32", "T24", "T50", "BPR"]:
+        assert sensor in texts, sensor
+    assert "T2" not in texts and "P15" not in texts, "sensors that never move are left off"
+    assert "HPC degradation" in texts and "Fan degradation" in texts
+    assert "FD001 and FD003" in texts and "FD003" in texts
+    assert len(root.findall("{http://www.w3.org/2000/svg}polygon")) == 2 * len(pack["diagram"])
+    assert moving_sensors(pack)["hpc"][1] == ("P30", True)
 
 
 def test_fault_modes_map_to_pack_components():

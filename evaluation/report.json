@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-25 21:45 UTC",
+ "generated_at": "2026-10-26 00:38 UTC",
  "settings": {
   "sample_mode": true,
   "engines": 200,
@@ -16,8 +16,8 @@
    "crashes": 0,
    "duration_s": {
     "p50": 0.38,
-    "p95": 0.45,
-    "max": 0.58
+    "p95": 0.44,
+    "max": 0.5
    }
   },
   "rul": {
@@ -119,9 +119,9 @@
    "fd003_engines_true_rul_le_60": 41
   },
   "evidence": {
-   "claims": 2907,
+   "claims": 2961,
    "claims_with_resolvable_evidence_share": 1.0,
-   "numeric_claims": 1897,
+   "numeric_claims": 1951,
    "numeric_claims_citing_computed_evidence_share": 1.0,
    "numeric_claims_quoting_documents_only": 0
   },
@@ -131,10 +131,24 @@
     "2": 37
    },
    "escalations": {
+    "sb_adoption": 105,
     "rul_divergence": 54,
     "document_mandate": 48,
     "rul_below_lead_time": 27,
     "ambiguous_fault": 1
+   }
+  },
+  "delegation": {
+   "runs_with_follow_ups": 54,
+   "follow_ups": {
+    "inspection_history": 54,
+    "backtest": 54
+   },
+   "follow_ups_that_changed_the_plan": {
+    "inspection brought forward to the first free slot": 3
+   },
+   "routed_gaps": {
+    "driver_signature -> maint_planner": 37
    }
   },
   "decisions": {

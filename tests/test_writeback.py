@@ -1,11 +1,17 @@
+import json
 from datetime import date
 
 import pytest
 
+import tools.writeback as writeback
 from casefile.context_store import MemoryIn, SqliteStore
+from casefile.decision_log import Signer, brief_ref, derive_log, verify_log
 from casefile.schemas import AssetRef, CaseFile, Claim, Evidence, FaultModeFinding, Findings, Recommendation, RulFinding
+from graph.runner import execute_run
 from settings import Settings
-from tools.writeback import approve_case, reject_case
+from tools.writeback import approve_case, cited_cases, reject_case
+
+SIGNER = Signer(name="A. Engineer", role="B1 engineer", licence_ref="TEST-0001")
 
 
 def _case(**kwargs) -> CaseFile:
@@ -44,7 +50,7 @@ def settings(tmp_path):
 
 def test_approve_writes_jsonl_in_sample_mode(settings, tmp_path):
     path = tmp_path / "draft_work_orders.jsonl"
-    record = approve_case(_case(), settings, comment="go", path=path)
+    record = approve_case(_case(), settings, comment="go", path=path, signer=SIGNER)
     assert record["wo_id"] == "WO-DRAFT-abc123"
     assert record["backend"] == "file"
     assert record["status"] == "draft"
@@ -58,7 +64,7 @@ def test_approve_writes_jsonl_in_sample_mode(settings, tmp_path):
 
 def test_reject_does_not_claim_cmms(settings, tmp_path):
     path = tmp_path / "draft_work_orders.jsonl"
-    record = reject_case(_case(), settings, comment="hold", path=path)
+    record = reject_case(_case(), settings, comment="hold", path=path, signer=SIGNER)
     assert record["status"] == "rejected"
     assert record["backend"] == "file"
     assert record["decision"] == "rejected"
@@ -91,7 +97,8 @@ def _trust(settings, memory_id):
 
 def test_approve_marks_cited_cases_helpful_unless_engineer_overrides(settings, tmp_path):
     case, ids = _case_with_memories(settings)
-    record = approve_case(case, settings, path=tmp_path / "wo.jsonl", case_feedback={ids[1]: "wrong"})
+    record = approve_case(case, settings, path=tmp_path / "wo.jsonl", case_feedback={ids[1]: "wrong"},
+                          signer=SIGNER)
     applied = {f["memory_id"]: f["kind"] for f in record["memory"]["case_feedback"]}
     assert applied == {ids[0]: "helpful", ids[1]: "wrong"}
     assert _trust(settings, ids[0])[0] == 0.75
@@ -101,7 +108,7 @@ def test_approve_marks_cited_cases_helpful_unless_engineer_overrides(settings, t
 
 def test_reject_marks_cited_cases_not_helpful(settings, tmp_path):
     case, ids = _case_with_memories(settings)
-    record = reject_case(case, settings, path=tmp_path / "wo.jsonl")
+    record = reject_case(case, settings, path=tmp_path / "wo.jsonl", signer=SIGNER)
     assert {f["kind"] for f in record["memory"]["case_feedback"]} == {"not_helpful"}
     assert _trust(settings, ids[0])[0] == 0.67
 
@@ -109,4 +116,100 @@ def test_reject_marks_cited_cases_not_helpful(settings, tmp_path):
 def test_cannot_approve_twice(settings, tmp_path):
     case = _case(status="approved")
     with pytest.raises(ValueError, match="approved"):
-        approve_case(case, settings, path=tmp_path / "x.jsonl")
+        approve_case(case, settings, path=tmp_path / "x.jsonl", signer=SIGNER)
+
+
+def test_approve_attaches_the_signed_decision_log_to_the_work_order(settings, tmp_path):
+    case = execute_run("How long can FD003-A100 keep flying and what is wrong with it?", settings).case
+    path = tmp_path / "draft_work_orders.jsonl"
+    record = approve_case(case, settings, comment="swap tonight", path=path, signer=SIGNER, acknowledged=[0],
+                          reason=" Lease engine on site ")
+    log = record["decision_log"]
+    human = log["entries"][-1]
+    assert record["signed_by"] == {"name": "A. Engineer", "role": "B1 engineer", "licence_ref": "TEST-0001"}
+    assert (human["actor_type"], human["actor"], human["decision"]) == ("human", "A. Engineer", "approved")
+    assert [(a["rule"], a["severity"], a["reason"]) for a in human["acknowledged"]] == [
+        ("rul_below_lead_time", "urgent", "Lease engine on site")]
+    assert human["comment"] == "swap tonight" and human["wo_id"] == record["wo_id"]
+    assert human["brief"] == record["brief"] == brief_ref(case).model_dump()
+    assert len(human["case_feedback"]) == 3 and set(human["case_feedback"].values()) == {"helpful"}
+    assert [e["decision"] for e in log["entries"][:-1]] == [e.decision for e in derive_log(case)]
+    assert "not a certificate of release to service" in record["release_note"]
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert stored["decision_log"]["entries"] == log["entries"] and stored["signed_by"]["name"] == "A. Engineer"
+    file = tmp_path / "decision_logs" / f"{case.case_id}.jsonl"
+    assert log["path"].endswith(f"{case.case_id}.jsonl")
+    assert verify_log(file, log["head_hash"]) == (True, f"hash chain intact, {len(log['entries'])} entries")
+
+
+def test_reject_records_the_signer_and_ratings_in_the_log(settings, tmp_path):
+    case = execute_run("What should I do about FD001-A031?", settings).case
+    marked = cited_cases(case)[0]["memory_id"]
+    record = reject_case(case, settings, comment="borescope first", path=tmp_path / "wo.jsonl",
+                         case_feedback={marked: "wrong"}, signer="  B. Inspector ")
+    human = record["decision_log"]["entries"][-1]
+    assert (human["actor"], human["decision"], human["comment"]) == ("B. Inspector", "rejected", "borescope first")
+    assert human["signer"] == {"name": "B. Inspector", "role": None, "licence_ref": None}
+    assert sorted(human["case_feedback"].values()) == ["not_helpful", "not_helpful", "wrong"]
+    assert record["status"] == "rejected" and "no work order" in record["release_note"]
+    assert verify_log(tmp_path / "decision_logs" / f"{case.case_id}.jsonl", record["decision_log"]["head_hash"])[0]
+
+
+def test_approve_needs_every_escalation_acknowledged_and_reject_does_not(settings, tmp_path):
+    case = execute_run("What should I do about FD001-A031?", settings).case
+    assert [e.rule for e in case.escalations] == ["document_mandate", "rul_below_lead_time", "sb_adoption"]
+    with pytest.raises(ValueError, match="not acknowledged: rul_below_lead_time"):
+        approve_case(case, settings, path=tmp_path / "wo.jsonl", signer=SIGNER, acknowledged=[0])
+    assert not (tmp_path / "wo.jsonl").exists() and not (tmp_path / "decision_logs").exists()
+    record = reject_case(case, settings, path=tmp_path / "wo.jsonl", signer=SIGNER, acknowledged=[0])
+    assert [a["rule"] for a in record["decision_log"]["entries"][-1]["acknowledged"]] == ["document_mandate"]
+
+
+def test_approve_despite_an_urgent_escalation_needs_a_reason_and_reject_does_not(settings, tmp_path):
+    case = execute_run("How long can FD003-A100 keep flying and what is wrong with it?", settings).case
+    assert [(e.rule, e.severity) for e in case.escalations] == [("rul_below_lead_time", "urgent")]
+    with pytest.raises(ValueError, match="needs a reason; urgent: rul_below_lead_time"):
+        approve_case(case, settings, path=tmp_path / "wo.jsonl", signer=SIGNER, acknowledged=[0], reason="  ")
+    assert not (tmp_path / "wo.jsonl").exists() and not (tmp_path / "decision_logs").exists()
+    record = reject_case(case, settings, path=tmp_path / "wo.jsonl", signer=SIGNER, acknowledged=[0])
+    assert record["decision_log"]["entries"][-1]["acknowledged"][0]["reason"] is None
+    assert verify_log(tmp_path / "decision_logs" / f"{case.case_id}.jsonl", record["decision_log"]["head_hash"])[0]
+
+
+@pytest.mark.parametrize("sign", [approve_case, reject_case])
+def test_sign_off_without_a_signer_is_refused(settings, tmp_path, sign):
+    with pytest.raises(ValueError, match="signer"):
+        sign(_case(), settings, path=tmp_path / "wo.jsonl", signer="   ")
+    assert not (tmp_path / "wo.jsonl").exists() and not (tmp_path / "decision_logs").exists()
+
+
+class _Connection:
+    def __init__(self, calls: list):
+        self.calls = calls
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute(self, sql, params):
+        self.calls.append((sql, params))
+
+    def commit(self):
+        pass
+
+
+def test_live_mode_keeps_the_cmms_columns_and_writes_the_record_with_the_log(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(writeback.psycopg, "connect", lambda **kwargs: _Connection(calls))
+    live = Settings(_env_file=None, sample_mode=False, pg_app_user="app_rw", context_store="sqlite",
+                    context_sqlite_path=tmp_path / "context.sqlite")
+    record = approve_case(_case(), live, path=tmp_path / "wo.jsonl", signer=SIGNER)
+    sql, params = calls[0]
+    assert ("(wo_id, asset_id, wo_type, status, opened_at, closed_at, cycle_at, component, description, origin)"
+            in sql) and len(params) == 9 and params[3] == "draft"
+    stored = json.loads((tmp_path / "wo.jsonl").read_text(encoding="utf-8"))
+    assert record["backend"] == stored["backend"] == "cmms"
+    assert stored["decision_log"]["head_hash"] == record["decision_log"]["head_hash"]
+    assert stored["signed_by"]["name"] == "A. Engineer"

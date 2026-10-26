@@ -1,24 +1,29 @@
-"""The agent graph: intake → planner → specialists in parallel → brief → knowledge → maintenance planner →
-rule checks → critic (revise loop, max 3) → escalation."""
+"""The agent graph. Intake → planner → data, prognostics and diagnostics in parallel → brief → planner review, which
+delegates follow-ups only when the findings call for them (data → prognostics/diagnostics) → knowledge → maintenance
+planner → rule checks → critic → escalation. When a gate sends the brief back, the planner routes each gap by kind to
+the agent that can fix it (data, knowledge, diagnostics, prognostics or the maintenance planner), the maintenance
+planner rebuilds the plan, and the rule checks and the critic run again: at most MAX_ROUNDS rounds, then the case
+closes as insufficient evidence."""
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from agents.close import close_case
 from agents.critic import critic
-from agents.data import data_agent
-from agents.diagnostics import diagnostics
+from agents.data import data_agent, data_task
+from agents.diagnostics import diagnostics, diagnostics_task
 from agents.escalation import escalation
 from agents.intake import intake
-from agents.knowledge import knowledge
+from agents.knowledge import knowledge, knowledge_task
 from agents.maint_planner import maint_planner
-from agents.planner import planner
-from agents.prognostics import prognostics
+from agents.planner import TASK_AGENTS, planner, review, route_gaps
+from agents.prognostics import prognostics, prognostics_task
 from agents.rules import rule_checks
 from agents.runtime import NodeResult, RunContext, node
 from casefile.schemas import MAX_ROUNDS, CaseFile, Claim, Findings
 
 SPECIALISTS = ["data", "prognostics", "diagnostics"]
+TASK_NODES = [f"{agent}_task" for agent in TASK_AGENTS]
 
 
 def after_intake(state: CaseFile) -> str:
@@ -26,7 +31,32 @@ def after_intake(state: CaseFile) -> str:
 
 
 def after_brief(state: CaseFile) -> str:
-    return END if state.status == "error" else "knowledge"
+    return END if state.status == "error" else "review"
+
+
+def _pending(state: CaseFile, agents: tuple[str, ...]) -> list[str]:
+    return [f"{a}_task" for a in agents if state.pending(a)]
+
+
+def after_review(state: CaseFile) -> list[str] | str:
+    """Data follow-ups first (they pull what the others recompute on), then prognostics and diagnostics."""
+    return _pending(state, ("data",)) or _pending(state, ("prognostics", "diagnostics")) or "knowledge"
+
+
+def after_data_task(state: CaseFile) -> list[str] | str:
+    """Follow-ups (before any verdict) go on to the prognostics and diagnostics follow-ups that recompute on what the
+    data agent pulled, else to knowledge; repairs go back to the maintenance planner."""
+    if state.status == "error":
+        return END
+    if state.verdicts:
+        return "maint_planner"
+    return _pending(state, ("prognostics", "diagnostics")) or "knowledge"
+
+
+def after_model_task(state: CaseFile) -> str:
+    if state.status == "error":
+        return END
+    return "maint_planner" if state.verdicts else "knowledge"
 
 
 def after_knowledge(state: CaseFile) -> str:
@@ -37,14 +67,23 @@ def after_rule_checks(state: CaseFile) -> str:
     verdict = state.verdicts[-1]
     if verdict.outcome == "accept":
         return "critic"
-    return "close" if state.round >= MAX_ROUNDS else "maint_planner"
+    # A brief sent back in round 3 closes; earlier rounds get a repair and a new plan (at most MAX_ROUNDS plans).
+    return "close" if verdict.round >= MAX_ROUNDS else "route"
 
 
 def after_critic(state: CaseFile) -> str:
     verdict = state.verdicts[-1]
     if verdict.outcome == "accept":
         return "escalation"
-    return "close" if verdict.outcome == "reject" else "maint_planner"
+    return "close" if verdict.outcome == "reject" else "route"
+
+
+def after_route(state: CaseFile) -> list[str] | str:
+    """The agents the planner routed this round's gaps to; the maintenance planner alone when only it can fix them;
+    close when no agent can."""
+    if not any(t.round == state.round and t.status == "pending" for t in state.plan if t.id.startswith("T-fix-")):
+        return "close"
+    return _pending(state, ("data", "knowledge", "diagnostics", "prognostics")) or "maint_planner"
 
 
 def rul_claims(findings: Findings, divergence_limit: float) -> list[Claim]:
@@ -87,7 +126,7 @@ def brief(state: CaseFile, ctx: RunContext) -> NodeResult:
     unresolved = state.unresolved([i for c in claims for i in c.evidence_ids])
     if unresolved:
         raise ValueError(f"claims cite unknown evidence {unresolved}")
-    return NodeResult({"findings": Findings(claims=claims)}, f"{len(claims)} claims")
+    return NodeResult({"findings": Findings(claims=claims)}, f"{len(claims)} claims", target_agent="planner")
 
 
 def build_graph(checkpointer=None):
@@ -98,10 +137,16 @@ def build_graph(checkpointer=None):
     graph.add_node("prognostics", prognostics)
     graph.add_node("diagnostics", diagnostics)
     graph.add_node("brief", brief)
+    graph.add_node("review", review)
+    graph.add_node("data_task", data_task)
+    graph.add_node("prognostics_task", prognostics_task)
+    graph.add_node("diagnostics_task", diagnostics_task)
     graph.add_node("knowledge", knowledge)
+    graph.add_node("knowledge_task", knowledge_task)
     graph.add_node("maint_planner", maint_planner)
     graph.add_node("rule_checks", rule_checks)
     graph.add_node("critic", critic)
+    graph.add_node("route", route_gaps)
     graph.add_node("escalation", escalation)
     graph.add_node("close", close_case)
     graph.add_edge(START, "intake")
@@ -109,13 +154,20 @@ def build_graph(checkpointer=None):
     for specialist in SPECIALISTS:
         graph.add_edge("planner", specialist)
     graph.add_edge(SPECIALISTS, "brief")
-    graph.add_conditional_edges("brief", after_brief, {"knowledge": "knowledge", END: END})
+    graph.add_conditional_edges("brief", after_brief, {"review": "review", END: END})
+    graph.add_conditional_edges("review", after_review, [*TASK_NODES, "knowledge"])
+    graph.add_conditional_edges("data_task", after_data_task,
+                                ["prognostics_task", "diagnostics_task", "knowledge", "maint_planner", END])
+    for task_node in ("prognostics_task", "diagnostics_task"):
+        graph.add_conditional_edges(task_node, after_model_task, ["knowledge", "maint_planner", END])
     graph.add_conditional_edges("knowledge", after_knowledge, {"maint_planner": "maint_planner", END: END})
+    graph.add_edge("knowledge_task", "maint_planner")
     graph.add_edge("maint_planner", "rule_checks")
     graph.add_conditional_edges("rule_checks", after_rule_checks,
-                                {"critic": "critic", "maint_planner": "maint_planner", "close": "close"})
+                                {"critic": "critic", "route": "route", "close": "close"})
     graph.add_conditional_edges("critic", after_critic,
-                                {"escalation": "escalation", "maint_planner": "maint_planner", "close": "close"})
+                                {"escalation": "escalation", "route": "route", "close": "close"})
+    graph.add_conditional_edges("route", after_route, [*TASK_NODES, "maint_planner", "close"])
     graph.add_edge("escalation", END)
     graph.add_edge("close", END)
     return graph.compile(checkpointer=checkpointer or InMemorySaver())

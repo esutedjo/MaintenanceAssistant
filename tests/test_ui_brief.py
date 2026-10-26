@@ -1,8 +1,8 @@
 import pandas as pd
 
 from ui.brief import (
-    check_summary, driving_sensor_figure, escalation_view, fault_label, fmt_rul, sensor_label, trace_rows,
-    verdict_headline, verdict_tone, world_eligibility,
+    approval_gate, check_summary, decision_log_rows, driving_sensor_figure, escalation_ack_label, escalation_view,
+    fault_label, fmt_rul, sensor_label, trace_rows, verdict_headline, verdict_tone, world_eligibility,
 )
 from ui.fleet import list_active_assets
 from data.db import load_pack
@@ -75,6 +75,50 @@ def test_trace_rows_mark_revisions_and_targets():
     ])
     assert rows[0]["to"] == "data, prognostics" and rows[0]["tone"] == "ok"
     assert rows[1]["tone"] == "flag" and rows[1]["to"] == "maintenance planner"
+
+
+def test_decision_log_rows_label_actors_and_bind_the_signoff():
+    rows = decision_log_rows([
+        {"actor_type": "gate", "actor": "rule_checks", "decision": "sent back for revision", "round": 1,
+         "timestamp": "2026-10-25T23:15:03.110475Z", "rationale": "1 check failed.", "evidence_ids": ["EV-MNT-02"]},
+        {"actor_type": "model", "actor": "nvidia/nemotron-3-ultra-550b-a55b", "decision": "reviewed the brief",
+         "timestamp": "2026-10-25T23:15:04Z"},
+        {"actor_type": "human", "actor": "A. Engineer", "decision": "approved", "timestamp": "2026-10-25T23:20:00Z",
+         "signer": {"name": "A. Engineer", "role": "B1 engineer", "licence_ref": "TEST-0001"}, "comment": "go",
+         "case_feedback": {"EV-DIA-02": "not_helpful"}, "brief": {"case_id": "c1", "recommendation_sha256": "ab" * 32},
+         "wo_id": "WO-DRAFT-1", "hash": "f" * 64,
+         "acknowledged": [{"rule": "document_mandate", "severity": "urgent", "message": "AD requires FM-HPC-01.",
+                           "reason": "Borescope booked for tonight"}]},
+    ])
+    gate, model, human = rows
+    assert (gate["actor"], gate["chip"], gate["tone"], gate["time"]) == ("rule checks", "gate", "flag", "23:15:03 UTC")
+    assert gate["evidence_ids"] == ["EV-MNT-02"] and gate["round"] == 1
+    assert model["actor"].startswith("nvidia/") and model["chip"] == "model" and model["details"] == []
+    assert (human["chip"], human["tone"], human["hash"]) == ("engineer", "ok", "f" * 12)
+    assert human["details"][0] == "Signed 2026-10-25 23:20:00 UTC · B1 engineer · licence TEST-0001"
+    assert human["details"][1] == "Brief c1 · recommendation fingerprint abababababab"
+    assert "Past-case ratings: EV-DIA-02 not helpful" in human["details"]
+    assert "Escalations acknowledged: urgent document mandate" in human["details"]
+    assert "Approved despite the urgent escalation because: Borescope booked for tonight" in human["details"]
+
+
+def test_approve_waits_for_the_signer_and_every_escalation_tick():
+    escalations = [{"rule": "document_mandate", "severity": "urgent", "message": "AD-2026-17-04 requires FM-HPC-01."},
+                   {"rule": "rul_below_lead_time", "severity": "urgent", "message": "RUL bound 0 d."}]
+    assert approval_gate("", [], []) == (False, "To approve or reject, type your name in Signed by.")
+    assert approval_gate("A. Engineer", [], []) == (True, "")
+    assert approval_gate(" ", escalations, [True, False]) == (
+        False, "To approve or reject, type your name in Signed by; to approve, also tick 1 more escalation as read.")
+    assert approval_gate("A. Engineer", escalations, [False, False]) == (
+        False, "To approve, tick 2 more escalations as read. Reject needs no acknowledgement.")
+    assert approval_gate("A. Engineer", escalations, [True, True]) == (
+        False, "To approve despite the urgent escalation, say why in the box above. Reject needs no reason.")
+    assert approval_gate("A. Engineer", escalations, [True, True], "  ")[0] is False
+    assert approval_gate("A. Engineer", escalations, [True, True], "Lease engine fitted tonight") == (True, "")
+    warning = [{"rule": "rul_divergence", "severity": "warning", "message": "A and B differ."}]
+    assert approval_gate("A. Engineer", warning, [True]) == (True, ""), "only an urgent escalation needs a reason"
+    assert escalation_ack_label(escalations[0]) == ("I have read the urgent escalation: Mandatory document action. "
+                                                    "AD-2026-17-04 requires FM-HPC-01.")
 
 
 def test_fleet_lists_active_snapshot_engines():

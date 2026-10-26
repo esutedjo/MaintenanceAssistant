@@ -12,4 +12,9 @@ def rule_checks(state: CaseFile, ctx: RunContext) -> NodeResult:
     if verdict.outcome == "revise" and state.round < MAX_ROUNDS:
         update["round"] = state.round + 1
     status = "success" if verdict.outcome == "accept" else "needs_revision"
-    return NodeResult(update, f"{verdict.outcome}; {len(verdict.gaps)} gap(s)", status=status)
+    summary = f"{verdict.outcome}; {len(verdict.gaps)} gap(s)"
+    if verdict.routes:
+        summary += " (" + ", ".join(dict.fromkeys(r.kind for r in verdict.routes)) + ")"
+    # Same branch as graph.build.after_rule_checks: the planner routes the gaps, or the round limit closes the case.
+    target = None if verdict.outcome == "accept" else ("close" if verdict.round >= MAX_ROUNDS else "planner")
+    return NodeResult(update, summary, status=status, target_agent=target)
