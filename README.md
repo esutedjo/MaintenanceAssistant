@@ -2,6 +2,8 @@
 
 The MRO clearance assistant. An evidence-backed maintenance decision agent for turbofan engines. Open Agent Hackathon 2026, track "The Agent That Can Explain Why". Design notes: `AGENTS.md`.
 
+**Demo video (3:46):** https://youtu.be/KCV0yRjeYlw
+
 It answers: **what is wrong with this engine, how long do I have, and what should I do?** Every number is computed in Python or SQL and stored as evidence. Claims without a resolvable evidence ID fail the rule checks.
 
 **Why it matters, in practitioners' words** (short excerpts, verified at source on 26 Oct 2026):
