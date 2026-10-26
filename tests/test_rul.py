@@ -1,3 +1,6 @@
+import importlib.util
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -6,12 +9,28 @@ from data.db import load_pack
 from models.features import common_trend_sensors, informative_sensors, normalise, rolling_features
 from models.rul import MIN_HISTORY, HealthIndexRul, LightGbmRul, load_models
 from models.train_rul import ARTIFACTS
+from settings import ROOT
 
 PACK = load_pack()
 
 
 def _cycles(asset: str, n: int, sensors: dict[str, np.ndarray]) -> pd.DataFrame:
     return pd.DataFrame({"asset_id": asset, "cycle": np.arange(1, n + 1), "operating_regime": "R1", **sensors})
+
+
+def test_missing_openmp_runtime_says_how_to_install_it(monkeypatch):
+    # What a fresh Mac (no Homebrew libomp) or a minimal Linux (no libgomp1) hits when LightGBM loads.
+    class NoOpenMP:
+        def find_spec(self, name, path=None, target=None):
+            if name == "lightgbm":
+                raise OSError("libgomp.so.1: cannot open shared object file: No such file or directory")
+            return None
+
+    monkeypatch.delitem(sys.modules, "lightgbm", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [NoOpenMP(), *sys.meta_path])
+    spec = importlib.util.spec_from_file_location("rul_without_openmp", ROOT / "models" / "rul.py")
+    with pytest.raises(ImportError, match=r"brew install libomp.*sudo apt install libgomp1"):
+        spec.loader.exec_module(importlib.util.module_from_spec(spec))
 
 
 def test_constant_sensors_dropped_and_common_trend_sensors_agree_across_modes():

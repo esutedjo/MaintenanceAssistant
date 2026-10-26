@@ -32,16 +32,18 @@ uv run python run.py --question "What should I do about FD001-A031?"
 macOS / Linux:
 
 ```bash
+# LightGBM needs OpenMP: macOS `brew install libomp`; minimal Debian/Ubuntu `sudo apt install libgomp1`
 uv sync
 SAMPLE_MODE=true uv run python run.py --question "What should I do about FD001-A031?"
 SAMPLE_MODE=true uv run task ui        # decision brief UI on http://localhost:8501
 ```
 
-No `.env.local` or other credentials are needed: `.env*` files are git-ignored (only `.env.example` with placeholders is committed) and excluded from the Docker image. Checked on 26 Oct 2026 from a fresh clone with no credentials: CLI, `POST /run`, the test suite, `docker build` / `docker run` and the UI all ran in sample mode. Without `SAMPLE_MODE`, a run still completes on the snapshot and the brief is flagged `degraded` ("LLM critic unavailable").
+No `.env.local` or other credentials are needed: `.env*` files are git-ignored (only `.env.example` with placeholders is committed) and excluded from the Docker image. Checked on 26 Oct 2026 from a fresh clone with no credentials: CLI, `POST /run`, the test suite, `docker build` / `docker run` and the UI all ran in sample mode on Windows 11 and on Ubuntu 24.04 (with `libgomp1`). macOS was not tested natively; the Docker image is multi-architecture (amd64 and arm64). Without `SAMPLE_MODE`, a run still completes on the snapshot and the brief is flagged `degraded` ("LLM critic unavailable").
 
 ## Prerequisites
 
 - Python 3.11 and [uv](https://docs.astral.sh/uv/)
+- The OpenMP runtime that LightGBM links against. Windows and most Linux desktops already have it. On macOS run `brew install libomp`; on a minimal Debian or Ubuntu, `sudo apt install libgomp1`. The Docker image includes it. If it is missing, the run stops with these instructions.
 - Node.js 24 LTS (Meterless context service; not needed for `SAMPLE_MODE`)
 - Nightshift desktop app (Meterless runtime on port 8088; not needed for `SAMPLE_MODE`)
 - Zetaris (live mode only): a cluster with the three Postgres databases (`telemetry_pg`, `cmms_pg`, `knowledge_pg`) and the S3 bucket (`s3_files`) registered as sources; see `uv run task register`. Not needed for `SAMPLE_MODE`.
@@ -352,3 +354,7 @@ Each run writes `logs/trace-<run_id>.jsonl` (timestamp, run_id, agent_name, acti
 Committed examples in `trace_examples/`:
 - `trace-sample-*`: the four golden cases in sample mode, plus FD001-A031 with a corrupted T30 reading (serious: `data_quality` escalation, confidence low) and with a gap in the cycles (minor: flagged only), regenerated on 26 Oct. The critic lines replay recorded Nemotron replies where the prompt matches, marked `recorded: true`.
 - `trace-live-*`: the four golden cases and the beyond-limits inspection case in live mode, recorded on 26 Oct with the current graph: one `zetaris_query` line per read (purpose, source tables, rows, latency, "live Zetaris SQL"), one `context_call` line per World Model or H-MEM call (backend `meterless`), the planner's follow-ups and routing, and the critic answered through Nightshift by Nemotron 3 Ultra 550B (`model` on the critic line, `recorded: false`). Each run took 6–31 s.
+
+## Licence
+
+Apache License 2.0, see [LICENSE](LICENSE). The vendored Meterless reference engines keep their own Apache-2.0 licence (`context-service/vendor/VENDORED.md`). The NASA C-MAPSS data is downloaded by `uv run task download` and is not part of this repository.

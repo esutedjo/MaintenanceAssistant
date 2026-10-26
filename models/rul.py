@@ -12,13 +12,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 from scipy.optimize import OptimizeWarning, curve_fit
 
 from models.features import common_trend_sensors, feature_names, informative_sensors, normalise, rolling_features
+
+OPENMP_HINT = ("LightGBM could not load the OpenMP runtime it links against. Install it and run again: macOS "
+               "`brew install libomp`; Debian/Ubuntu `sudo apt install libgomp1`. Or use the Docker image, which "
+               "includes it (README, Prerequisites).")
+try:
+    import lightgbm as lgb
+except OSError as exc:  # a fresh Mac or a minimal Linux has no system OpenMP; the wheels do not bundle it
+    raise ImportError(f"{OPENMP_HINT} ({exc})") from exc
 
 QUANTILES = {"p10": 0.1, "p90": 0.9}
 MIN_HISTORY = 20
