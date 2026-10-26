@@ -29,14 +29,13 @@ What is built:
 - **Escalations.** Approve needs every escalation ticked as read. Reject needs none, and any ticks are recorded (`tools/writeback.py` `approve_case`; `ui/brief.py` `approval_gate`).
 - **Log.** Each case has an append-only JSONL log at `.state/decision_logs/<case_id>.jsonl` with a SHA-256 hash chain. `verify_rows` detects edited, deleted, reordered or cut entries, and a correction is a new entry.
 - **Work-order record.** The draft record carries `signed_by`, `signed_at`, `brief`, `decision_log` (path, head hash, entries) and `release_note`: "Draft work order for the organisation's own release process; not a certificate of release to service."
+- **Added later on 26 Oct.** The brief as shown is stored at sign-off (`.state/briefs/<case_id>-<sha12>.json`) and its SHA-256 is in the engineer's entry; every stored entry carries a version stamp (code commit, asset pack version, model file hashes, the model or "recorded"/"none"); the head hash is anchored in the case-memory record and the run's trace, and verification checks both; inspection findings entered by an inspector are logged as their own entries; a "potentially reportable" note flags conditions for the operator's reporting scheme without filing anything.
 
 Not yet:
 
 - The name is typed, not authenticated, and not checked against an authorisation list.
-- The head hash is stored next to the log, not anchored independently.
-- The log is local and has no backup or retention.
+- The log, the anchors and the brief snapshots are local files with no backup or retention policy; the chain is tamper-evident, not tamper-proof.
 - The live CMMS row keeps its 10 columns, with no signer or case link.
-- The evidence shown is not stored; only the recommendation hash is.
 
 ## Gap table
 
@@ -51,7 +50,7 @@ Types: IR = binding rule; AMC/GM = EASA soft law; AC = FAA advisory circular; G 
 | 5 | LLM off the decision path | EASA Concept Paper Proposed Issue 03 (G) | Met | `agents/critic.py`, `assurance/challenges.py`; LLM-alone critic 3 of 41 | Re-run `eval-llm` when the served model changes |
 | 6 | Current data; revision recorded | 145.A.45, CAMO.A.325, 14 CFR 145.109(d) (IR); AMC1 145.A.55(a)(3) (AMC) | Partly met | `tools/knowledge.py` `in_effect`; synthetic documents; fixed reference date | Controlled library; revisions in the sign-off entry |
 | 7 | ADs, LLPs and RIIs as hard constraints | 14 CFR Part 39, 121.380(a)(2), 121.369(b)(8) (IR); GM1 145.A.50(a) (GM); AC 43-9D (AC) | Partly met (AD) / not met (LLP, RII) | `assurance/rules.py` `mandates_honoured` on one synthetic AD; no LLP or RII data | AD applicability and status from records; LLP limits; RII labels |
-| 8 | Tamper-evident decision records | 145.A.55, CAMO.A.220, 14 CFR 145.219, 14 CFR 3.403/3.405 (IR) | Partly met | Hash-chained log; draft file and CMMS rows rewritable; no brief snapshot | Anchor the head hash outside; store a brief snapshot; INSERT-only grant |
+| 8 | Tamper-evident decision records | 145.A.55, CAMO.A.220, 14 CFR 145.219, 14 CFR 3.403/3.405 (IR) | Partly met | Hash-chained log with anchored head hash and a stored brief snapshot; draft file and CMMS rows rewritable | Operator records store with backup; INSERT-only grant |
 | 9 | Backup and retention | AMC1 145.A.55(c), AMC1 CAMO.A.220 (AMC); 145.A.55 (3 and 5 years), 14 CFR 145.219 (2 years) (IR) | Not met | `.state/` git- and docker-ignored; `docker run --rm` | Operator-designated store with 24-hour backup; retention policy |
 | 10 | Software and version control | AC 120-78B §3.2 (AC); 14 CFR 5.51(b) (IR) | Partly met | Version 0.1.0; no model or prompt hash in entries | Stamp commit, pack, model and prompt versions on every entry |
 | 11 | Managed change and exposition text | AMC1 145.A.200(a)(3)(e), 145.A.85, MOE 2.21 (AMC/IR); 14 CFR 5.51–5.55, 145.207–145.211 (IR) | Not met | Evaluation and stress test exist; no hazard log or template | System description, hazard log, MOE/CAME/manual template |
@@ -77,11 +76,10 @@ Effort: S = about a day; M = 1–2 weeks; L = a month or more, operator-dependen
 ### Before a pilot with an operator
 
 - Single sign-on and roles from the operator's authorisation list (M).
-- Durable records: operator store with 24-hour backup, head hash and signer in the CMMS, brief snapshot, INSERT-only grant, supersede entries (M).
-- Version stamping on every entry (S).
+- Durable records: operator store with 24-hour backup, head hash and signer in the CMMS, INSERT-only grant, supersede entries (M). The brief snapshot and version stamping on every entry are done.
 - Boundary wording: healthy-engine action, SB precedence (S).
 - One fleet's real data: controlled documents, real date, AD status, LLP, RII (L).
-- Reportable-occurrence flag and data-issue export (M).
+- Hand-off of the "potentially reportable" note into the operator's reporting system, and a data-issue export (M). The note itself is built.
 - Operator change pack: system description, hazard log, exposition template, Part-IS supplier pack, training and AI-literacy note (M).
 - Authentication on the context service and API; non-root container (S–M).
 - Pilot design: operator-run software, non-ETOPS scope, outcome logging (M).

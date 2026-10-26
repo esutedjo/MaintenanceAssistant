@@ -26,7 +26,7 @@ How to read it:
 | 3.1 | Overlay products already read AMOS, TRAX, IFS, Ramco and SAP | Source mapping as configuration; one adapter for a real M&E schema | partly built |
 | 3.2 | Data quality is the main reported barrier to AI in MRO | Extend the plausibility gate per source system | partly built |
 | 3.3 | Airlines control who receives their data; OEM-derived data is contested | Owner and licence per evidence record; cite OEM outputs, do not copy them | partly built |
-| 4.1 | Others time removals with borescope images | Bring inspection results back into the brief | not built |
+| 4.1 | Others time removals with borescope images | Bring inspection results back into the brief | partly built |
 | 4.2 | Others cluster repeat defects from logbooks | Repeat-defect evidence per engine | not built |
 | 4.3 | AD/SB applicability agents are spreading in M&E suites | Extract applicability from real AD/SB text; compliance status per engine | partly built |
 | 4.4 | OEMs send notification reports and alerts on the same engines | OEM notifications as cited evidence | not built |
@@ -218,7 +218,7 @@ How to read it:
 
 **What it means for Cleris.** Cleris sends an engine for a borescope inspection when its two methods disagree (54 engines, 27%, in the evaluation), but the result never comes back into the brief. Add an inspection-result evidence kind (inspector's finding per stage with severity, and optionally the shop's AI grading and an image reference) and re-run the brief with it, so an "inspect" decision closes into keep or remove. Take the image analysis from the shop's existing borescope tool rather than building it.
 
-**Status: not built.** The planner reads the severity of the last inspection already in the CMMS history (`_inspection_severity` in `agents/maint_planner.py`; synthetic findings), but there is no way to feed back the result of the inspection Cleris asked for, and no image input. The VALUE deck's roadmap slide (outside this repository) lists inspection photos as not built.
+**Status: partly built (26 Oct 2026).** Inspection findings now come back in: borescope, visual, oil-analysis, chip-detector and material-test findings are entered in the UI or the API, become evidence (`EV-INS-nn`), are classified by code against the manual's limit tables (synthetic `AMM-TF-R3 …-601` sections), and drive the plan (beyond limits: remove; at the limit: re-inspect; within limits on every suspected module: no removal), checked by the rule `inspections_acted_on` (`tools/inspections.py`, `agents/maint_planner.py`). Photos are stored with the finding but not analysed; there is no image AI.
 
 ### 4.2 Repeat defects and past fixes from maintenance logs
 
