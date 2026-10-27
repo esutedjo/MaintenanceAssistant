@@ -1,4 +1,5 @@
 import json
+import threading
 
 import pytest
 from pydantic import ValidationError
@@ -59,3 +60,22 @@ def test_trace_writer_appends_jsonl(tmp_path):
     expected = {"timestamp", "run_id", "agent_name", "action", "input_summary", "output_summary", "target_agent",
                 "model", "confidence", "retry_count", "status"}
     assert expected <= set(rows[0])
+
+
+def test_trace_lines_stay_whole_when_parallel_agents_write_at_once(tmp_path):
+    """Data, prognostics and diagnostics run in parallel and share one writer. On Windows, appends from separate
+    file handles are not atomic, so without the writer's lock two lines could overwrite each other."""
+    writer = TraceWriter("run-1", log_dir=tmp_path)
+
+    def burst(agent: str) -> None:
+        for i in range(60):
+            writer.write(TraceEvent(run_id="run-1", agent_name=agent, action=f"step-{i}", input_summary="i" * 300,
+                                    output_summary="o" * 600))
+
+    threads = [threading.Thread(target=burst, args=(f"agent-{n}",)) for n in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    rows = [json.loads(line) for line in (tmp_path / "trace-run-1.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 8 * 60

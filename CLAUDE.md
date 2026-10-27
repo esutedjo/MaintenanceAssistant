@@ -12,7 +12,7 @@ The GitHub branch `claude/magical-cannon-jlrs9d` was a parallel line from a Clau
 
 The sections after this one are the 25 Oct handoff and keep their dates. What changed on 26 Oct is in `AGENTS.md` (follow-ups and gap routing, recorded Nemotron replay, decision log, inspection-findings loop, help panel, services strip, hardening, and the "MRO engineer review" changes). Current numbers, all sample mode:
 
-- `uv run pytest -q`: 423 passed (26 Oct, after the per-role Nightshift apps).
+- `uv run pytest -q`: 424 passed (27 Oct, after the trace-writer lock: parallel agents had occasionally written over each other's trace lines on Windows, 63 of 9,733 local trace files; the cause of the one-off `test_intake_llm` failure).
 - `uv run task eval`: 357 of 357 seeded faulty briefs caught (19 types), 0 false alarms; 3,401 claims, all resolvable and number-supported; 45 of 45 engines failing within 15 days sent for removal, swap or repair; RUL A range coverage 80%; planning bound at or below true RUL for 92%; 116 of 116 corrupted inputs graded as expected; `sb_adoption` on 134 of 200 engines.
 - FD001-A031: RUL A 9.8 (5–11), RUL B 6.7, planning bound 0, "Do not dispatch; swap in lease engine at the first free slot (2026-10-23)", AD-2026-17-04 (g) complied with by removal before the limit, work package 58.5 manhours with 4 RII.
 - Use the corrected competitor line: Maximo Assistant, Senseye and Cognite Atlas answer from data held in, or copied into, their own platforms; Cleris is built to query the shop's existing systems where the data lives (`docs/competitive-landscape.md`).
