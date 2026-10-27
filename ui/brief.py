@@ -8,6 +8,8 @@ from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
+import sqlglot
+from sqlglot import exp
 
 from assurance.escalation import needs_acknowledgement
 from casefile.calls import CALL_ACTIONS
@@ -843,6 +845,37 @@ def fleet_decision_targets(case: dict) -> list[dict[str, str]]:
         if doc and all(t["doc_id"] != doc["doc_id"] for t in out):
             out.append({"doc_id": doc["doc_id"], "section": doc["section"], "fleet": fleet})
     return out
+
+
+_ZETARIS_DBS = frozenset({"telemetry_pg", "cmms_pg", "knowledge_pg", "s3_files"})
+
+
+def zetaris_sql(item: dict) -> dict | None:
+    """Pretty-printed SQL, the source tables the statement reads, and the query time, for a record whose source
+    starts with ``zetaris:``. A snapshot read and every other record return None."""
+    source = item.get("source")
+    content = item.get("content")
+    if not isinstance(content, dict):
+        return None
+    query = content.get("query")
+    if (not isinstance(source, str) or not source.startswith("zetaris:")
+            or not isinstance(query, str) or not query.strip()):
+        return None
+    try:
+        statements = [s for s in sqlglot.parse(query, read="spark") if s is not None]
+    except sqlglot.errors.ParseError:
+        return None
+    if len(statements) != 1 or not isinstance(statements[0], exp.Query):
+        return None
+    statement = statements[0]
+    tables: list[str] = []
+    for table in statement.find_all(exp.Table):
+        if table.db in _ZETARIS_DBS and table.name:
+            qualified = f"{table.db}.{table.name}"
+            if qualified not in tables:
+                tables.append(qualified)
+    return {"sql": statement.sql(dialect="spark", pretty=True), "tables": tables,
+            "duration_s": content.get("duration_s")}
 
 
 def load_trace_file(path) -> list[dict[str, Any]]:

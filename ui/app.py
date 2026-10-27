@@ -53,6 +53,7 @@ from ui.brief import (
     fault_display, fault_label, fleet_decision_targets, fmt_rul, inspection_rows, load_trace_file, md_lines, md_text,
     needs_tick, needs_urgent_reason, rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries,
     status_chips, strip_links, trace_chips, trace_rows, verdict_headline, verdict_meta, verdict_tone, world_eligibility,
+    zetaris_sql,
 )
 from ui.engine import component_probabilities, credit, engine_figure, engine_svg, photos
 from ui.explain import explain
@@ -318,7 +319,23 @@ def _evidence_list(case: dict, ids: list[str], heading: str = "Evidence behind t
             st.caption(md_text(f"{item.get('kind')} · {item.get('source')} · produced by {item.get('produced_by')}"))
             if item.get("degraded"):
                 st.warning(md_text(item["degraded"]))
+            _query_source(item)
             st.json(item.get("content") or {})
+
+
+def _query_source(item: dict) -> None:
+    """The stored Zetaris statement above the raw record, or a note when the read never left the snapshot."""
+    shown = zetaris_sql(item)
+    if shown is not None:
+        st.code(shown["sql"], language="sql")
+        seconds = shown.get("duration_s")
+        clock = (f"{seconds:.2f} s" if isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
+                 else "time not recorded")
+        names = ", ".join(shown["tables"])
+        st.caption(md_text(f"{names} · {clock}" if names else clock))
+        st.caption("Read-only; paste into the Zetaris SQL editor to see the same rows.")
+    elif str(item.get("source") or "").startswith("snapshot:"):
+        st.caption("Snapshot, no Zetaris call")
 
 
 def _ids_by_agent(case: dict, agent: str) -> list[str]:
