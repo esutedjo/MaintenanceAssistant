@@ -19,6 +19,7 @@ import json
 import sys
 import time
 from datetime import UTC, datetime
+from html import escape
 from pathlib import Path
 
 from settings import ROOT, Settings, get_settings
@@ -111,13 +112,54 @@ def load_runs(data: Path = DATA) -> dict:
     return {"runs": runs, "health": health, "repo": REPO, "video": VIDEO}
 
 
+def static_summary(bundle: dict) -> str:
+    """The runs as plain HTML, for readers without JavaScript and tools that read the page as text. The script
+    hides it once the interactive page has rendered."""
+    from tools.live_evidence import CHALLENGES
+
+    rows, totals, sources = [], {"zet": 0, "wm": 0, "hm": 0, "nv": 0, "raised": 0, "confirmed": 0}, set()
+    for run in bundle["runs"]:
+        result, trace = run["result"], run["trace"]
+        reads = [line for line in trace if line["action"] == "zetaris_query"]
+        for line in reads:
+            parts = line["output_summary"].split(" · ")
+            sources |= {table.split(".")[0] for table in (parts[1] if len(parts) > 1 else "").split(" + ") if table}
+        calls = [line for line in trace if line["action"] == "context_call"]
+        hmem = sum(1 for line in calls if line["input_summary"].startswith("H-MEM"))
+        live = [call for call in result.get("model_calls") or [] if not call.get("recorded")]
+        found = [m for line in trace if line.get("model") and (m := CHALLENGES.search(line["output_summary"]))]
+        raised, confirmed = sum(int(m.group(1)) for m in found), sum(int(m.group(2)) for m in found)
+        for key, value in (("zet", len(reads)), ("wm", len(calls) - hmem), ("hm", hmem), ("nv", len(live)),
+                           ("raised", raised), ("confirmed", confirmed)):
+            totals[key] += value
+        plan = result.get("recommendation") or {}
+        model = ", ".join(sorted({call["model"].split("/")[-1] for call in live})) or "none"
+        rows.append(f"<tr><td>{escape((result.get('asset') or {}).get('asset_id', ''))}</td><td>{escape(run['label'])}"
+                    f"</td><td>{escape((plan.get('action') or '').split(';')[0])}</td>"
+                    f"<td>{escape(str(plan.get('deadline') or '-'))}</td><td>{len(reads)}</td><td>{len(calls) - hmem}</td>"
+                    f"<td>{hmem}</td><td>{escape(model)}: {raised} challenges, {confirmed} confirmed by code</td></tr>")
+    when = ((bundle.get("health") or {}).get("captured_at") or "")[:16].replace("T", " ")
+    return (f"<h2>Live runs in this replay</h2><p>{len(bundle['runs'])} live runs, recorded up to {escape(when)} UTC, "
+            f"against Zetaris ({escape(', '.join(sorted(sources)))}: three AWS RDS Postgres databases and an S3 file), "
+            "the Meterless context service (World Model and H-MEM) and Meterless Nightshift serving NVIDIA Nemotron. "
+            f"Together: {totals['zet']} live Zetaris SQL reads, {totals['wm']} World Model queries, {totals['hm']} "
+            f"H-MEM searches and {totals['nv']} live Nemotron replies with {totals['raised']} checkable challenges, "
+            f"{totals['confirmed']} of them confirmed by code. With JavaScript this page shows each brief, the evidence "
+            "behind every claim, the gates, every call and the decision log. Raw run files: "
+            f'<a href="{REPO}/tree/main/docs/replay/data">docs/replay/data</a>.</p>'
+            '<div class="scroll"><table><tr><th>Engine</th><th>Case</th><th>Decision</th><th>Deadline</th>'
+            "<th>Zetaris reads</th><th>World Model</th><th>H-MEM</th><th>Nemotron via Nightshift</th></tr>"
+            + "".join(rows) + "</table></div>")
+
+
 def build(data: Path = DATA, page: Path = PAGE) -> Path:
     bundle = load_runs(data)
     if not bundle["runs"]:
         raise SystemExit(f"No recorded runs in {data}; record them first (--record, live mode).")
     payload = json.dumps(bundle, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     page.parent.mkdir(parents=True, exist_ok=True)
-    page.write_text(TEMPLATE.replace("/*DATA*/", payload), encoding="utf-8")
+    page.write_text(TEMPLATE.replace("/*STATIC*/", static_summary(bundle)).replace("/*DATA*/", payload),
+                    encoding="utf-8")
     (page.parent / ".nojekyll").touch()          # serve docs/ as plain files on GitHub Pages
     return page
 
@@ -225,6 +267,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 13px; }
   <div class="links" id="links"></div>
   <div id="services"></div>
 </header>
+<section class="card" id="static-summary">/*STATIC*/</section>
 <h2 class="band">Sponsor technology across these runs</h2>
 <div class="sponsors" id="sponsors"></div>
 <h2 class="band">Choose a run</h2>
@@ -235,6 +278,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 13px; }
 <script id="data" type="application/json">/*DATA*/</script>
 <script>
 const D = JSON.parse(document.getElementById("data").textContent);
+document.getElementById("static-summary").hidden = true;      // the interactive page below replaces it
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const fmt = (x, d = 1) => (x === null || x === undefined || x === "") ? "–" : (typeof x === "number" ? (Number.isInteger(x) ? String(x) : x.toFixed(d)) : esc(x));
 const when = iso => { if (!iso) return "–"; const t = new Date(iso); return t.toLocaleString("en-GB", {day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC"}) + " UTC"; };

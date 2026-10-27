@@ -26,6 +26,9 @@ def test_page_embeds_every_run_and_matches_a_fresh_build(tmp_path):
     html = page.read_text(encoding="utf-8")
     data = json.loads(re.search(r'<script id="data" type="application/json">(.*?)</script>', html, re.DOTALL).group(1))
     assert len(data["runs"]) == len(replay.CASES) and (tmp_path / ".nojekyll").exists()
+    text = re.sub(r"<[^>]+>", " ", re.sub(r"<script.*?</script>", "", html, flags=re.DOTALL))
+    assert "Live runs in this replay" in text and "live Zetaris SQL reads" in text, "no summary without JavaScript"
+    assert all(run["result"]["asset"]["asset_id"] in text for run in data["runs"])
     assert replay.PAGE.read_text(encoding="utf-8") == html, "docs/index.html is stale: run uv run task replay"
 
 
