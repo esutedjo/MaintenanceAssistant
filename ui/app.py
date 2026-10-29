@@ -51,9 +51,9 @@ from ui.brief import (
     CSS, GROUP_NOTES, approval_gate, asks_for_inspection, asset_context, check_summary, decision_boundaries,
     decision_log_rows, decision_rows, document_groups, driving_sensor_figure, escalation_ack_label, escalation_view,
     fault_display, fault_label, fleet_decision_targets, fmt_rul, inspection_rows, load_trace_file, md_lines, md_text,
-    needs_tick, needs_urgent_reason, rul_context, sensor_trend_rows, signature_sensors, similar_case_summaries,
-    status_chips, strip_links, trace_chips, trace_rows, verdict_headline, verdict_meta, verdict_tone, world_eligibility,
-    zetaris_sql,
+    needs_tick, needs_urgent_reason, rerun_zetaris, rul_context, sensor_trend_rows, signature_sensors,
+    similar_case_summaries, status_chips, strip_links, trace_chips, trace_rows, verdict_headline, verdict_meta,
+    verdict_tone, world_eligibility, zetaris_sql,
 )
 from ui.engine import component_probabilities, credit, engine_figure, engine_svg, photos
 from ui.explain import explain
@@ -306,7 +306,8 @@ def _brief_page(settings, pack: dict) -> None:
     _details(case, ctx, pack)
 
 
-def _evidence_list(case: dict, ids: list[str], heading: str = "Evidence behind this") -> None:
+def _evidence_list(case: dict, ids: list[str], heading: str = "Evidence behind this",
+                   key: str = "ev") -> None:
     evidence = case.get("evidence") or {}
     ids = [i for i in dict.fromkeys(ids) if i in evidence]
     if not ids:
@@ -319,11 +320,24 @@ def _evidence_list(case: dict, ids: list[str], heading: str = "Evidence behind t
             st.caption(md_text(f"{item.get('kind')} · {item.get('source')} · produced by {item.get('produced_by')}"))
             if item.get("degraded"):
                 st.warning(md_text(item["degraded"]))
-            _query_source(item)
+            _query_source(item, f"{key}_{eid}")
             st.json(item.get("content") or {})
 
 
-def _query_source(item: dict) -> None:
+def _zetaris_ready(settings) -> bool:
+    """Live mode with a Zetaris client that can be constructed; never logs a URL, org ID or key."""
+    if settings is None:
+        return False
+    try:
+        if settings.sample_mode or settings.zetaris_mode != "live":
+            return False
+        key = settings.zetaris_api_key.get_secret_value() if settings.zetaris_api_key else ""
+        return bool(settings.zetaris_base_url and settings.zetaris_org_id and key)
+    except Exception:
+        return False
+
+
+def _query_source(item: dict, key: str) -> None:
     """The stored Zetaris statement above the raw record, or a note when the read never left the snapshot."""
     shown = zetaris_sql(item)
     if shown is not None:
@@ -334,8 +348,45 @@ def _query_source(item: dict) -> None:
         names = ", ".join(shown["tables"])
         st.caption(md_text(f"{names} · {clock}" if names else clock))
         st.caption("Read-only; paste into the Zetaris SQL editor to see the same rows.")
+        settings = get_settings()
+        live = _zetaris_ready(settings)
+        if st.button("Re-run in Zetaris", key=f"zetaris_rerun_{key}", disabled=not live):
+            _show_zetaris_rerun(item, settings)
+        elif not live:
+            st.caption("Needs live mode")
     elif str(item.get("source") or "").startswith("snapshot:"):
         st.caption("Snapshot, no Zetaris call")
+
+
+def _show_zetaris_rerun(item: dict, settings) -> None:
+    """Display-only: the live SELECT is not written into the case file."""
+    try:
+        from tools.zetaris import ZetarisClient
+
+        client = ZetarisClient(settings, timeout_s=settings.zetaris_timeout_s)
+        try:
+            result = rerun_zetaris(item, client.run_select)
+        finally:
+            client.close()
+    except Exception:
+        st.caption("Zetaris did not answer; the brief is unchanged.")
+        return
+    if result.get("error"):
+        st.caption(md_text(result["error"]))
+        return
+    st.caption("Ran just now through Zetaris · read-only")
+    seconds = result["duration_s"]
+    clock = (f"{seconds:.2f} s" if isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
+             else "time not recorded")
+    count = result["row_count"]
+    line = f"{count} row{'s' if count != 1 else ''} · {clock}"
+    if result["matches"] is True:
+        line += " · matches the stored row count"
+    elif result["matches"] is False:
+        stored = (item.get("content") or {}).get("rows")
+        line += f" · does not match the stored row count ({stored} stored)"
+    st.caption(md_text(line))
+    st.dataframe(result["rows"], hide_index=True, width="stretch")
 
 
 def _ids_by_agent(case: dict, agent: str) -> list[str]:
@@ -882,7 +933,7 @@ def _tab_life(case: dict, pack: dict) -> None:
              f"{rc['cycles_per_day']} flights a day. On the active fleet, A and B disagree by more than "
              f"{rc['divergence_limit']} flights for {facts['divergence_share']:.0%} of engines; those engines get an "
              "inspection recommendation.")
-    _evidence_list(case, [x["evidence_id"] for x in (a, b, anomaly) if x])
+    _evidence_list(case, [x["evidence_id"] for x in (a, b, anomaly) if x], key="life")
 
 
 def _tab_fault(case: dict, ctx: dict, pack: dict) -> None:
@@ -905,7 +956,7 @@ def _tab_fault(case: dict, ctx: dict, pack: dict) -> None:
     ids = [m["evidence_id"] for m in modes[:1]]
     ids += [d["evidence_id"] for d in (findings.get("drivers") or [])[:1]]
     ids += [telemetry["id"]] if telemetry else []
-    _evidence_list(case, ids)
+    _evidence_list(case, ids, key="fault")
 
 
 def _engine_view(case: dict, ctx: dict, pack: dict) -> None:
@@ -939,7 +990,7 @@ def _engine_view(case: dict, ctx: dict, pack: dict) -> None:
 
 def _tab_plan(case: dict) -> None:
     _plan(case.get("recommendation") or {})
-    _evidence_list(case, _ids_by_agent(case, "maint_planner"))
+    _evidence_list(case, _ids_by_agent(case, "maint_planner"), key="plan")
 
 
 def _tab_history(case: dict, ctx: dict) -> None:
@@ -971,7 +1022,7 @@ def _tab_history(case: dict, ctx: dict) -> None:
         st.caption("From the removal work orders in case memory (synthetic CMMS records); the shop's own words, in "
                    "sentence case.")
     ids = [x["id"] for x in (history, schedule, slots) if x]
-    _evidence_list(case, ids + ((case.get("findings") or {}).get("similar_cases") or []))
+    _evidence_list(case, ids + ((case.get("findings") or {}).get("similar_cases") or []), key="hist")
 
 
 def _tab_checks(case: dict) -> None:
@@ -1090,6 +1141,7 @@ def _evidence(case: dict) -> None:
             st.caption(md_text(f"{item.get('source')} · {item.get('produced_by')}"))
             if item.get("degraded"):
                 st.warning(md_text(item["degraded"]))
+            _query_source(item, f"all_{eid}")
             st.json(item.get("content") or {})
 
 

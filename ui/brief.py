@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -876,6 +877,37 @@ def zetaris_sql(item: dict) -> dict | None:
                 tables.append(qualified)
     return {"sql": statement.sql(dialect="spark", pretty=True), "tables": tables,
             "duration_s": content.get("duration_s")}
+
+
+ZETARIS_RERUN_FAIL = "Zetaris did not answer; the brief is unchanged."
+
+
+def rerun_zetaris(item: dict, run_select) -> dict:
+    """Re-run the stored statement through ``run_select``. Display only: the evidence item is not modified.
+
+    ``run_select`` is ``ZetarisClient.run_select`` (or a test double): it must apply ``guard_select``.
+    This function never builds SQL and never writes the result back onto the record.
+    """
+    blank = {"rows": None, "row_count": None, "duration_s": None, "matches": None, "error": ZETARIS_RERUN_FAIL}
+    shown = zetaris_sql(item)
+    content = item.get("content") if isinstance(item.get("content"), dict) else None
+    sql = content.get("query") if content else None
+    if shown is None or not isinstance(sql, str) or not sql.strip():
+        return {**blank, "error": "not a Zetaris record"}
+    try:
+        start = time.monotonic()
+        result = run_select(sql)
+        duration_s = round(time.monotonic() - start, 2)
+        frame = result if isinstance(result, pd.DataFrame) else pd.DataFrame(
+            result.get("data") or [], columns=result.get("headers") or None)
+        row_count = len(frame)
+        stored = content.get("rows")
+        matches = None
+        if isinstance(stored, int) and not isinstance(stored, bool):
+            matches = stored == row_count
+        return {"rows": frame, "row_count": row_count, "duration_s": duration_s, "matches": matches, "error": None}
+    except Exception:
+        return blank
 
 
 def load_trace_file(path) -> list[dict[str, Any]]:
